@@ -3,10 +3,11 @@ using Dapper;
 using Microsoft.Data.Sqlite;
 using RaidZero.Backend.Data;
 using RaidZero.Shared.Ids;
+using RaidZero.Shared.Inventory;
 
 namespace Game.Backend.Tests;
 
-/// <summary>Migration 0002 (the 'discarded' state) and the foreign-keys-off rebuild path it relies on.</summary>
+/// <summary>Migrations 0002 and 0003 (the 'discarded' and 'merged' states) and the foreign-keys-off rebuild path they rely on.</summary>
 public sealed class ItemStateMigrationTests : IDisposable
 {
     private const string Now = "2026-10-26T20:00:00Z";
@@ -30,6 +31,7 @@ public sealed class ItemStateMigrationTests : IDisposable
 
         Assert.Equal(new[] { true, false, false, true }, migrations.Select(m => m.DisableForeignKeys).ToArray());
         Assert.True(Migrator.LoadEmbedded().Single(m => m.Version == 2).DisableForeignKeys);
+        Assert.True(Migrator.LoadEmbedded().Single(m => m.Version == 3).DisableForeignKeys);
     }
 
     [Fact]
@@ -44,8 +46,10 @@ public sealed class ItemStateMigrationTests : IDisposable
         Assert.Equal(ItemStates.All.Order().ToArray(), inDatabase);
     }
 
-    [Fact]
-    public async Task FreshDatabase_AcceptsDiscardedItems()
+    [Theory]
+    [InlineData(ItemStates.Discarded)]
+    [InlineData(ItemStates.Merged)]
+    public async Task FreshDatabase_AcceptsRemovedItemStates(string state)
     {
         await MigrateAsync();
         var player = await InsertPlayerAsync();
@@ -55,9 +59,9 @@ public sealed class ItemStateMigrationTests : IDisposable
             INSERT INTO item_instances (id, def_id, owner_id, state, origin, created_at, updated_at)
             VALUES (@id, 'loot_fuse', @player, @state, 'starter', @Now, @Now)
             """,
-            new { id = Uuid7.NewId(), player, state = ItemStates.Discarded, Now }, transaction: tx));
+            new { id = Uuid7.NewId(), player, state, Now }, transaction: tx));
 
-        var count = await Db.ReadAsync(c => c.ExecuteScalarAsync<long>("SELECT COUNT(*) FROM item_instances WHERE state = 'discarded'"));
+        var count = await Db.ReadAsync(c => c.ExecuteScalarAsync<long>("SELECT COUNT(*) FROM item_instances WHERE state = @state", new { state }));
         Assert.Equal(1, count);
     }
 
@@ -73,7 +77,7 @@ public sealed class ItemStateMigrationTests : IDisposable
 
         var version = await Migrator.MigrateAsync(Db, Migrator.LoadEmbedded());
 
-        Assert.Equal(2, version);
+        Assert.Equal(Migrator.LoadEmbedded()[^1].Version, version);
         Assert.Equal(3, await Db.ReadAsync(c => c.ExecuteScalarAsync<long>("SELECT COUNT(*) FROM item_instances")));
         Assert.Equal("ok", await Db.ReadAsync(c => c.ExecuteScalarAsync<string>("PRAGMA integrity_check")));
 
@@ -85,6 +89,24 @@ public sealed class ItemStateMigrationTests : IDisposable
 
         // The recreated unique index still allows one live item per named slot.
         await Assert.ThrowsAsync<SqliteException>(() => InsertRifleAsync(character!, player));
+    }
+
+    [Theory]
+    [InlineData(RemovalReason.Discarded, ItemStates.Discarded)]
+    [InlineData(RemovalReason.Merged, ItemStates.Merged)]
+    public void EveryRemovalReason_HasAState(RemovalReason reason, string state)
+    {
+        Assert.Equal(state, ItemStates.ForRemoval(reason));
+        Assert.Contains(state, ItemStates.All);
+    }
+
+    [Fact]
+    public void ForRemoval_CoversEveryReason()
+    {
+        foreach (var reason in Enum.GetValues<RemovalReason>())
+        {
+            Assert.Contains(ItemStates.ForRemoval(reason), ItemStates.All);
+        }
     }
 
     [Fact]
