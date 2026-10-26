@@ -10,6 +10,8 @@ internal static class TestPaths
 
     public static string CatalogPath => Path.Combine(RepoRoot, "shared", "catalog", "item_catalog.json");
 
+    public static string StarterKitPath => Path.Combine(RepoRoot, "backend", "Game.Backend", "starter_kit.json");
+
     private static string FindRepoRoot()
     {
         foreach (var start in new[] { AppContext.BaseDirectory, Directory.GetCurrentDirectory() })
@@ -52,4 +54,14 @@ public sealed class TempDatabase : IDisposable
             // Best effort; the OS cleans the temp folder eventually.
         }
     }
+}
+
+/// <summary>A clock tests can move.</summary>
+public sealed class FixedTime : TimeProvider
+{
+    public FixedTime(DateTimeOffset now) => Now = now;
+
+    public DateTimeOffset Now { get; set; }
+
+    public override DateTimeOffset GetUtcNow() => Now;
 }

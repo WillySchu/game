@@ -16,6 +16,9 @@ public static class JsonDefaults
         options.DictionaryKeyPolicy = JsonNamingPolicy.SnakeCaseLower;
         options.ReadCommentHandling = JsonCommentHandling.Skip;
         options.AllowTrailingCommas = true;
+
+        // Leaves out x, y and durability where they don't apply, which keeps item trees small.
+        options.DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull;
         return options;
     }
 }

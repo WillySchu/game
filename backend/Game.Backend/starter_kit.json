@@ -1,0 +1,50 @@
+{
+  "character": [
+    {
+      "def_id": "rifle_ak_basic",
+      "slot": "primary",
+      "durability": 1.0,
+      "children": [
+        {
+          "def_id": "mag_ak_30",
+          "slot": "magazine",
+          "children": [{ "def_id": "ammo_545_ps", "slot": "rounds", "quantity": 30 }]
+        }
+      ]
+    },
+    { "def_id": "armor_vest_light", "slot": "armor", "durability": 1.0 },
+    {
+      "def_id": "rig_chest_basic",
+      "slot": "rig",
+      "children": [
+        {
+          "def_id": "mag_ak_30",
+          "slot": "grid",
+          "children": [{ "def_id": "ammo_545_ps", "slot": "rounds", "quantity": 30 }]
+        },
+        { "def_id": "medkit_basic", "slot": "grid" }
+      ]
+    },
+    { "def_id": "backpack_small", "slot": "backpack" }
+  ],
+  "stash": [
+    { "def_id": "currency_credits", "slot": "grid", "quantity": 50000 },
+    { "def_id": "ammo_545_ps", "slot": "grid", "quantity": 60 },
+    { "def_id": "ammo_545_ps", "slot": "grid", "quantity": 60 },
+    {
+      "def_id": "pistol_pm",
+      "slot": "grid",
+      "durability": 1.0,
+      "children": [
+        {
+          "def_id": "mag_pm_8",
+          "slot": "magazine",
+          "children": [{ "def_id": "ammo_9x18_pst", "slot": "rounds", "quantity": 8 }]
+        }
+      ]
+    },
+    { "def_id": "ammo_9x18_pst", "slot": "grid", "quantity": 50 },
+    { "def_id": "mag_ak_30", "slot": "grid" },
+    { "def_id": "medkit_basic", "slot": "grid" }
+  ]
+}

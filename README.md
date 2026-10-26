@@ -22,12 +22,33 @@ Requires the .NET 10 SDK.
 
 ```sh
 dotnet test                                   # everything should pass before you change anything
-dotnet run --project backend/Game.Backend     # http://localhost:5080
-curl http://localhost:5080/healthz            # {"status":"ok","catalog_version":"...","schema_version":1}
+dotnet run --project backend/Game.Backend     # http://localhost:5080, Development mode
+curl http://localhost:5080/healthz            # {"status":"ok","catalog_version":"...","schema_version":3}
+
+# Log in (creates the player with the starter kit the first time), then read the profile
+TOKEN=$(curl -s -X POST localhost:5080/v1/auth/dev-login -H 'Content-Type: application/json' \
+          -d '{"display_name":"Sam"}' | jq -r .token)
+curl -s localhost:5080/v1/me/profile -H "Authorization: Bearer $TOKEN" | jq
 ```
 
 On first start the backend creates `backend/Game.Backend/data/raidzero.db`, switches it to WAL mode and applies
 the migrations. Delete the `data/` folder to start over.
+
+## Configuration
+
+Settings live under `Backend` in `appsettings.json`, with Development overrides in `appsettings.Development.json`.
+
+| Setting | Default | Notes |
+| --- | --- | --- |
+| `DatabasePath` | `data/raidzero.db` | Relative to the project folder |
+| `CatalogPath` | `../../shared/catalog/item_catalog.json` | |
+| `StarterKitPath` | `starter_kit.json` | Validated against the catalog at startup |
+| `DevLoginEnabled` | `false` (`true` in Development) | When off, `/v1/auth/dev-login` doesn't exist |
+| `TokenSigningKey` | none (a dev-only key in Development) | Base64, 32+ bytes: `openssl rand -base64 32`. Required |
+| `TokenLifetimeHours` | `72` | Tokens can't be revoked early, short of rotating the key |
+
+The key in `appsettings.Development.json` is for local runs only. Real deployments set
+`Backend__TokenSigningKey` as an environment variable.
 
 ## Rules of the road
 
@@ -60,6 +81,13 @@ the migrations. Delete the `data/` folder to start over.
   character, the game server gives it a whole raid, so pickups and looting are moves between roots.
 - A successful batch replaces the node objects. Keep item IDs, not `ItemNode` references.
 
+**Players and auth**
+- Endpoints that need a player sit under the `/v1/me` group, which requires a token; read the caller with
+  `user.GetPlayerId()`. Dev login only issues tokens, so Steam login later replaces that one endpoint.
+- New players get the starter kit (`starter_kit.json`) in the same transaction that creates them, with one
+  `grant` ledger entry listing every item. Grid items in the kit may leave out x and y to take the next free spot.
+- `ItemRows` converts between `item_instances` rows and item trees; the stash endpoint builds on it.
+
 **Shared code**
 - `shared/Game.Shared` targets netstandard2.1 with C# 9 and nullable off, because Unity compiles it too.
   The compiler enforces the language version; avoid .NET APIs newer than netstandard2.1
@@ -80,7 +108,6 @@ Unity writes `.meta` files into that folder the first time it imports it. Commit
 
 ## What's next (backend)
 
-1. Dev login, profile and a starter kit grant
-2. `POST /v1/me/inventory/ops` with optimistic concurrency on `profile_version`
-3. Raid tickets, join, outcomes, close, and the lease-expiry abort job
-4. A fake game server test harness that plays whole raids over HTTP
+1. `POST /v1/me/inventory/ops` with optimistic concurrency on `profile_version`
+2. Raid tickets, join, outcomes, close, and the lease-expiry abort job
+3. A fake game server test harness that plays whole raids over HTTP
