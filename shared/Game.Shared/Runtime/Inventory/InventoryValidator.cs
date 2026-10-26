@@ -240,7 +240,7 @@ namespace RaidZero.Shared.Inventory
             }
         }
 
-        private static bool Accepts(SlotSpec spec, ItemDefinition def)
+        internal static bool Accepts(SlotSpec spec, ItemDefinition def)
         {
             if (spec.Accepts == null || def.Tags == null)
             {
@@ -319,5 +319,17 @@ namespace RaidZero.Shared.Inventory
         public const string OutOfBounds = "out_of_bounds";
         public const string Overlap = "overlap";
         public const string TooDeep = "too_deep";
+
+        // Returned by InventoryTree operations.
+        public const string UnknownOp = "unknown_op";
+        public const string ItemNotFound = "item_not_found";
+        public const string TargetNotFound = "target_not_found";
+        public const string RootItem = "root_item";
+        public const string Cycle = "cycle";
+        public const string NoSpace = "no_space";
+        public const string NotStackable = "not_stackable";
+        public const string StackMismatch = "stack_mismatch";
+        public const string StackFull = "stack_full";
+        public const string InvalidQuantity = "invalid_quantity";
     }
 }

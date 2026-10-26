@@ -50,6 +50,12 @@ the migrations. Delete the `data/` folder to start over.
   thing in CI. If you edit the file by hand, the error message tells you the correct value.
 - `def_id`s are permanent once an item has existed in anyone's stash.
 
+**Inventory operations**
+- `InventoryTree` applies move, split, merge and discard in all-or-nothing batches and returns a `ChangeSet`
+  (created, updated, removed with a reason). Its roots are its scope: the backend gives it one player's stash and
+  character, the game server gives it a whole raid, so pickups and looting are moves between roots.
+- A successful batch replaces the node objects. Keep item IDs, not `ItemNode` references.
+
 **Shared code**
 - `shared/Game.Shared` targets netstandard2.1 with C# 9 and nullable off, because Unity compiles it too.
   The compiler enforces the language version; avoid .NET APIs newer than netstandard2.1
@@ -70,8 +76,7 @@ Unity writes `.meta` files into that folder the first time it imports it. Commit
 
 ## What's next (backend)
 
-1. Inventory operations in Game.Shared (move, split, merge, discard) with tests
-2. Dev login, profile and a starter kit grant
-3. `POST /v1/me/inventory/ops` with optimistic concurrency on `profile_version`
-4. Raid tickets, join, outcomes, close, and the lease-expiry abort job
-5. A fake game server test harness that plays whole raids over HTTP
+1. Dev login, profile and a starter kit grant
+2. `POST /v1/me/inventory/ops` with optimistic concurrency on `profile_version`
+3. Raid tickets, join, outcomes, close, and the lease-expiry abort job
+4. A fake game server test harness that plays whole raids over HTTP
