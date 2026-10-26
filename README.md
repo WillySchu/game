@@ -29,7 +29,17 @@ curl http://localhost:5080/healthz            # {"status":"ok","catalog_version"
 TOKEN=$(curl -s -X POST localhost:5080/v1/auth/dev-login -H 'Content-Type: application/json' \
           -d '{"display_name":"Sam"}' | jq -r .token)
 curl -s localhost:5080/v1/me/profile -H "Authorization: Bearer $TOKEN" | jq
+
+# Rearrange the stash: send the profile_version your view is based on, plus a batch of ops
+curl -s -X POST localhost:5080/v1/me/inventory/ops -H "Authorization: Bearer $TOKEN" \
+     -H 'Content-Type: application/json' \
+     -d '{"expected_version":0,"ops":[{"op":"move","item_id":"<id>","to":{"parent_id":"<stash id>","slot":"grid","x":9,"y":29}}]}'
 ```
+
+`POST /v1/me/inventory/ops` answers 200 with the new `profile_version` (and the IDs of any stacks a split
+created), 409 `version_conflict` with the current version when the client's view is stale (refetch the
+profile, then retry), or 422 `invalid_op` with the failing `op_index` and a `reason` such as `slot_occupied`.
+Nothing is written unless the whole batch succeeds.
 
 On first start the backend creates `backend/Game.Backend/data/raidzero.db`, switches it to WAL mode and applies
 the migrations. Delete the `data/` folder to start over.
@@ -86,7 +96,12 @@ The key in `appsettings.Development.json` is for local runs only. Real deploymen
   `user.GetPlayerId()`. Dev login only issues tokens, so Steam login later replaces that one endpoint.
 - New players get the starter kit (`starter_kit.json`) in the same transaction that creates them, with one
   `grant` ledger entry listing every item. Grid items in the kit may leave out x and y to take the next free spot.
-- `ItemRows` converts between `item_instances` rows and item trees; the stash endpoint builds on it.
+- `ItemRows` converts between `item_instances` rows and item trees.
+- Stash edits (`StashInventory`) run in one transaction: version check, `InventoryTree.Apply`, write the change
+  list, bump `profile_version`, one `inventory` ledger entry. Moved items are lifted out of their old positions
+  before any final position is written, because the one-item-per-slot index is checked after every statement.
+  Keep that two-phase write if you touch this code; `SwappingMagazines_SavesWhateverOrderTheChangesComeIn` fails
+  without it.
 
 **Shared code**
 - `shared/Game.Shared` targets netstandard2.1 with C# 9 and nullable off, because Unity compiles it too.
@@ -108,6 +123,5 @@ Unity writes `.meta` files into that folder the first time it imports it. Commit
 
 ## What's next (backend)
 
-1. `POST /v1/me/inventory/ops` with optimistic concurrency on `profile_version`
-2. Raid tickets, join, outcomes, close, and the lease-expiry abort job
-3. A fake game server test harness that plays whole raids over HTTP
+1. Raid tickets, join, outcomes, close, and the lease-expiry abort job
+2. A fake game server test harness that plays whole raids over HTTP

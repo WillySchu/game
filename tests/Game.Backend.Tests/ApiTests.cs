@@ -197,4 +197,144 @@ public class ApiTests
         Assert.Equal("ok", health.GetProperty("status").GetString());
         Assert.Equal(RaidZero.Backend.Data.Migrator.LoadEmbedded()[^1].Version, health.GetProperty("schema_version").GetInt32());
     }
+
+    // ---- POST /v1/me/inventory/ops ----
+
+    private static async Task<JsonElement> ProfileAsync(ApiHost api, string token) =>
+        await (await api.GetAsync("/v1/me/profile", token)).Content.ReadFromJsonAsync<JsonElement>();
+
+    private static JsonElement StashChild(JsonElement profile, string defId) =>
+        profile.GetProperty("stash").GetProperty("children").EnumerateArray().First(c => c.GetProperty("def_id").GetString() == defId);
+
+    private static Task<HttpResponseMessage> PostOpsAsync(ApiHost api, string? token, object body)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, "/v1/me/inventory/ops") { Content = JsonContent.Create(body) };
+        if (token is not null)
+        {
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        }
+
+        return api.Client.SendAsync(request);
+    }
+
+    [Fact]
+    public async Task InventoryOps_MoveRoundTrip()
+    {
+        await using var api = await ApiHost.StartAsync();
+        var (_, token) = await api.LoginAsync();
+        var profile = await ProfileAsync(api, token);
+        var stashId = profile.GetProperty("stash").GetProperty("id").GetString();
+        var medkitId = StashChild(profile, "medkit_basic").GetProperty("id").GetString();
+
+        var response = await PostOpsAsync(api, token, new
+        {
+            expected_version = 0,
+            ops = new object[] { new { op = "move", item_id = medkitId, to = new { parent_id = stashId, slot = "grid", x = 9, y = 29 } } },
+        });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(1, body.GetProperty("profile_version").GetInt64());
+        Assert.Equal(0, body.GetProperty("created").GetArrayLength());
+
+        var after = await ProfileAsync(api, token);
+        Assert.Equal(1, after.GetProperty("profile_version").GetInt64());
+        var moved = after.GetProperty("stash").GetProperty("children").EnumerateArray().Single(c => c.GetProperty("id").GetString() == medkitId);
+        Assert.Equal(9, moved.GetProperty("x").GetInt32());
+        Assert.Equal(29, moved.GetProperty("y").GetInt32());
+    }
+
+    [Fact]
+    public async Task InventoryOps_SplitReportsTheNewItem()
+    {
+        await using var api = await ApiHost.StartAsync();
+        var (_, token) = await api.LoginAsync();
+        var profile = await ProfileAsync(api, token);
+        var stashId = profile.GetProperty("stash").GetProperty("id").GetString();
+        var ammoId = StashChild(profile, "ammo_545_ps").GetProperty("id").GetString();
+
+        var response = await PostOpsAsync(api, token, new
+        {
+            expected_version = 0,
+            ops = new object[] { new { op = "split", item_id = ammoId, quantity = 10, to = new { parent_id = stashId, slot = "grid" } } },
+        });
+
+        var created = (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("created");
+        Assert.Equal(1, created.GetArrayLength());
+        Assert.Equal(0, created[0].GetProperty("op_index").GetInt32());
+        Assert.True(Uuid7.IsValid(created[0].GetProperty("item_id").GetString()!));
+    }
+
+    [Fact]
+    public async Task InventoryOps_StaleVersion_Is409WithTheCurrentVersion()
+    {
+        await using var api = await ApiHost.StartAsync();
+        var (_, token) = await api.LoginAsync();
+        var profile = await ProfileAsync(api, token);
+        var medkitId = StashChild(profile, "medkit_basic").GetProperty("id").GetString();
+
+        var response = await PostOpsAsync(api, token, new { expected_version = 7, ops = new object[] { new { op = "discard", item_id = medkitId } } });
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("version_conflict", body.GetProperty("error").GetString());
+        Assert.Equal(0, body.GetProperty("profile_version").GetInt64());
+    }
+
+    [Fact]
+    public async Task InventoryOps_ARejectedOp_Is422WithItsIndexAndReason()
+    {
+        await using var api = await ApiHost.StartAsync();
+        var (_, token) = await api.LoginAsync();
+        var profile = await ProfileAsync(api, token);
+        var characterId = profile.GetProperty("character").GetProperty("id").GetString();
+        var medkitId = StashChild(profile, "medkit_basic").GetProperty("id").GetString();
+
+        var response = await PostOpsAsync(api, token, new
+        {
+            expected_version = 0,
+            ops = new object[]
+            {
+                new { op = "discard", item_id = StashChild(profile, "ammo_9x18_pst").GetProperty("id").GetString() },
+                new { op = "move", item_id = medkitId, to = new { parent_id = characterId, slot = "primary" } },
+            },
+        });
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("invalid_op", body.GetProperty("error").GetString());
+        Assert.Equal(1, body.GetProperty("op_index").GetInt32());
+        Assert.Equal("slot_mismatch", body.GetProperty("reason").GetString());
+        Assert.Equal(0, (await ProfileAsync(api, token)).GetProperty("profile_version").GetInt64());
+    }
+
+    [Fact]
+    public async Task InventoryOps_MalformedRequests_Are422()
+    {
+        await using var api = await ApiHost.StartAsync();
+        var (_, token) = await api.LoginAsync();
+        var discard = new { op = "discard", item_id = Uuid7.NewId() };
+
+        foreach (var body in new object[]
+        {
+            new { ops = new object[] { discard } },
+            new { expected_version = 0, ops = Array.Empty<object>() },
+            new { expected_version = 0, ops = Enumerable.Repeat<object>(discard, 51).ToArray() },
+        })
+        {
+            var response = await PostOpsAsync(api, token, body);
+            Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+            Assert.Equal("invalid_request", (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("error").GetString());
+        }
+    }
+
+    [Fact]
+    public async Task InventoryOps_WithoutAToken_Is401()
+    {
+        await using var api = await ApiHost.StartAsync();
+
+        var response = await PostOpsAsync(api, null, new { expected_version = 0, ops = new object[] { new { op = "discard", item_id = Uuid7.NewId() } } });
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
 }

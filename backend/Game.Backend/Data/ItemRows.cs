@@ -17,7 +17,7 @@ public static class ItemRows
     /// <summary>Inserts a whole tree, root first. Every item gets the same owner, state and origin.</summary>
     public static async Task<List<string>> InsertTreeAsync(
         SqliteConnection connection, SqliteTransaction tx, ItemNode root, string? parentId,
-        string ownerId, string state, string origin, string now)
+        string ownerId, string state, string origin, string now, string? originRaidId = null)
     {
         var inserted = new List<string>();
         var pending = new Stack<(ItemNode Node, string? ParentId)>();
@@ -29,9 +29,9 @@ public static class ItemRows
             await connection.ExecuteAsync(
                 """
                 INSERT INTO item_instances
-                    (id, def_id, owner_id, state, parent_id, slot, grid_x, grid_y, rotated, quantity, durability, origin, created_at, updated_at)
+                    (id, def_id, owner_id, state, parent_id, slot, grid_x, grid_y, rotated, quantity, durability, origin, origin_raid_id, created_at, updated_at)
                 VALUES
-                    (@Id, @DefId, @OwnerId, @State, @ParentId, @Slot, @GridX, @GridY, @Rotated, @Quantity, @Durability, @Origin, @Now, @Now)
+                    (@Id, @DefId, @OwnerId, @State, @ParentId, @Slot, @GridX, @GridY, @Rotated, @Quantity, @Durability, @Origin, @OriginRaidId, @Now, @Now)
                 """,
                 new
                 {
@@ -47,6 +47,7 @@ public static class ItemRows
                     Quantity = (long)node.Quantity,
                     node.Durability,
                     Origin = origin,
+                    OriginRaidId = originRaidId,
                     Now = now,
                 },
                 transaction: tx);

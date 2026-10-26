@@ -33,6 +33,7 @@ public static class BackendApp
         builder.Services.AddSingleton(sp => StarterKit.LoadFile(Resolve(options.StarterKitPath), sp.GetRequiredService<ItemCatalog>()));
         builder.Services.AddSingleton(sp => PlayerTokens.FromOptions(options, sp.GetRequiredService<TimeProvider>()));
         builder.Services.AddSingleton<PlayerStore>();
+        builder.Services.AddSingleton<StashInventory>();
 
         builder.Services
             .AddAuthentication(PlayerTokenHandler.SchemeName)

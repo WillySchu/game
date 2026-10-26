@@ -203,6 +203,13 @@ namespace RaidZero.Shared.Inventory
                     return error;
                 }
 
+                // Dropping an item back where it already is changes nothing, so it isn't reported as updated.
+                if (ParentOf[item.Id] == parent && item.Slot == placement.Slot && item.X == placement.X
+                    && item.Y == placement.Y && item.Rotated == placement.Rotated)
+                {
+                    return null;
+                }
+
                 Touch(item);
                 Detach(item);
                 Attach(item, parent, placement);

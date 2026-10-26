@@ -87,6 +87,19 @@ public class InventoryTreeTests
     }
 
     [Fact]
+    public void Move_ToWhereTheItemAlreadyIs_ChangesNothing()
+    {
+        var result = _tree.Apply(
+        [
+            InventoryOp.Move(_gpu.Id, InventoryTarget.Grid(_stash.Id, 2, 0)),
+            InventoryOp.Move(_rifle.Id, InventoryTarget.NamedSlot(_character.Id, SlotNames.Primary)),
+        ]);
+
+        AssertOk(result);
+        Assert.True(result.Changes.IsEmpty);
+    }
+
+    [Fact]
     public void Move_CanOverlapTheCellsTheItemIsLeaving()
     {
         // The 3x3 backpack at (0,2) shifts one column right, onto two of its own columns.
