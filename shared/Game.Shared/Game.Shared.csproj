@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Code shared by the Unity client, the Unity game server and the backend.
+
+    Constraints, because Unity compiles this folder too (see package.json):
+    - netstandard2.1 and C# 9, which is what Unity 6 supports.
+    - No package dependencies. JSON parsing happens at the edges: the backend
+      uses System.Text.Json, Unity uses Newtonsoft. Both map these classes with
+      a snake_case naming policy, so there are no serializer attributes here.
+    - Nullable reference types stay off; Unity warns on annotations otherwise.
+  -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <RootNamespace>RaidZero.Shared</RootNamespace>
+    <AssemblyName>RaidZero.Shared</AssemblyName>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Game.Shared.Tests" />
+  </ItemGroup>
+
+</Project>

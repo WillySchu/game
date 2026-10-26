@@ -1,0 +1,7 @@
+{
+  "name": "com.raidzero.shared",
+  "version": "0.1.0",
+  "displayName": "Raid Zero Shared",
+  "description": "Item model, catalog, inventory validation and IDs shared by the Unity client, game server and backend.",
+  "unity": "6000.0"
+}

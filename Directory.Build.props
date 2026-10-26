@@ -1,0 +1,17 @@
+<Project>
+  <!--
+    Shared build settings for every .NET project in the repo.
+
+    UseArtifactsOutput moves bin/ and obj/ into ./artifacts at the repo root.
+    This matters for shared/Game.Shared, which Unity imports as a local package:
+    if obj/ lived inside that folder, Unity would try to compile the generated
+    AssemblyInfo files and fail with duplicate attribute errors.
+  -->
+  <PropertyGroup>
+    <UseArtifactsOutput>true</UseArtifactsOutput>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- A new security advisory on a package should warn loudly, not break everyone's build overnight. -->
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);NU1900;NU1901;NU1902;NU1903;NU1904</WarningsNotAsErrors>
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+</Project>
