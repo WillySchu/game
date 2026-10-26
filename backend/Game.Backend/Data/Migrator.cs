@@ -1,6 +1,6 @@
-using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 using Dapper;
 
 namespace RaidZero.Backend.Data;
@@ -11,10 +11,17 @@ namespace RaidZero.Backend.Data;
 ///
 /// It refuses to start when the database is ahead of the code, or when a migration that already ran
 /// has since been edited. Both usually mean the wrong build is pointed at the wrong database.
+///
+/// A migration that rebuilds a table (SQLite's only way to change a CHECK constraint or a column's type)
+/// starts with the line <c>-- migrator: foreign_keys=off</c>. It then runs with foreign keys off and is
+/// committed only if a foreign key check finds nothing dangling. See 0002_discarded_state.sql.
 /// </summary>
-public static class Migrator
+public static partial class Migrator
 {
     private const string ResourcePrefix = "migrations/";
+
+    [GeneratedRegex(@"\A\s*--\s*migrator:\s*foreign_keys\s*=\s*off\s*$", RegexOptions.IgnoreCase | RegexOptions.Multiline)]
+    private static partial Regex ForeignKeysOffDirective();
 
     public static IReadOnlyList<Migration> LoadEmbedded() => Load(
         typeof(Migrator).Assembly.GetManifestResourceNames()
@@ -34,7 +41,7 @@ public static class Migrator
                 throw new InvalidOperationException($"Migration '{fileName}' must be named like 0001_description.sql.");
             }
 
-            migrations.Add(new Migration(version, stem[(underscore + 1)..], sql, Checksum(sql)));
+            migrations.Add(new Migration(version, stem[(underscore + 1)..], sql, Checksum(sql), ForeignKeysOffDirective().IsMatch(sql)));
         }
 
         migrations.Sort((a, b) => a.Version.CompareTo(b.Version));
@@ -89,14 +96,15 @@ public static class Migrator
         var appliedVersions = applied.Select(r => (int)r.Version).ToHashSet();
         foreach (var migration in migrations.Where(m => !appliedVersions.Contains(m.Version)))
         {
-            var ran = await database.WriteAsync(async (connection, tx) =>
+            var ran = false;
+            async Task ApplyAsync(Microsoft.Data.Sqlite.SqliteConnection connection, Microsoft.Data.Sqlite.SqliteTransaction tx)
             {
                 // Re-check under the write lock in case another process applied it since the read above.
                 var already = await connection.ExecuteScalarAsync<long>(
                     "SELECT COUNT(*) FROM schema_migrations WHERE version = @Version", new { migration.Version }, transaction: tx);
                 if (already > 0)
                 {
-                    return false;
+                    return;
                 }
 
                 await connection.ExecuteAsync(migration.Sql, transaction: tx);
@@ -104,8 +112,17 @@ public static class Migrator
                     "INSERT INTO schema_migrations (version, name, checksum, applied_at) VALUES (@Version, @Name, @Checksum, @AppliedAt)",
                     new { migration.Version, migration.Name, migration.Checksum, AppliedAt = DateTime.UtcNow.ToString("O") },
                     transaction: tx);
-                return true;
-            }, ct);
+                ran = true;
+            }
+
+            if (migration.DisableForeignKeys)
+            {
+                await database.WriteWithoutForeignKeysAsync(ApplyAsync, ct);
+            }
+            else
+            {
+                await database.WriteAsync(ApplyAsync, ct);
+            }
 
             if (ran)
             {
@@ -141,4 +158,5 @@ public static class Migrator
     }
 }
 
-public sealed record Migration(int Version, string Name, string Sql, string Checksum);
+/// <param name="DisableForeignKeys">Set by a first line of <c>-- migrator: foreign_keys=off</c>.</param>
+public sealed record Migration(int Version, string Name, string Sql, string Checksum, bool DisableForeignKeys = false);

@@ -103,4 +103,37 @@ public sealed class Database
             await work(connection, transaction);
             return true;
         }, ct);
+
+    /// <summary>
+    /// For migrations that rebuild a table, which SQLite can't do with foreign keys enforced.
+    /// Enforcement is off for this one connection (SQLite ignores the pragma inside a transaction, so it
+    /// is set first), and the work commits only if PRAGMA foreign_key_check finds nothing dangling.
+    /// The next open turns enforcement back on, even if this pooled connection is reused.
+    /// Never use this for gameplay writes.
+    /// </summary>
+    internal async Task WriteWithoutForeignKeysAsync(Func<SqliteConnection, SqliteTransaction, Task> work, CancellationToken ct = default)
+    {
+        await _writeGate.WaitAsync(ct);
+        try
+        {
+            await using var connection = await OpenAsync(ct);
+            await connection.ExecuteAsync("PRAGMA foreign_keys = OFF;");
+            await using var transaction = connection.BeginTransaction(deferred: false);
+            await work(connection, transaction);
+
+            var dangling = await connection.ExecuteScalarAsync<long>(
+                "SELECT COUNT(*) FROM pragma_foreign_key_check", transaction: transaction);
+            if (dangling > 0)
+            {
+                throw new InvalidOperationException(
+                    $"Rolled back: the change would leave {dangling} row(s) referencing something that doesn't exist.");
+            }
+
+            await transaction.CommitAsync(ct);
+        }
+        finally
+        {
+            _writeGate.Release();
+        }
+    }
 }

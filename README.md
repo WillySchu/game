@@ -42,6 +42,10 @@ the migrations. Delete the `data/` folder to start over.
 - Add `backend/Game.Backend/Migrations/000N_description.sql`. They're embedded in the assembly and run at startup.
 - Never edit a migration that has run anywhere. The backend refuses to start if an applied migration's checksum
   changes. Line endings don't count, so a Windows checkout is fine.
+- SQLite can't alter a CHECK constraint or a column type, so those changes rebuild the table. Start such a
+  migration with `-- migrator: foreign_keys=off`; it then runs without foreign key enforcement and commits only if
+  `PRAGMA foreign_key_check` finds nothing dangling. Copy `0002_discarded_state.sql` as the pattern.
+- Item states live in `ItemStates`; a test fails if they drift from the database's CHECK constraint.
 
 **Item catalog**
 - `catalog_version` is a hash of every rule-relevant field (sizes, stacks, tags, slots, grids). Display names are
