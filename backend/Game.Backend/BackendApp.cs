@@ -5,6 +5,7 @@ using RaidZero.Backend.Auth;
 using RaidZero.Backend.Catalog;
 using RaidZero.Backend.Data;
 using RaidZero.Backend.Players;
+using RaidZero.Backend.Raids;
 using RaidZero.Shared.Catalog;
 
 namespace RaidZero.Backend;
@@ -34,11 +35,19 @@ public static class BackendApp
         builder.Services.AddSingleton(sp => PlayerTokens.FromOptions(options, sp.GetRequiredService<TimeProvider>()));
         builder.Services.AddSingleton<PlayerStore>();
         builder.Services.AddSingleton<StashInventory>();
+        builder.Services.AddSingleton(_ => new GameServerRegistry(options.Servers));
+        builder.Services.AddSingleton<RaidService>();
+        builder.Services.AddHostedService<RaidReaper>();
 
         builder.Services
             .AddAuthentication(PlayerTokenHandler.SchemeName)
-            .AddScheme<AuthenticationSchemeOptions, PlayerTokenHandler>(PlayerTokenHandler.SchemeName, null);
-        builder.Services.AddAuthorization();
+            .AddScheme<AuthenticationSchemeOptions, PlayerTokenHandler>(PlayerTokenHandler.SchemeName, null)
+            .AddScheme<AuthenticationSchemeOptions, ServerTokenHandler>(ServerTokenHandler.SchemeName, null);
+        builder.Services.AddAuthorization(o =>
+        {
+            o.AddPolicy(Policies.Player, p => p.AddAuthenticationSchemes(PlayerTokenHandler.SchemeName).RequireClaim(PlayerClaims.PlayerIdType));
+            o.AddPolicy(Policies.GameServer, p => p.AddAuthenticationSchemes(ServerTokenHandler.SchemeName).RequireClaim(ServerClaims.ServerIdType));
+        });
 
         var app = builder.Build();
         app.UseAuthentication();
@@ -50,6 +59,7 @@ public static class BackendApp
             return Results.Ok(new { Status = "ok", CatalogVersion = items.Version, SchemaVersion = schema });
         });
         app.MapPlayerEndpoints(options);
+        app.MapRaidEndpoints();
 
         return app;
     }
@@ -63,6 +73,7 @@ public static class BackendApp
         var catalog = app.Services.GetRequiredService<ItemCatalog>();
         var kit = app.Services.GetRequiredService<StarterKit>();
         app.Services.GetRequiredService<PlayerTokens>();
+        var servers = app.Services.GetRequiredService<GameServerRegistry>();
 
         var database = app.Services.GetRequiredService<Database>();
         await database.InitializeAsync(ct);
@@ -70,7 +81,11 @@ public static class BackendApp
 
         var devLogin = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<BackendOptions>>().Value.DevLoginEnabled;
         app.Logger.LogInformation(
-            "Ready: {ItemCount} item definitions (catalog {CatalogVersion}), starter kit of {KitItems} items, schema version {SchemaVersion}, dev login {DevLogin}, database {DatabasePath}",
-            catalog.Count, catalog.Version, kit.ItemCount, schemaVersion, devLogin ? "ON" : "off", database.FilePath);
+            "Ready: {ItemCount} item definitions (catalog {CatalogVersion}), starter kit of {KitItems} items, schema version {SchemaVersion}, {ServerCount} game server(s), dev login {DevLogin}, database {DatabasePath}",
+            catalog.Count, catalog.Version, kit.ItemCount, schemaVersion, servers.All.Count, devLogin ? "ON" : "off", database.FilePath);
+        if (servers.All.Count == 0)
+        {
+            app.Logger.LogWarning("No game servers are configured (Backend:Servers), so raid tickets will fail with no_server_available.");
+        }
     }
 }

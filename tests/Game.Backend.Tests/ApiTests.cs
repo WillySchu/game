@@ -18,6 +18,10 @@ public sealed class ApiHost : IAsyncDisposable
 {
     public static readonly string SigningKey = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
 
+    public const string ServerId = "dev-local";
+
+    public static readonly string ServerToken = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+
     private readonly WebApplication _app;
     private readonly string _folder;
 
@@ -42,6 +46,8 @@ public sealed class ApiHost : IAsyncDisposable
                 ["Backend:StarterKitPath"] = TestPaths.StarterKitPath,
                 ["Backend:DevLoginEnabled"] = devLogin.ToString(),
                 ["Backend:TokenSigningKey"] = SigningKey,
+                ["Backend:Servers:0:Id"] = ServerId,
+                ["Backend:Servers:0:Token"] = ServerToken,
                 ["Logging:LogLevel:Default"] = "Warning",
             });
             builder.WebHost.UseUrls("http://127.0.0.1:0");

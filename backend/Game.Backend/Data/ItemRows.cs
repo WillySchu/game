@@ -26,31 +26,7 @@ public static class ItemRows
         while (pending.Count > 0)
         {
             var (node, parent) = pending.Pop();
-            await connection.ExecuteAsync(
-                """
-                INSERT INTO item_instances
-                    (id, def_id, owner_id, state, parent_id, slot, grid_x, grid_y, rotated, quantity, durability, origin, origin_raid_id, created_at, updated_at)
-                VALUES
-                    (@Id, @DefId, @OwnerId, @State, @ParentId, @Slot, @GridX, @GridY, @Rotated, @Quantity, @Durability, @Origin, @OriginRaidId, @Now, @Now)
-                """,
-                new
-                {
-                    node.Id,
-                    node.DefId,
-                    OwnerId = ownerId,
-                    State = state,
-                    ParentId = parent,
-                    node.Slot,
-                    GridX = (long?)node.X,
-                    GridY = (long?)node.Y,
-                    Rotated = node.Rotated ? 1L : 0L,
-                    Quantity = (long)node.Quantity,
-                    node.Durability,
-                    Origin = origin,
-                    OriginRaidId = originRaidId,
-                    Now = now,
-                },
-                transaction: tx);
+            await InsertItemAsync(connection, tx, node, parent, ownerId, state, origin, now, originRaidId);
             inserted.Add(node.Id);
 
             for (int i = node.Children.Count - 1; i >= 0; i--)
@@ -61,6 +37,36 @@ public static class ItemRows
 
         return inserted;
     }
+
+    /// <summary>Inserts one item, ignoring its children.</summary>
+    public static Task InsertItemAsync(
+        SqliteConnection connection, SqliteTransaction tx, ItemNode node, string? parentId,
+        string ownerId, string state, string origin, string now, string? originRaidId = null) =>
+        connection.ExecuteAsync(
+            """
+            INSERT INTO item_instances
+                (id, def_id, owner_id, state, parent_id, slot, grid_x, grid_y, rotated, quantity, durability, origin, origin_raid_id, created_at, updated_at)
+            VALUES
+                (@Id, @DefId, @OwnerId, @State, @ParentId, @Slot, @GridX, @GridY, @Rotated, @Quantity, @Durability, @Origin, @OriginRaidId, @Now, @Now)
+            """,
+            new
+            {
+                node.Id,
+                node.DefId,
+                OwnerId = ownerId,
+                State = state,
+                ParentId = parentId,
+                node.Slot,
+                GridX = (long?)node.X,
+                GridY = (long?)node.Y,
+                Rotated = node.Rotated ? 1L : 0L,
+                Quantity = (long)node.Quantity,
+                node.Durability,
+                Origin = origin,
+                OriginRaidId = originRaidId,
+                Now = now,
+            },
+            transaction: tx);
 
     /// <summary>
     /// Loads every item a player holds outside raids (state 'stash') and links them into trees.

@@ -23,7 +23,7 @@ Requires the .NET 10 SDK.
 ```sh
 dotnet test                                   # everything should pass before you change anything
 dotnet run --project backend/Game.Backend     # http://localhost:5080, Development mode
-curl http://localhost:5080/healthz            # {"status":"ok","catalog_version":"...","schema_version":3}
+curl http://localhost:5080/healthz            # {"status":"ok","catalog_version":"...","schema_version":4}
 
 # Log in (creates the player with the starter kit the first time), then read the profile
 TOKEN=$(curl -s -X POST localhost:5080/v1/auth/dev-login -H 'Content-Type: application/json' \
@@ -56,6 +56,11 @@ Settings live under `Backend` in `appsettings.json`, with Development overrides 
 | `DevLoginEnabled` | `false` (`true` in Development) | When off, `/v1/auth/dev-login` doesn't exist |
 | `TokenSigningKey` | none (a dev-only key in Development) | Base64, 32+ bytes: `openssl rand -base64 32`. Required |
 | `TokenLifetimeHours` | `72` | Tokens can't be revoked early, short of rotating the key |
+| `Servers` | none (`dev-local` in Development) | Game servers: `Id`, `Token` (32+ chars), and the `Host`/`Port` clients connect to |
+| `Raids:TicketSeconds` | `60` | How long a player has to connect after getting a ticket |
+| `Raids:LeaseSeconds` | `60` | A raid whose server sends no heartbeat for this long is aborted and refunded |
+| `Raids:MaxPlayersPerRaid` | `4` | |
+| `Raids:ReaperIntervalSeconds` | `10` | How often the abort job runs |
 
 The key in `appsettings.Development.json` is for local runs only. Real deployments set
 `Backend__TokenSigningKey` as an environment variable.
@@ -103,6 +108,24 @@ The key in `appsettings.Development.json` is for local runs only. Real deploymen
   Keep that two-phase write if you touch this code; `SwappingMagazines_SavesWhateverOrderTheChangesComeIn` fails
   without it.
 
+**Raids**
+- Flow: `POST /v1/me/raid-tickets` → the game server calls `/v1/server/raids/{id}/join` when the player connects
+  (their gear moves into the raid's pool) → `heartbeat` every 10 s → `outcomes` per player (extracted or died)
+  → `close`. Players read the result at `GET /v1/me/raids/{id}`.
+- Game server calls authenticate with the server's token and must send `X-Catalog-Version`. Calls that change
+  things also need an `Idempotency-Key`: a retry with the same key replays the stored answer, and reusing a key
+  for a different request is a 409. Write reports to a durable outbox and retry them with their original key.
+- Player tokens don't work on `/v1/server`, and server tokens don't work on `/v1/me`.
+- A player's stash is locked (409 `in_raid`) from ticket until their raid resolves.
+- The character container never leaves home; checkout moves only its contents and unhooks the top-level ones,
+  so gear lost in a raid can't block re-equipping.
+- Extractions claim known IDs out of the pool with conditional updates and insert unknown IDs as raid loot.
+  Like stash edits, they unhook old positions before writing new ones (`Extract_AfterSwappingMagazinesInTheRaid`).
+- If a server stops heartbeating, `RaidReaper` aborts the raid: players still inside get their snapshot back,
+  minus anything another player already extracted; extracted players keep their loot.
+- Tickets join the server's open raid when the map matches and there's room, so co-op and looting other players
+  work on one dev server. Each server runs one raid at a time.
+
 **Shared code**
 - `shared/Game.Shared` targets netstandard2.1 with C# 9 and nullable off, because Unity compiles it too.
   The compiler enforces the language version; avoid .NET APIs newer than netstandard2.1
@@ -123,5 +146,7 @@ Unity writes `.meta` files into that folder the first time it imports it. Commit
 
 ## What's next (backend)
 
-1. Raid tickets, join, outcomes, close, and the lease-expiry abort job
-2. A fake game server test harness that plays whole raids over HTTP
+The Milestone 1 backend is complete: every endpoint in the API doc exists and is covered by tests, including
+`RaidApiTests`, which plays whole raids over HTTP the way the game server will. Next is wiring the Unity game
+server to it (`BackendClient`, the durable outbox, and the join-token authenticator). After that come Steam
+login in place of dev login, and a matchmaker that spreads raids across several servers.

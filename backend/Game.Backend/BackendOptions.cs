@@ -24,4 +24,39 @@ public sealed class BackendOptions
     public string TokenSigningKey { get; set; } = "";
 
     public double TokenLifetimeHours { get; set; } = 72;
+
+    /// <summary>Game servers allowed to run raids. Each authenticates with its own token.</summary>
+    public List<GameServerOptions> Servers { get; set; } = [];
+
+    public RaidOptions Raids { get; set; } = new();
+}
+
+public sealed class GameServerOptions
+{
+    /// <summary>Stored on each raid it runs, e.g. "dev-local".</summary>
+    public string Id { get; set; } = "";
+
+    /// <summary>The server's secret, at least 32 characters. It sends this as its bearer token.</summary>
+    public string Token { get; set; } = "";
+
+    /// <summary>Where clients connect, as handed out in raid tickets.</summary>
+    public string Host { get; set; } = "127.0.0.1";
+
+    public int Port { get; set; } = 7770;
+}
+
+public sealed class RaidOptions
+{
+    /// <summary>How long a player has to connect after getting a ticket.</summary>
+    public int TicketSeconds { get; set; } = 60;
+
+    /// <summary>A raid is aborted, and its players refunded, if the server goes this long without a heartbeat.</summary>
+    public int LeaseSeconds { get; set; } = 60;
+
+    public int MaxPlayersPerRaid { get; set; } = 4;
+
+    /// <summary>How often the background job looks for raids whose lease has run out.</summary>
+    public int ReaperIntervalSeconds { get; set; } = 10;
+
+    public bool ReaperEnabled { get; set; } = true;
 }

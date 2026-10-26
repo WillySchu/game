@@ -2,6 +2,7 @@ using System.Text.Json;
 using Dapper;
 using Microsoft.Data.Sqlite;
 using RaidZero.Backend.Data;
+using RaidZero.Backend.Raids;
 using RaidZero.Shared.Catalog;
 using RaidZero.Shared.Inventory;
 
@@ -13,6 +14,9 @@ public enum StashOpsStatus
     PlayerNotFound,
     VersionConflict,
     Rejected,
+
+    /// <summary>The player holds a raid ticket or is in a raid; their stash is locked until it resolves.</summary>
+    InRaid,
 }
 
 /// <summary>What happened to a batch of stash operations.</summary>
@@ -30,6 +34,11 @@ public sealed class StashOpsResult
 
     /// <summary>The rejected op, or null when the batch as a whole failed validation.</summary>
     public int? FailedOpIndex { get; private init; }
+
+    /// <summary>The raid holding the player, when <see cref="Status"/> is InRaid.</summary>
+    public string? RaidId { get; private init; }
+
+    internal static StashOpsResult Locked(string raidId) => new() { Status = StashOpsStatus.InRaid, RaidId = raidId };
 
     internal static StashOpsResult Applied(long version, IReadOnlyList<CreatedItem> created) =>
         new() { Status = StashOpsStatus.Applied, ProfileVersion = version, Created = created };
@@ -74,6 +83,14 @@ public sealed class StashInventory
             if (player is null)
             {
                 return StashOpsResult.NotFound();
+            }
+
+            // Gear in a raid is the game server's to move. Locking the stash until the raid resolves also keeps
+            // a refund or extraction from landing in a slot the player has since filled.
+            var raidId = await RaidService.LiveRaidIdAsync(c, tx, playerId, Timestamps.Format(_time.GetUtcNow()));
+            if (raidId is not null)
+            {
+                return StashOpsResult.Locked(raidId);
             }
 
             if (player.ProfileVersion != expectedVersion)

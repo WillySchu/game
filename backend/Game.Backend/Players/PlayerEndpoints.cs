@@ -21,6 +21,8 @@ public static class PlayerEndpoints
     /// <param name="Reason">An InventoryErrorCodes value, such as "slot_occupied".</param>
     public sealed record InvalidOpError(string Error, int? OpIndex, string Reason, string Message);
 
+    public sealed record InRaidError(string Error, string RaidId, string Message);
+
     public static void MapPlayerEndpoints(this WebApplication app, BackendOptions options)
     {
         if (options.DevLoginEnabled)
@@ -28,7 +30,7 @@ public static class PlayerEndpoints
             app.MapPost("/v1/auth/dev-login", DevLoginAsync);
         }
 
-        var me = app.MapGroup("/v1/me").RequireAuthorization();
+        var me = app.MapGroup("/v1/me").RequireAuthorization(Policies.Player);
         me.MapGet("/profile", GetProfileAsync);
         me.MapPost("/inventory/ops", ApplyInventoryOpsAsync);
     }
@@ -78,6 +80,7 @@ public static class PlayerEndpoints
             StashOpsStatus.Applied => Results.Ok(new InventoryOpsResponse(result.ProfileVersion, result.Created)),
             StashOpsStatus.VersionConflict => Results.Conflict(new VersionConflictError("version_conflict", result.ProfileVersion)),
             StashOpsStatus.Rejected => Results.UnprocessableEntity(new InvalidOpError("invalid_op", result.FailedOpIndex, result.Error!.Code, result.Error.Message)),
+            StashOpsStatus.InRaid => Results.Conflict(new InRaidError("in_raid", result.RaidId!, "Your gear is locked while you're in a raid.")),
             _ => Results.NotFound(new ApiError("player_not_found", "The player in this token no longer exists.")),
         };
     }
