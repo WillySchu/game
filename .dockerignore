@@ -1,0 +1,14 @@
+# Only the shared code, the catalog and the backend go into the image.
+.git
+.github
+artifacts
+unity
+deploy
+tests
+**/bin
+**/obj
+**/data
+**/*.db
+**/*.db-wal
+**/*.db-shm
+**/appsettings.Development.json

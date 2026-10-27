@@ -1,0 +1,39 @@
+# The backend on one VPS, behind Caddy for automatic HTTPS. See README.md in this folder.
+#   cp .env.example .env    # then fill it in
+#   docker compose up -d
+services:
+  backend:
+    image: ${BACKEND_IMAGE:?Set BACKEND_IMAGE in .env}
+    restart: unless-stopped
+    environment:
+      Backend__TokenSigningKey: ${TOKEN_SIGNING_KEY:?Set TOKEN_SIGNING_KEY in .env (openssl rand -base64 32)}
+      Backend__AdminToken: ${ADMIN_TOKEN:?Set ADMIN_TOKEN in .env (openssl rand -base64 32)}
+      Backend__Servers__0__Id: ${GAME_SERVER_ID:-vps-1}
+      Backend__Servers__0__Token: ${GAME_SERVER_TOKEN:?Set GAME_SERVER_TOKEN in .env (openssl rand -base64 32)}
+      Backend__Servers__0__Host: ${GAME_SERVER_HOST:?Set GAME_SERVER_HOST in .env (the address players connect to)}
+      Backend__Servers__0__Port: ${GAME_SERVER_PORT:-7770}
+    volumes:
+      - backend-data:/data
+    expose:
+      - "8080"
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN:?Set DOMAIN in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  backend-data:
+  caddy-data:
+  caddy-config:

@@ -1,0 +1,5 @@
+# Caddy gets and renews a Let's Encrypt certificate for $DOMAIN on its own; port 80 must be reachable.
+{$DOMAIN} {
+	encode zstd gzip
+	reverse_proxy backend:8080
+}
