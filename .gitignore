@@ -1,1 +1,6 @@
+artifacts/
+backend/**/data/
+*.db
+*.db-wal
+*.db-shm
 deploy/.env
