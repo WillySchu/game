@@ -6,7 +6,11 @@
 # Settings come from environment variables (Backend__TokenSigningKey and so on); see deploy/README.md.
 # The SQLite database lives in /data, which should be a volume.
 
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+# The image is built for linux/amd64 and linux/arm64. The SDK stage always runs natively on the build machine
+# (--platform=$BUILDPLATFORM) and runs once for both: the publish output is portable, since the app is
+# framework-dependent and SQLite's package ships its native library for every platform. Only the runtime stage
+# differs per architecture.
+FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
 # Restore from the project files alone, so the package layer stays cached until a project file changes.

@@ -161,8 +161,8 @@ Unity writes `.meta` files into that folder the first time it imports it. Commit
 ## CI and deployment
 
 GitHub Actions builds and tests everything on every push and pull request, with warnings as errors. Every push
-to `main` also builds `backend/Dockerfile` and pushes `ghcr.io/<owner>/<repo>/backend` tagged `latest` and
-`sha-<commit>`. `deploy/README.md` covers running it on a VPS behind Caddy, plus backups and restores.
+to `main` also builds `backend/Dockerfile` for amd64 and arm64 and pushes `ghcr.io/<owner>/<repo>/backend` tagged
+`latest` and `sha-<commit>`. `deploy/README.md` covers running it on a VPS behind Caddy, plus backups and restores.
 
 To build the image yourself, from the repo root: `docker build -f backend/Dockerfile -t raidzero-backend .`
 

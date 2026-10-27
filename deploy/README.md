@@ -11,7 +11,7 @@ game server ──HTTPS──▶ same, with its server token
 
 ## What you need
 
-- A small Linux VPS (1 vCPU, 1 GB RAM is plenty) with Docker and the Compose plugin installed.
+- A small Linux VPS (1 vCPU, 1 GB RAM is plenty), x86 or ARM, with Docker and the Compose plugin installed.
 - A DNS name, such as `api.yourgame.com`, with an A record pointing at the server.
 - Ports 80 and 443 open (Caddy needs 80 for the certificate challenge), plus the game server's UDP port if it
   runs on the same machine. Nothing else.
