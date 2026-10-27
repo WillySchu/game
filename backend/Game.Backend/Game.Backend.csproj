@@ -21,10 +21,16 @@
   <ItemGroup>
     <!-- Migrations ship inside the assembly, so the server never runs against a schema it doesn't know. -->
     <EmbeddedResource Include="Migrations\*.sql" LogicalName="migrations/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="Admin\admin.html" LogicalName="admin/admin.html" />
   </ItemGroup>
 
   <ItemGroup>
     <InternalsVisibleTo Include="Game.Backend.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Holds dev-only keys; it must never ship in a published build or a container image. -->
+    <Content Update="appsettings.Development.json" CopyToPublishDirectory="Never" />
   </ItemGroup>
 
 </Project>

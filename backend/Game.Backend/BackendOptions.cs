@@ -25,6 +25,15 @@ public sealed class BackendOptions
 
     public double TokenLifetimeHours { get; set; } = 72;
 
+    /// <summary>
+    /// Unlocks /v1/admin and the /admin page: player and item lookups, grants, raid aborts and backups. At least
+    /// 32 characters. When empty, none of the admin endpoints exist.
+    /// </summary>
+    public string AdminToken { get; set; } = "";
+
+    /// <summary>How many database backups to keep in the backups folder next to the database.</summary>
+    public int BackupsToKeep { get; set; } = 14;
+
     /// <summary>Game servers allowed to run raids. Each authenticates with its own token.</summary>
     public List<GameServerOptions> Servers { get; set; } = [];
 

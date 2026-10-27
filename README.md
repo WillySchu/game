@@ -41,6 +41,10 @@ created), 409 `version_conflict` with the current version when the client's view
 profile, then retry), or 422 `invalid_op` with the failing `op_index` and a `reason` such as `slot_occupied`.
 Nothing is written unless the whole batch succeeds.
 
+Open http://localhost:5080/admin for the admin tool and paste the `AdminToken` from
+`appsettings.Development.json`. It looks up players (their gear and full ledger), traces any item's history,
+grants items, lists and aborts live raids (refunding everyone inside), and takes database backups.
+
 On first start the backend creates `backend/Game.Backend/data/raidzero.db`, switches it to WAL mode and applies
 the migrations. Delete the `data/` folder to start over.
 
@@ -56,6 +60,8 @@ Settings live under `Backend` in `appsettings.json`, with Development overrides 
 | `DevLoginEnabled` | `false` (`true` in Development) | When off, `/v1/auth/dev-login` doesn't exist |
 | `TokenSigningKey` | none (a dev-only key in Development) | Base64, 32+ bytes: `openssl rand -base64 32`. Required |
 | `TokenLifetimeHours` | `72` | Tokens can't be revoked early, short of rotating the key |
+| `AdminToken` | none (a dev-only token in Development) | 32+ chars. Turns on `/admin` and `/v1/admin`; unset means they don't exist |
+| `BackupsToKeep` | `14` | Backups older than the newest N are deleted from `data/backups` |
 | `Servers` | none (`dev-local` in Development) | Game servers: `Id`, `Token` (32+ chars), and the `Host`/`Port` clients connect to |
 | `Raids:TicketSeconds` | `60` | How long a player has to connect after getting a ticket |
 | `Raids:LeaseSeconds` | `60` | A raid whose server sends no heartbeat for this long is aborted and refunded |
@@ -125,6 +131,12 @@ The key in `appsettings.Development.json` is for local runs only. Real deploymen
   minus anything another player already extracted; extracted players keep their loot.
 - Tickets join the server's open raid when the map matches and there's room, so co-op and looting other players
   work on one dev server. Each server runs one raid at a time.
+
+**Admin tool**
+- `/v1/admin` takes only the admin token; player and server tokens don't work there, and the admin token
+  doesn't work anywhere else. The `/admin` page is just static HTML that calls that API.
+- Everything it changes is ledgered: grants record a `grant` entry with `reason: "admin"` and the note you typed.
+- Backups use `VACUUM INTO`, so they're consistent copies taken while the backend keeps serving.
 
 **Shared code**
 - `shared/Game.Shared` targets netstandard2.1 with C# 9 and nullable off, because Unity compiles it too.

@@ -22,6 +22,8 @@ public sealed class ApiHost : IAsyncDisposable
 
     public static readonly string ServerToken = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
 
+    public static readonly string AdminToken = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+
     private readonly WebApplication _app;
     private readonly string _folder;
 
@@ -34,7 +36,7 @@ public sealed class ApiHost : IAsyncDisposable
 
     public HttpClient Client { get; }
 
-    public static async Task<ApiHost> StartAsync(bool devLogin = true)
+    public static async Task<ApiHost> StartAsync(bool devLogin = true, bool admin = true, int backupsToKeep = 14)
     {
         var folder = Path.Combine(Path.GetTempPath(), "raidzero-tests", Guid.NewGuid().ToString("N"));
         var app = BackendApp.Build([], builder =>
@@ -48,6 +50,8 @@ public sealed class ApiHost : IAsyncDisposable
                 ["Backend:TokenSigningKey"] = SigningKey,
                 ["Backend:Servers:0:Id"] = ServerId,
                 ["Backend:Servers:0:Token"] = ServerToken,
+                ["Backend:AdminToken"] = admin ? AdminToken : "",
+                ["Backend:BackupsToKeep"] = backupsToKeep.ToString(),
                 ["Logging:LogLevel:Default"] = "Warning",
             });
             builder.WebHost.UseUrls("http://127.0.0.1:0");

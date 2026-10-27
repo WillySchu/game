@@ -114,4 +114,5 @@ public static class Policies
 {
     public const string Player = "player";
     public const string GameServer = "game_server";
+    public const string Admin = "admin";
 }
