@@ -12,6 +12,8 @@ backend/Game.Backend/      ASP.NET Core backend: SQLite + Dapper, migrations, ca
 tests/Game.Shared.Tests/   Rules tests (fit, stacking, slots, IDs, catalog hashing)
 tests/Game.Backend.Tests/  Catalog loading, migrations and database behaviour against a real SQLite file
 unity/                     The Unity project goes here (unity/RaidZero)
+deploy/                    Running the backend on a VPS: Compose, Caddy, backups (see deploy/README.md)
+.github/workflows/ci.yml   Tests every push and pull request; pushes the backend image to GHCR from main
 ```
 
 Build output goes to `artifacts/` at the repo root, never next to the projects (see `Directory.Build.props`).
@@ -45,8 +47,8 @@ Open http://localhost:5080/admin for the admin tool and paste the `AdminToken` f
 `appsettings.Development.json`. It looks up players (their gear and full ledger), traces any item's history,
 grants items, lists and aborts live raids (refunding everyone inside), and takes database backups.
 
-On first start the backend creates `backend/Game.Backend/data/raidzero.db`, switches it to WAL mode and applies
-the migrations. Delete the `data/` folder to start over.
+On first start the backend creates `backend/Game.Backend/App_Data/raidzero.db`, switches it to WAL mode and
+applies the migrations. Delete the `App_Data/` folder to start over.
 
 ## Configuration
 
@@ -54,14 +56,14 @@ Settings live under `Backend` in `appsettings.json`, with Development overrides 
 
 | Setting | Default | Notes |
 | --- | --- | --- |
-| `DatabasePath` | `data/raidzero.db` | Relative to the project folder |
+| `DatabasePath` | `App_Data/raidzero.db` | Relative to the project folder; git ignores `App_Data/` |
 | `CatalogPath` | `../../shared/catalog/item_catalog.json` | |
 | `StarterKitPath` | `starter_kit.json` | Validated against the catalog at startup |
 | `DevLoginEnabled` | `false` (`true` in Development) | When off, `/v1/auth/dev-login` doesn't exist |
 | `TokenSigningKey` | none (a dev-only key in Development) | Base64, 32+ bytes: `openssl rand -base64 32`. Required |
 | `TokenLifetimeHours` | `72` | Tokens can't be revoked early, short of rotating the key |
 | `AdminToken` | none (a dev-only token in Development) | 32+ chars. Turns on `/admin` and `/v1/admin`; unset means they don't exist |
-| `BackupsToKeep` | `14` | Backups older than the newest N are deleted from `data/backups` |
+| `BackupsToKeep` | `14` | Backups older than the newest N are deleted from `App_Data/backups` |
 | `Servers` | none (`dev-local` in Development) | Game servers: `Id`, `Token` (32+ chars), and the `Host`/`Port` clients connect to |
 | `Raids:TicketSeconds` | `60` | How long a player has to connect after getting a ticket |
 | `Raids:LeaseSeconds` | `60` | A raid whose server sends no heartbeat for this long is aborted and refunded |
@@ -155,6 +157,14 @@ Unity project at `unity/RaidZero`, add this to `unity/RaidZero/Packages/manifest
 ```
 
 Unity writes `.meta` files into that folder the first time it imports it. Commit them.
+
+## CI and deployment
+
+GitHub Actions builds and tests everything on every push and pull request, with warnings as errors. Every push
+to `main` also builds `backend/Dockerfile` and pushes `ghcr.io/<owner>/<repo>/backend` tagged `latest` and
+`sha-<commit>`. `deploy/README.md` covers running it on a VPS behind Caddy, plus backups and restores.
+
+To build the image yourself, from the repo root: `docker build -f backend/Dockerfile -t raidzero-backend .`
 
 ## What's next (backend)
 

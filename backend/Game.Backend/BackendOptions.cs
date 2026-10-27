@@ -5,8 +5,11 @@ public sealed class BackendOptions
 {
     public const string SectionName = "Backend";
 
-    /// <summary>SQLite database file. Created, along with its folder, on first start.</summary>
-    public string DatabasePath { get; set; } = "data/raidzero.db";
+    /// <summary>
+    /// SQLite database file. Created, along with its folder, on first start. Not "data/": on macOS and Windows that
+    /// is the same folder as the source folder Data/, and the database would land among the code.
+    /// </summary>
+    public string DatabasePath { get; set; } = "App_Data/raidzero.db";
 
     /// <summary>The catalog exported from Unity. Shared with the game server builds.</summary>
     public string CatalogPath { get; set; } = "../../shared/catalog/item_catalog.json";

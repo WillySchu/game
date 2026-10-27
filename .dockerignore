@@ -7,7 +7,7 @@ deploy
 tests
 **/bin
 **/obj
-**/data
+**/App_Data
 **/*.db
 **/*.db-wal
 **/*.db-shm

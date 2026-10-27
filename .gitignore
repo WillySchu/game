@@ -1,6 +1,33 @@
+# .NET build output (Directory.Build.props sends everything here)
 artifacts/
-backend/**/data/
+TestResults/
+*.user
+.vs/
+.idea/
+.vscode/
+
+# Local backend databases (and their backups)
+backend/**/App_Data/
 *.db
 *.db-wal
 *.db-shm
+
+# Unity (project expected at unity/RaidZero)
+unity/*/[Ll]ibrary/
+unity/*/[Tt]emp/
+unity/*/[Oo]bj/
+unity/*/[Bb]uild/
+unity/*/[Bb]uilds/
+unity/*/[Ll]ogs/
+unity/*/[Uu]ser[Ss]ettings/
+unity/*/[Mm]emoryCaptures/
+unity/*/*.csproj
+unity/*/*.sln
+unity/*/*.slnx
+
+# OS noise
+.DS_Store
+Thumbs.db
+
+# Deployment secrets
 deploy/.env
