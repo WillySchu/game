@@ -7,10 +7,12 @@ Design docs: *Raid Zero: Backend API & Data Model* and *Raid Zero: Unity Client 
 
 ```
 shared/Game.Shared/        Code compiled by BOTH Unity and .NET: item tree, catalog, validation, UUIDv7
+shared/Game.BackendClient/ The game server's connection to the backend: join, heartbeats, durable outbox
 shared/catalog/            item_catalog.json, exported from Unity's ItemDefinition assets
 backend/Game.Backend/      ASP.NET Core backend: SQLite + Dapper, migrations, catalog loading
 tests/Game.Shared.Tests/   Rules tests (fit, stacking, slots, IDs, catalog hashing)
 tests/Game.Backend.Tests/  Catalog loading, migrations and database behaviour against a real SQLite file
+tests/Game.BackendClient.Tests/  The game server client against a fake backend, and whole raids against the real one
 unity/                     The Unity project goes here (unity/RaidZero)
 deploy/                    Running the backend on a VPS: Compose, Caddy, backups (see deploy/README.md)
 .github/workflows/ci.yml   Tests every push and pull request; pushes the backend image to GHCR from main
@@ -140,6 +142,22 @@ The key in `appsettings.Development.json` is for local runs only. Real deploymen
 - Everything it changes is ledgered: grants record a `grant` entry with `reason: "admin"` and the note you typed.
 - Backups use `VACUUM INTO`, so they're consistent copies taken while the backend keeps serving.
 
+**Game server client** (`shared/Game.BackendClient`, namespace `RaidZero.BackendApi`)
+- `BackendClient` is the game server's side of `/v1/server`: `JoinAsync` from the authenticator,
+  `ReportExtracted` / `ReportDied` from gameplay, `EndRaidAsync` when the raid is over. Heartbeats run on their own
+  from the first join until the close is answered.
+- Reports go through a durable outbox: one append-only journal per raid in the outbox directory, flushed to disk
+  before the call returns, delivered in order (the close always last) and retried with the same idempotency key
+  until the backend answers. A new run resends whatever the last one left. Refused reports are kept as
+  `{raid_id}.rejected.jsonl` and raise `ReportRejected`.
+- A wrong server token or catalog (401, 403, `catalog_mismatch`) keeps reports waiting instead of dropping them,
+  since fixing the server and restarting it will get them through.
+- Settings come from the command line, then the environment, and startup fails if a required one is missing:
+  `--backend-url` / `RAIDZERO_BACKEND_URL`, `--server-token` / `RAIDZERO_SERVER_TOKEN`, and optionally
+  `--outbox-dir` / `RAIDZERO_OUTBOX_DIR`. Each server process needs its own outbox directory.
+- Same rules as `Game.Shared` (Unity compiles it), plus one dependency: Newtonsoft.Json. JSON is built by hand
+  with `JObject`, never by reflection, so IL2CPP code stripping can't break it.
+
 **Shared code**
 - `shared/Game.Shared` targets netstandard2.1 with C# 9 and nullable off, because Unity compiles it too.
   The compiler enforces the language version; avoid .NET APIs newer than netstandard2.1
@@ -153,10 +171,13 @@ The key in `appsettings.Development.json` is for local runs only. Real deploymen
 Unity project at `unity/RaidZero`, add this to `unity/RaidZero/Packages/manifest.json`:
 
 ```json
-"com.raidzero.shared": "file:../../../shared/Game.Shared"
+"com.raidzero.shared": "file:../../../shared/Game.Shared",
+"com.raidzero.backendclient": "file:../../../shared/Game.BackendClient"
 ```
 
-Unity writes `.meta` files into that folder the first time it imports it. Commit them.
+The backend client pulls in Unity's `com.unity.nuget.newtonsoft-json` package by itself. Its assembly isn't
+auto-referenced: add `RaidZero.BackendClient` to the references of `Game.Server.asmdef` only, so client code can't
+reach it. Unity writes `.meta` files into both folders the first time it imports them. Commit them.
 
 ## CI and deployment
 
@@ -169,6 +190,7 @@ To build the image yourself, from the repo root: `docker build -f backend/Docker
 ## What's next (backend)
 
 The Milestone 1 backend is complete: every endpoint in the API doc exists and is covered by tests, including
-`RaidApiTests`, which plays whole raids over HTTP the way the game server will. Next is wiring the Unity game
-server to it (`BackendClient`, the durable outbox, and the join-token authenticator). After that come Steam
-login in place of dev login, and a matchmaker that spreads raids across several servers.
+`RaidApiTests`, which plays whole raids over HTTP the way the game server will. The game server's side of that
+conversation exists too, as `shared/Game.BackendClient`. Next is the thin Unity layer over it (the Fish-Net
+authenticator and passing the server's settings in), then Steam login in place of dev login, and a matchmaker
+that spreads raids across several servers.

@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The game server's side of the backend API: join, heartbeats, and outcome reports through a durable outbox.
+    Only the dedicated server (and host mode in the editor) uses it; it holds no secrets itself, since the
+    server token comes from the command line or the environment at startup.
+
+    Unity compiles this folder too (see package.json), so the same rules as Game.Shared apply:
+    netstandard2.1, C# 9, nullable off, nothing newer than netstandard2.1's APIs. Its one dependency is
+    Newtonsoft.Json, which Unity provides as com.unity.nuget.newtonsoft-json. JSON is read and written by
+    hand through JObject rather than by reflection, so IL2CPP's code stripping can't break it.
+  -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <RootNamespace>RaidZero.BackendApi</RootNamespace>
+    <AssemblyName>RaidZero.BackendClient</AssemblyName>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Unity's com.unity.nuget.newtonsoft-json 3.2.1 is Newtonsoft.Json 13.0.2; stay on 13.x. -->
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Game.Shared\Game.Shared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Game.BackendClient.Tests" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,10 @@
+{
+  "name": "com.raidzero.backendclient",
+  "version": "0.1.0",
+  "displayName": "Raid Zero Backend Client",
+  "description": "The game server's connection to the Raid Zero backend: join, heartbeats and a durable outbox for outcome reports.",
+  "unity": "6000.0",
+  "dependencies": {
+    "com.unity.nuget.newtonsoft-json": "3.2.1"
+  }
+}
