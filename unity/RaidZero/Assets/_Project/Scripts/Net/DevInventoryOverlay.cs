@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Text;
 using RaidZero.Shared.Inventory;
 using RaidZero.Shared.Raid;
@@ -67,7 +68,8 @@ namespace RaidZero.Net
                 DrawTree(client, character.Root, 0, isMine: true);
             }
 
-            foreach (var view in client.View.Containers.Values)
+            // A copy, because the Close button below removes a container from the view straight away.
+            foreach (var view in new List<ContainerView>(client.View.Containers.Values))
             {
                 if (view.Kind == RootKind.Character)
                 {
