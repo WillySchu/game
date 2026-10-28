@@ -1,0 +1,21 @@
+{
+    "name": "Game.Net",
+    "rootNamespace": "RaidZero.Net",
+    "references": [
+        "FishNet.Runtime",
+        "RaidZero.Shared",
+        "RaidZero.Raid",
+        "RaidZero.BackendClient"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "Newtonsoft.Json.dll"
+    ],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

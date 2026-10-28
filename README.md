@@ -15,7 +15,7 @@ tests/Game.Shared.Tests/   Rules tests (fit, stacking, slots, IDs, catalog hashi
 tests/Game.Backend.Tests/  Catalog loading, migrations and database behaviour against a real SQLite file
 tests/Game.BackendClient.Tests/  The game server client against a fake backend, and whole raids against the real one
 tests/Game.Raid.Tests/     Raid inventory rules, plus a raid with looting played through to the backend's stashes
-unity/                     The Unity project goes here (unity/RaidZero)
+unity/RaidZero/            The Unity project; unity/RAID-NETWORKING.md covers how it connects to all of the above
 deploy/                    Running the backend on a VPS: Compose, Caddy, backups (see deploy/README.md)
 .github/workflows/ci.yml   Tests every push and pull request; pushes the backend image to GHCR from main
 ```
@@ -227,5 +227,6 @@ The Milestone 1 backend is complete: every endpoint in the API doc exists and is
 `RaidApiTests`, which plays whole raids over HTTP the way the game server will. The game server's side of that
 conversation exists too, as `shared/Game.BackendClient`, and so do the raid's inventory rules, in
 `shared/Game.Raid`, along with the inventory's network protocol. Next are the thin Unity layers over them
-(the Fish-Net authenticator, and two broadcasts carrying the protocol's bytes), then Steam login in place of
-dev login, and a matchmaker that spreads raids across several servers.
+(the Fish-Net authenticator, and two broadcasts carrying the protocol's bytes), drafted in
+`unity/RaidZero/Assets/_Project/Scripts/Net`, then Steam login in place of dev login, and a matchmaker that
+spreads raids across several servers.
