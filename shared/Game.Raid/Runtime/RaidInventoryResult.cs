@@ -1,24 +1,9 @@
 using System.Collections.Generic;
 using RaidZero.Shared.Inventory;
+using RaidZero.Shared.Raid;
 
 namespace RaidZero.Raid
 {
-    /// <summary>What kind of root container something is, which decides who may touch it.</summary>
-    public enum RootKind
-    {
-        /// <summary>A living player's gear. Only that player can touch it.</summary>
-        Character,
-
-        /// <summary>A dead player's gear. Anyone can open and loot it.</summary>
-        Body,
-
-        /// <summary>A crate or other loot container placed in the level.</summary>
-        Container,
-
-        /// <summary>One dropped item lying on the ground. Disappears once it's empty.</summary>
-        Ground,
-    }
-
     /// <summary>
     /// The outcome of one request, and what to tell everyone about it.
     ///
@@ -110,18 +95,5 @@ namespace RaidZero.Raid
         public ItemNode Root { get; }
 
         public bool IsRemoved => Root == null;
-    }
-
-    /// <summary>Error codes the raid adds to <see cref="InventoryErrorCodes"/>.</summary>
-    public static class RaidInventoryErrorCodes
-    {
-        /// <summary>The player isn't in the raid, or already died or extracted.</summary>
-        public const string PlayerNotActive = "player_not_active";
-
-        /// <summary>The item or the target is in a container the player hasn't opened.</summary>
-        public const string OutOfReach = "out_of_reach";
-
-        /// <summary>Not something a player can do in a raid, such as destroying an item.</summary>
-        public const string NotAllowed = "not_allowed";
     }
 }

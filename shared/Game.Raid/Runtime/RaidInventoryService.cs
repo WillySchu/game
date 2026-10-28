@@ -4,6 +4,7 @@ using System.Linq;
 using RaidZero.Shared.Catalog;
 using RaidZero.Shared.Ids;
 using RaidZero.Shared.Inventory;
+using RaidZero.Shared.Raid;
 
 namespace RaidZero.Raid
 {
@@ -128,6 +129,9 @@ namespace RaidZero.Raid
             playerId != null && _players.TryGetValue(playerId, out var player) && player.State != PlayerState.Extracted ? player.CharacterId : null;
 
         public RootKind? KindOf(string rootId) => rootId != null && _kinds.TryGetValue(rootId, out var kind) ? kind : (RootKind?)null;
+
+        /// <summary>The ID of the root container an item is in (its own ID for a root), or null.</summary>
+        public string RootOf(string itemId) => _tree.RootOf(itemId)?.Id;
 
         /// <summary>A copy of a root container and everything in it, or null.</summary>
         public ItemNode Snapshot(string rootId) => _kinds.ContainsKey(rootId ?? "") && _tree.TryGet(rootId, out var root) ? root.Clone() : null;

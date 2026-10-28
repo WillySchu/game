@@ -6,7 +6,7 @@ Design docs: *Raid Zero: Backend API & Data Model* and *Raid Zero: Unity Client 
 ## Layout
 
 ```
-shared/Game.Shared/        Code compiled by BOTH Unity and .NET: item tree, catalog, validation, UUIDv7
+shared/Game.Shared/        Code compiled by BOTH Unity and .NET: item tree, catalog, validation, UUIDv7, raid protocol
 shared/Game.BackendClient/ The game server's connection to the backend: join, heartbeats, durable outbox
 shared/Game.Raid/          The game server's raid rules: the raid's inventory, looting, drops, bodies
 shared/catalog/            item_catalog.json, exported from Unity's ItemDefinition assets
@@ -174,6 +174,19 @@ The key in `appsettings.Development.json` is for local runs only. Real deploymen
   ever ask for it, and it changes the node in place because it runs on every shot.
 - Every change returns updates: for each player who can see a changed container, its new contents. Send
   whole containers to clients rather than item diffs; they're small, and clients just replace their view.
+
+**Raid inventory over the network** (`RaidProtocol`, `RaidInventoryHost`, `RaidInventoryView`)
+- The messages are in `shared/Game.Shared/Runtime/Raid`: requests from the client (inventory ops, pick up,
+  drop, open, close) and views, closes and results from the server. `RaidProtocol` turns them into compact
+  bytes and back; Fish-Net only carries those bytes, as broadcasts.
+- `RaidInventoryHost` (in `Game.Raid`) is the server's end: give it each client's bytes along with the player
+  ID from the *connection*, never from the message, and send what it returns. It decodes hostile input
+  safely (caps on sizes and counts; anything malformed raises `ProtocolViolation` and is ignored), rate
+  limits each player, and checks reach through the game's `CanReach` callback.
+- Call `Tick` every frame: it closes containers players walked away from, and sends the gear views that
+  `Consume` holds back so firing doesn't resend a player's gear on every shot. Ammo counts belong on the weapon.
+- `RaidInventoryView` is the client's end, for the inventory screen: what the player can see, which items
+  are waiting on a request (grey those out), and events when anything changes.
 - The catalog must have `character` and `ground` definitions. Loot containers (such as `crate_wooden`) are
   ordinary definitions with a grid; their contents need fresh `Uuid7` IDs, which they keep into the stash.
 
@@ -213,5 +226,6 @@ To build the image yourself, from the repo root: `docker build -f backend/Docker
 The Milestone 1 backend is complete: every endpoint in the API doc exists and is covered by tests, including
 `RaidApiTests`, which plays whole raids over HTTP the way the game server will. The game server's side of that
 conversation exists too, as `shared/Game.BackendClient`, and so do the raid's inventory rules, in
-`shared/Game.Raid`. Next are the thin Unity layers over them (the Fish-Net authenticator, and the inventory
-RPCs), then Steam login in place of dev login, and a matchmaker that spreads raids across several servers.
+`shared/Game.Raid`, along with the inventory's network protocol. Next are the thin Unity layers over them
+(the Fish-Net authenticator, and two broadcasts carrying the protocol's bytes), then Steam login in place of
+dev login, and a matchmaker that spreads raids across several servers.
