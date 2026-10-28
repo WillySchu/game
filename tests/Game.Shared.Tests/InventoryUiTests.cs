@@ -409,6 +409,171 @@ public class InventoryUiTests
         Assert.Equal(_backpack.Id, Assert.Single(plan.Ops).To.ParentId);
     }
 
+    // ---- part of a stack (shift-drag) ----
+
+    private DropPlan Part(ItemNode item, int quantity, DropTarget target) => DropResolver.ResolvePart(Tree(), item.Id, quantity, false, target);
+
+    [Fact]
+    public void Part_IntoACell_SplitsOffThatMany()
+    {
+        var plan = Part(_ammo, 20, DropTarget.GridCell(_crate.Id, "grid", 8, 8));
+
+        Assert.True(plan.IsValid, plan.ToString());
+        Assert.Equal(DropAction.Move, plan.Action);
+        var op = Assert.Single(plan.Ops);
+        Assert.Equal((InventoryOpKinds.Split, 20, _crate.Id, 8, 8), (op.Op, op.Quantity, op.To.ParentId, op.To.X!.Value, op.To.Y!.Value));
+        Assert.Equal((_crate.Id, 8, 8), (plan.GridId, plan.X, plan.Y)); // the highlight is the same as a whole move's
+    }
+
+    [Fact]
+    public void Part_OntoTheSameStack_MergesThatMany()
+    {
+        var tree = Tree();
+        var plan = DropResolver.ResolvePart(tree, _ammo.Id, 5, false, DropTarget.OnItem(_ammoSmall.Id));
+
+        Assert.True(plan.IsValid, plan.ToString());
+        var op = Assert.Single(plan.Ops);
+        Assert.Equal((InventoryOpKinds.Merge, _ammoSmall.Id, 5), (op.Op, op.IntoId, op.Quantity));
+        Assert.True(tree.Apply(plan.Ops).Success);
+        Assert.Equal((40, 15), (Get(tree, _ammo.Id).Quantity, Get(tree, _ammoSmall.Id).Quantity));
+    }
+
+    [Theory]
+    [InlineData(10, 10)]
+    [InlineData(40, 30)] // the magazine holds 30, so that's all that goes in
+    public void Part_IntoAnEmptyMagazine_LoadsTheSmallerOfTheTwo(int quantity, int loaded)
+    {
+        var plan = Part(_ammo, quantity, DropTarget.OnItem(_emptyMag.Id));
+
+        Assert.True(plan.IsValid, plan.ToString());
+        Assert.Equal(DropAction.Load, plan.Action);
+        var op = Assert.Single(plan.Ops);
+        Assert.Equal((InventoryOpKinds.Split, loaded, "rounds"), (op.Op, op.Quantity, op.To.Slot));
+    }
+
+    [Fact]
+    public void Part_OntoAContainer_PutsThatManyInside()
+    {
+        var op = Assert.Single(Part(_ammo, 5, DropTarget.OnItem(_spareBackpack.Id)).Ops);
+
+        Assert.Equal((InventoryOpKinds.Split, 5, _spareBackpack.Id), (op.Op, op.Quantity, op.To.ParentId));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(45)]
+    [InlineData(99)]
+    public void Part_OfNoneOrAll_IsAnOrdinaryDrop(int quantity)
+    {
+        var op = Assert.Single(Part(_ammo, quantity, DropTarget.GridCell(_crate.Id, "grid", 8, 8)).Ops);
+
+        Assert.Equal(InventoryOpKinds.Move, op.Op);
+    }
+
+    [Fact]
+    public void Part_OutsideTheWindow_IsRefused()
+    {
+        var plan = Part(_ammo, 5, DropTarget.Outside);
+
+        Assert.Equal((false, InventoryUiErrors.CantDropPart), (plan.IsValid, plan.Error));
+    }
+
+    [Fact]
+    public void Part_WhereTheWholeWouldBeRefused_IsRefusedToo()
+    {
+        Assert.Equal(InventoryErrorCodes.Overlap, Part(_ammo, 5, DropTarget.GridCell(_crate.Id, "grid", 2, 0)).Error);
+        Assert.Equal(InventoryErrorCodes.StackFull, Part(_ammo, 5, DropTarget.OnItem(_fullAmmo.Id)).Error);
+    }
+
+    [Fact]
+    public void Model_PlansPartOfAStack_AndKnowsWhatCanBeSplit()
+    {
+        var (model, _) = Model();
+
+        var op = Assert.Single(model.Plan(_ammo.Id, false, DropTarget.GridCell(_crate.Id, "grid", 8, 8), quantity: 20).Ops);
+
+        Assert.Equal((InventoryOpKinds.Split, 20), (op.Op, op.Quantity));
+        Assert.True(model.CanSplit(_ammo.Id));
+        Assert.False(model.CanSplit(_gpu.Id));
+    }
+
+    // ---- opening containers inside others ----
+
+    [Fact]
+    public void OpenItem_ShowsAContainerInsideAnother()
+    {
+        var (model, _) = Model();
+        var changes = 0;
+        model.Changed += () => changes++;
+
+        Assert.True(model.OpenItem(_spareBackpack.Id));
+
+        Assert.Equal([_spareBackpack.Id], model.OpenedItems);
+        Assert.True(model.IsOpenedItem(_spareBackpack.Id));
+        Assert.Equal(1, changes);
+    }
+
+    [Fact]
+    public void OpenItem_RefusesWhatHasNoGrid_OrIsAlreadyOnScreen()
+    {
+        var (model, _) = Model();
+
+        Assert.False(model.OpenItem(_gpu.Id));           // no grid
+        Assert.False(model.OpenItem(_backpack.Id));      // equipped: already shown under the gear
+        Assert.False(model.OpenItem(_crate.Id));         // a root: already a panel
+        Assert.Empty(model.OpenedItems);
+    }
+
+    [Fact]
+    public void OpenedItems_AreNewestFirst_AndClose()
+    {
+        var (model, source) = Model();
+        var pouch = Node("backpack", "grid", 0, 0);
+        source.RootList[1].Root.Children.Add(pouch);
+        source.RaiseChanged();
+
+        model.OpenItem(_spareBackpack.Id);
+        model.OpenItem(pouch.Id);
+        model.OpenItem(_spareBackpack.Id); // again: back to the front
+
+        Assert.Equal([_spareBackpack.Id, pouch.Id], model.OpenedItems);
+        model.CloseItem(pouch.Id);
+        Assert.Equal([_spareBackpack.Id], model.OpenedItems);
+    }
+
+    [Fact]
+    public void OpenedItems_DropOut_WhenTheyreGoneOrEquipped()
+    {
+        var (model, source) = Model();
+        model.OpenItem(_spareBackpack.Id);
+
+        // The server says it's now in the character's backpack slot (someone equipped it).
+        var crate = source.RootList[1].Root;
+        var spare = crate.Children.Single(c => c.Id == _spareBackpack.Id);
+        crate.Children.Remove(spare);
+        var character = source.RootList[0].Root;
+        character.Children.RemoveAll(c => c.Slot == "backpack");
+        spare.Slot = "backpack";
+        spare.X = null;
+        spare.Y = null;
+        character.Children.Add(spare);
+        source.RaiseChanged();
+
+        Assert.Empty(model.OpenedItems);
+    }
+
+    [Fact]
+    public void QuickMove_FromTheCharacter_PrefersAnOpenedContainer()
+    {
+        var (model, _) = Model();
+        model.OpenItem(_spareBackpack.Id);
+
+        var plan = model.PlanQuickMove(_packFuse.Id);
+
+        Assert.True(plan.IsValid, plan.ToString());
+        Assert.Equal(_spareBackpack.Id, Assert.Single(plan.Ops).To.ParentId);
+    }
+
     // ---- dragging arithmetic ----
 
     [Theory]

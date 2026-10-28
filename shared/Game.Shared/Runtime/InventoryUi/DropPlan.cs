@@ -91,6 +91,22 @@ namespace RaidZero.Shared.InventoryUi
 
         internal static DropPlan Dropping() => new DropPlan(DropAction.Drop, null, null, null);
 
+        // The same drop, with other ops: the highlight stays, the verdict comes from the new check.
+        internal DropPlan WithOps(IReadOnlyList<InventoryOp> ops, ApplyResult check)
+        {
+            var plan = For(Action, ops, check);
+            plan.GridId = GridId;
+            plan.GridName = GridName;
+            plan.X = X;
+            plan.Y = Y;
+            plan.Width = Width;
+            plan.Height = Height;
+            plan.SlotParentId = SlotParentId;
+            plan.SlotName = SlotName;
+            plan.TargetItemId = TargetItemId;
+            return plan;
+        }
+
         internal DropPlan OnGrid(string gridId, string gridName, int x, int y, int width, int height)
         {
             GridId = gridId;

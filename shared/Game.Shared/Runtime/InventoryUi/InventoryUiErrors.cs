@@ -18,6 +18,9 @@ namespace RaidZero.Shared.InventoryUi
         /// <summary>This screen can't drop things (the Hideout stash has no ground).</summary>
         public const string CantDrop = "cant_drop";
 
+        /// <summary>Shift-dragged part of a stack out of the window: only whole items go on the ground.</summary>
+        public const string CantDropPart = "cant_drop_part";
+
         public static string Describe(string code)
         {
             switch (code)
@@ -63,6 +66,10 @@ namespace RaidZero.Shared.InventoryUi
                     return "There's nowhere to put it.";
                 case CantDrop:
                     return "You can't drop things here.";
+                case CantDropPart:
+                    return "Drop the whole stack, or split it off first.";
+                case InventoryErrorCodes.InvalidQuantity:
+                    return "You can't split off that many.";
                 default:
                     return "That didn't work (" + code + ").";
             }

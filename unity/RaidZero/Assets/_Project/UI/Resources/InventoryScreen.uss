@@ -213,3 +213,47 @@
     color: rgb(150, 150, 138);
     margin: 8px 0;
 }
+
+/* A container opened from inside another (double-click), and the item it was opened from. */
+.inv-panel--opened {
+    border-width: 1px;
+    border-color: rgb(110, 120, 90);
+}
+
+.inv-item--opened {
+    border-color: rgb(200, 210, 150);
+}
+
+/* Shift-dragging part of a stack: the corner says "split". The border still shows green or red. */
+.inv-ghost--split {
+    opacity: 0.7;
+}
+
+/* "How many?" after a shift-drag. The dimmed area around the box cancels when clicked. */
+.inv-split {
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(0, 0, 0, 0.4);
+}
+
+.inv-split__box {
+    width: 380px;
+    padding: 14px;
+    background-color: rgb(32, 35, 31);
+    border-width: 1px;
+    border-color: rgb(90, 96, 84);
+    border-radius: 4px;
+}
+
+.inv-split__title {
+    font-size: 14px;
+    color: rgb(214, 210, 196);
+    margin-bottom: 8px;
+    white-space: normal;
+}
+
+.inv-split__buttons {
+    flex-direction: row;
+    justify-content: flex-end;
+    margin-top: 10px;
+}

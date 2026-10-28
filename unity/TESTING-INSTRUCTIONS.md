@@ -42,6 +42,10 @@ itself with `InventoryScreen.uss` beside it, so there's nothing else to wire up.
   interaction exists.
 - **Drag** an item; **R** while dragging turns it; **Escape** cancels the drag (or closes the screen).
 - **Ctrl+click** (Cmd+click on a Mac) quick-moves an item.
+- **Shift+drag** a stack to split it: let go where part of it should go, and it asks how many (Enter splits,
+  Escape or clicking outside the box cancels).
+- **Double-click** a container that's inside another (a backpack lying in a crate, a pouch in your backpack) to
+  open it as its own panel on the right.
 
 What to check:
 
@@ -62,6 +66,12 @@ What to check:
    Ctrl+click on your own item puts it in the crate.
 8. Closing and reopening the screen, and opening the crate from the F1 overlay, keep it in step: anything
    that changes on the server shows up without reopening.
+9. Shift+drag 60 rounds to an empty cell and pick 20: a stack of 20 lands there and 40 stay. Shift+drag onto
+   another stack or a magazine moves only the number you pick (no more than the magazine holds). Picking all
+   of them is an ordinary move. Shift+dragging out of the window says to drop the whole stack.
+10. Put a backpack in the crate and double-click it: it opens on the right with its own ×, and items can be
+    dragged in and out of it. Ctrl+click on your own gear sends it there first. Equipping that backpack, or
+    closing the crate, closes its panel; so does closing the screen.
 
 Positions of a container's pockets: each grid on an item asset has **Place On Screen** and **Position** (in
 cells). Grids with it ticked go there; the rest flow left to right in their fill order, wrapping, below the

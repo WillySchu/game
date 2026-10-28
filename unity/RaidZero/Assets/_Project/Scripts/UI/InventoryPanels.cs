@@ -72,7 +72,7 @@ namespace RaidZero.UI
         /// <summary>Pointer pressed on an item. The drag code decides what that means.</summary>
         public event Action<PointerDownEvent, VisualElement> ItemPressed;
 
-        /// <summary>A container's close button was clicked.</summary>
+        /// <summary>A panel's close button was clicked: a root's ID, or an opened item's (InventoryModel.IsOpenedItem).</summary>
         public event Action<string> CloseClicked;
 
         public VisualElement FindItem(string itemId) => itemId != null && _items.TryGetValue(itemId, out var e) ? e : null;
@@ -98,6 +98,18 @@ namespace RaidZero.UI
             }
 
             BuildLoadout(_gear, model, character.Root, "Gear", closable: false);
+
+            // Containers opened from inside others (double-click) first: the one you just opened is on top.
+            foreach (var openedId in model.OpenedItems)
+            {
+                if (model.Tree.TryGet(openedId, out var opened) && model.Catalog.TryGet(opened.DefId, out var openedDef))
+                {
+                    var panel = Panel(_loot, NameOf(openedDef), opened.Id, closable: true);
+                    panel.AddToClassList("inv-panel--opened");
+                    BuildGrids(panel, model, opened, LootColumnCells);
+                }
+            }
+
             foreach (var other in model.Others)
             {
                 if (other.Kind == InventoryRootKind.Body)
@@ -245,6 +257,7 @@ namespace RaidZero.UI
                 .WithClass("inv-item--" + ItemBadges.Category(def));
             element.EnableInClassList("inv-item--pending", model.IsPending(node.Id));
             element.EnableInClassList("inv-item--rotated", node.Rotated);
+            element.EnableInClassList("inv-item--opened", model.IsOpenedItem(node.Id));
             element.Add(new Label(def != null ? NameOf(def) : node.DefId).WithClass("inv-item__name"));
 
             var count = ItemBadges.Count(model.Catalog, node);
