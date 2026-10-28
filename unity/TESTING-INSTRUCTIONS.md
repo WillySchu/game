@@ -59,3 +59,27 @@ how you left):
 In each case, `GET /v1/me/raids/{raid_id}` on the backend (or the admin tool) shows the outcome: extracted,
 or died for missing in action.
 
+## Deploying from the overlay
+
+When the client isn't connected, the F1 overlay has a **Deploy** button. It goes the way the Hideout will: a
+dev login, a ticket for `map_id` from `UserSettings/RaidZeroDev.json`, then a connection to whatever server the
+ticket names. Against the local backend that's this editor's server (start it first with the `Server` button);
+with `backend_url` pointing at the VPS, it's the dedicated server there (dev login must be on; see
+`deploy/README.md`).
+
+## A dedicated server build
+
+CI builds the dedicated server on every change to the Unity project (`.github/workflows/server.yml`). To build
+one yourself, install the **Linux Dedicated Server Build Support** module in Unity Hub, pick **Linux Server** in
+the Build Profiles window, and build to `build/StandaloneLinux64` at the repo root under the name
+`RaidZeroServer`. Then, from the repo root, with the backend running:
+
+```sh
+docker build -f unity/server.Dockerfile -t raidzero-gameserver build/StandaloneLinux64
+docker run --rm -p 7770:7770/udp -e RAIDZERO_BACKEND_URL=http://host.docker.internal:5080 \
+  -e RAIDZERO_SERVER_TOKEN='3ogBGujpU2KY3j673e4CUY3CYXusmi72kOaph+xeRQs=' raidzero-gameserver --raid-minutes 5
+```
+
+The build is x86-64, so on an Apple Silicon Mac Docker runs it under emulation (add `--platform linux/amd64` to
+both commands); it's slow but fine for a check. Wait for `[raid] Server ready`, then use **Deploy** in the
+editor's overlay against the local backend.

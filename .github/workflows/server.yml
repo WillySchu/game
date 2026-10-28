@@ -1,0 +1,167 @@
+# Builds the dedicated game server (a Unity Linux Dedicated Server build, through GameCI), checks that it
+# starts and reaches a backend, and on main pushes it to GitHub Container Registry as
+# ghcr.io/<owner>/<repo>/gameserver. Runs when the Unity project or the shared code changes.
+#
+# Needs three repository secrets, UNITY_LICENSE, UNITY_EMAIL and UNITY_PASSWORD (deploy/README.md says how
+# to get them). Without them, for example on a pull request from a fork, the build is skipped.
+name: Game server
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - unity/**
+      - shared/**
+      - .github/workflows/server.yml
+  pull_request:
+    paths:
+      - unity/**
+      - shared/**
+      - .github/workflows/server.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  license:
+    name: Unity license available
+    runs-on: ubuntu-latest
+    outputs:
+      present: ${{ steps.check.outputs.present }}
+    steps:
+      - id: check
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+        run: |
+          if [ -n "$UNITY_LICENSE" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::No UNITY_LICENSE secret, so the game server isn't built. See deploy/README.md."
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    name: Build, smoke test and publish
+    needs: license
+    if: needs.license.outputs.present == 'true'
+    runs-on: ubuntu-latest
+    # A cold build imports the whole project; later ones reuse the cached Library folder.
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      # The Unity editor image is large; the runner's preinstalled Android SDK and the like are not needed.
+      - uses: jlumbroso/free-disk-space@v1.3.1
+        with:
+          tool-cache: false
+          dotnet: false
+          large-packages: false
+
+      - uses: actions/checkout@v5
+        with:
+          lfs: false
+
+      # LFS objects come from a cache keyed by the list of them, so each build doesn't spend the repository's
+      # LFS bandwidth downloading every asset again.
+      - name: List LFS objects
+        run: |
+          git lfs ls-files -l | cut -d' ' -f1 | sort > .lfs-assets-id
+          echo ".lfs-assets-id" >> .git/info/exclude
+
+      - uses: actions/cache@v4
+        with:
+          path: .git/lfs
+          key: lfs-${{ hashFiles('.lfs-assets-id') }}
+
+      - name: Fetch LFS objects
+        run: git lfs pull
+
+      - uses: actions/cache@v4
+        with:
+          path: unity/RaidZero/Library
+          key: library-linux-server-${{ hashFiles('unity/RaidZero/Assets/**', 'unity/RaidZero/Packages/**', 'unity/RaidZero/ProjectSettings/**', 'shared/**/*.cs') }}
+          restore-keys: |
+            library-linux-server-
+
+      # Unity defines UNITY_SERVER for the Server subtarget, which is what makes Fish-Net start the server
+      # on its own. The output is build/StandaloneLinux64/RaidZeroServer.x86_64 plus its data folder.
+      - uses: game-ci/unity-builder@v5
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          projectPath: unity/RaidZero
+          targetPlatform: StandaloneLinux64
+          buildName: RaidZeroServer
+          customParameters: -standaloneBuildSubtarget Server
+          versioning: None
+
+      - name: Build the image
+        run: |
+          sudo rm -rf build/StandaloneLinux64/*_DoNotShip
+          docker build -f unity/server.Dockerfile -t raidzero-gameserver build/StandaloneLinux64
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      # Starts the backend in Development mode (its dev-local server token is in appsettings.Development.json),
+      # then the game server against it, and waits for the server to report it's ready: catalog loaded,
+      # backend settings valid, Fish-Net listening.
+      - name: Smoke test
+        run: |
+          dotnet run --project backend/Game.Backend --configuration Release > backend.log 2>&1 &
+          for _ in $(seq 1 60); do curl -sf http://localhost:5080/healthz > /dev/null && break; sleep 2; done
+          curl -sf http://localhost:5080/healthz || { cat backend.log; echo "::error::The backend didn't start."; exit 1; }
+
+          docker run -d --name gameserver --network host \
+            -e RAIDZERO_BACKEND_URL=http://localhost:5080 \
+            -e RAIDZERO_SERVER_TOKEN='3ogBGujpU2KY3j673e4CUY3CYXusmi72kOaph+xeRQs=' \
+            raidzero-gameserver
+
+          ready=0
+          for _ in $(seq 1 60); do
+            if docker logs gameserver 2>&1 | grep -q '\[raid\] Server ready'; then ready=1; break; fi
+            if [ -z "$(docker ps -q -f name=gameserver)" ]; then break; fi
+            sleep 2
+          done
+          docker logs gameserver 2>&1 | tail -n 200
+          [ "$ready" = 1 ] || { echo "::error::The game server didn't report it was ready."; exit 1; }
+          if docker logs gameserver 2>&1 | grep -q "couldn't start"; then echo "::error::The raid server failed to start."; exit 1; fi
+          sleep 2
+          ss -lun | grep -q ':7770 ' || { echo "::error::Nothing is listening on UDP 7770."; exit 1; }
+          docker rm -f gameserver
+
+      - uses: docker/login-action@v3
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Tags each image with its commit (sha-abc1234) and moves "latest" along with main.
+      - id: meta
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}/gameserver
+          tags: |
+            type=sha
+            type=raw,value=latest
+
+      - name: Push the image
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          for tag in $TAGS; do
+            docker tag raidzero-gameserver "$tag"
+            docker push "$tag"
+          done

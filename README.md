@@ -18,8 +18,10 @@ tests/Game.BackendClient.Tests/  The game server client against a fake backend, 
 tests/Game.Raid.Tests/     Raid inventory rules, plus a raid with looting played through to the backend's stashes
 unity/RaidZero/            The Unity project; unity/TESTING-INSTRUCTIONS.md covers playing it against the backend
                            Everything we make lives in Assets/_Project; the rest of Assets is third-party or tooling
-deploy/                    Running the backend on a VPS: Compose, Caddy, backups (see deploy/README.md)
+unity/server.Dockerfile    The dedicated game server's image, around a Unity Linux Dedicated Server build
+deploy/                    Running the backend and a game server on a VPS: Compose, Caddy, backups (see deploy/README.md)
 .github/workflows/ci.yml   Tests every push and pull request; pushes the backend image to GHCR from main
+.github/workflows/server.yml  Builds the game server with Unity, smoke tests it, pushes its image to GHCR from main
 ```
 
 Build output goes to `artifacts/` at the repo root, never next to the projects (see `Directory.Build.props`).
@@ -276,6 +278,13 @@ to `main` also builds `backend/Dockerfile` for amd64 and arm64 and pushes `ghcr.
 
 To build the image yourself, from the repo root: `docker build -f backend/Dockerfile -t raidzero-backend .`
 
+A second workflow builds the dedicated game server whenever the Unity project or shared code changes: a Unity
+Linux Dedicated Server build through [GameCI](https://game.ci), wrapped in `unity/server.Dockerfile`. It starts
+the backend and the server together and checks the server comes up ready, then on `main` pushes
+`ghcr.io/<owner>/<repo>/gameserver`. It needs a Unity license as repository secrets (`deploy/README.md` says
+how); without them it skips the build. The game server tells the backend which map it has loaded on every join
+(`RaidServer`'s Map Id), and the backend refuses a raid on another map (`wrong_map`) before anyone's gear moves.
+
 ## What's next (backend)
 
 The Milestone 1 backend is complete: every endpoint in the API doc exists and is covered by tests, including
@@ -283,5 +292,5 @@ The Milestone 1 backend is complete: every endpoint in the API doc exists and is
 conversation exists too, as `shared/Game.BackendClient`, and so do the raid's inventory rules, in
 `shared/Game.Raid`, along with the inventory's network protocol, and the Hideout's side, as `PlayerSession`.
 The thin Unity layers over them live in `unity/RaidZero/Assets/_Project/Scripts/Net`, including the raid's
-lifecycle. Next are dedicated server builds and deployment, then Steam login in place of dev login, and a
-matchmaker that spreads raids across several servers.
+lifecycle, and CI builds the dedicated server and deploys it next to the backend. Next are Steam login in place
+of dev login, and a matchmaker that spreads raids across several servers.

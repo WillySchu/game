@@ -32,6 +32,10 @@ namespace RaidZero.Net
     [RequireComponent(typeof(NetworkManager))]
     public sealed class RaidServer : MonoBehaviour
     {
+        [Tooltip("The map this scene is, as tickets name it. The backend refuses to send players here for a raid on another map.")]
+        [SerializeField]
+        private string _mapId = "greybox_01";
+
         [Tooltip("How close, in metres, a player must be to a crate, body or pile to loot it.")]
         [SerializeField]
         private float _reachDistance = 3f;
@@ -331,7 +335,7 @@ namespace RaidZero.Net
                 var settings = ServerConfig.ResolveBackend();
                 var minutes = ServerConfig.FloatArgument("--raid-minutes") ?? _raidMinutes;
 
-                _backend = new BackendClient(settings, catalog.Version, log: new UnityBackendLog());
+                _backend = new BackendClient(settings, catalog.Version, new BackendClientOptions { MapId = _mapId }, log: new UnityBackendLog());
                 _backend.RaidAborted += OnRaidAborted;
                 _backend.ReportRejected += rejection => Debug.LogError("[raid] The backend refused a report: " + rejection);
                 _backend.Start();
@@ -351,7 +355,7 @@ namespace RaidZero.Net
                 _host = new RaidInventoryHost(inventory) { CanReach = CanReach };
                 _host.ProtocolViolation += OnProtocolViolation;
                 _networkManager.ServerManager.RegisterBroadcast<InventoryToServerBroadcast>(OnInventoryBroadcast);
-                Debug.Log("[raid] Server ready: " + settings + ", catalog " + catalog.Version + ", " + minutes + "-minute raids, "
+                Debug.Log("[raid] Server ready: " + settings + ", map " + _mapId + ", catalog " + catalog.Version + ", " + minutes + "-minute raids, "
                     + ExtractionZone.All.Count + " extraction zone(s).");
                 if (ExtractionZone.All.Count == 0)
                 {

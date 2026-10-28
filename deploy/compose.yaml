@@ -1,4 +1,5 @@
-# The backend on one VPS, behind Caddy for automatic HTTPS. See README.md in this folder.
+# The backend and one game server on one VPS, the backend behind Caddy for automatic HTTPS. See README.md in
+# this folder.
 #   cp .env.example .env    # then fill it in
 #   docker compose up -d
 services:
@@ -16,6 +17,21 @@ services:
       - backend-data:/data
     expose:
       - "8080"
+
+  # One raid at a time. When a raid closes the server exits and Docker starts a fresh one. It reaches the
+  # backend directly on the Compose network; players reach it on the public UDP port.
+  gameserver:
+    image: ${GAMESERVER_IMAGE:?Set GAMESERVER_IMAGE in .env}
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      RAIDZERO_BACKEND_URL: http://backend:8080
+      RAIDZERO_SERVER_TOKEN: ${GAME_SERVER_TOKEN:?Set GAME_SERVER_TOKEN in .env (openssl rand -base64 32)}
+    ports:
+      - "${GAME_SERVER_PORT:-7770}:7770/udp"
+    volumes:
+      - gameserver-data:/data
 
   caddy:
     image: caddy:2
@@ -35,5 +51,6 @@ services:
 
 volumes:
   backend-data:
+  gameserver-data:
   caddy-data:
   caddy-config:
