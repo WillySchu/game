@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
 using System.Threading.Tasks;
 using FishNet.Connection;
 using FishNet.Managing;
@@ -7,38 +9,67 @@ using FishNet.Transporting;
 using RaidZero.BackendApi;
 using RaidZero.Raid;
 using RaidZero.Shared.Inventory;
+using RaidZero.Shared.Raid;
 using UnityEngine;
 
 namespace RaidZero.Net
 {
     /// <summary>
-    /// The game server's raid: the connection to the backend, and the raid's inventory. Goes on the
-    /// NetworkManager's GameObject, next to <see cref="RaidAuthenticator"/>, and does nothing unless this
-    /// process is the server (dedicated, or the host in the editor).
+    /// The game server's raid: the connection to the backend, the raid's inventory, and its life from the
+    /// first join to the close. Goes on the NetworkManager's GameObject, next to <see cref="RaidAuthenticator"/>,
+    /// and does nothing unless this process is the server (dedicated, or the host in the editor).
     ///
-    /// Gameplay code calls <see cref="PlayerDied"/>, <see cref="PlayerExtracted"/>, <see cref="Consume"/> and
-    /// <see cref="EndRaidAsync"/>. World code listens to <see cref="PileCreated"/> and <see cref="PileRemoved"/>
-    /// to spawn and despawn items on the ground, and registers bodies and piles in <see cref="ContainerRegistry"/>.
+    /// The raid waits until someone joins, then runs its clock. It ends when the clock runs out, when everyone
+    /// who joined has extracted or died, or when nobody inside has been connected for a while. Then anyone
+    /// still inside is missing in action, the backend gets the close, and a dedicated server exits so its
+    /// supervisor can start a fresh one.
+    ///
+    /// Gameplay code calls <see cref="PlayerDied"/>, <see cref="Consume"/> and <see cref="InterruptExtraction"/>;
+    /// <see cref="ExtractionZone"/>s in the level handle extraction. World code listens to <see cref="PileCreated"/>
+    /// and <see cref="PileRemoved"/> to spawn and despawn items on the ground, and registers bodies and piles in
+    /// <see cref="ContainerRegistry"/>.
     /// </summary>
     [RequireComponent(typeof(NetworkManager))]
     public sealed class RaidServer : MonoBehaviour
     {
         [Tooltip("How close, in metres, a player must be to a crate, body or pile to loot it.")]
         [SerializeField]
-        private float _reachDistance = 2.5f;
+        private float _reachDistance = 3f;
 
         [Tooltip("A client sending this many malformed messages is disconnected.")]
         [SerializeField]
         private int _violationsBeforeKick = 5;
 
+        [Header("Raid")]
+        [Tooltip("How long a raid runs from its first join, in minutes. --raid-minutes on the command line overrides it.")]
+        [SerializeField]
+        private float _raidMinutes = 25f;
+
+        [Tooltip("A raid nobody inside is connected to ends after this many seconds.")]
+        [SerializeField]
+        private float _emptyRaidSeconds = 180f;
+
+        [Tooltip("Seconds between telling a player they're out and disconnecting them, so the message arrives and the client can show it.")]
+        [SerializeField]
+        private float _leaveDelaySeconds = 3f;
+
+        [Tooltip("How long a dedicated server waits for the backend to take the results before exiting anyway. Whatever it hasn't taken stays in the outbox for the next run.")]
+        [SerializeField]
+        private float _closeTimeoutSeconds = 60f;
+
         private readonly Dictionary<NetworkConnection, string> _playerOf = new Dictionary<NetworkConnection, string>();
         private readonly Dictionary<string, NetworkConnection> _connectionOf = new Dictionary<string, NetworkConnection>(StringComparer.Ordinal);
         private readonly Dictionary<NetworkConnection, HostOutput> _welcome = new Dictionary<NetworkConnection, HostOutput>();
         private readonly Dictionary<string, int> _violations = new Dictionary<string, int>(StringComparer.Ordinal);
+        private readonly Dictionary<NetworkConnection, double> _disconnectAt = new Dictionary<NetworkConnection, double>();
 
         private NetworkManager _networkManager;
         private BackendClient _backend;
         private RaidInventoryHost _host;
+        private RaidLifecycle _lifecycle;
+        private ExtractionTracker _extraction;
+        private Task _closing;
+        private double _closingSince;
 
         /// <summary>A pile appeared on the ground: (pile ID, the dropping player's connection). Spawn a pickup at their feet.</summary>
         public event Action<string, NetworkConnection> PileCreated;
@@ -46,7 +77,15 @@ namespace RaidZero.Net
         /// <summary>A pile on the ground is empty and gone. Despawn its pickup.</summary>
         public event Action<string> PileRemoved;
 
+        /// <summary>The raid moved to another phase. On Ending, gameplay can stop AI and spawning.</summary>
+        public event Action<RaidPhase> PhaseChanged;
+
         public bool IsRunning => _host != null;
+
+        public RaidPhase Phase => _lifecycle?.Phase ?? RaidPhase.Waiting;
+
+        /// <summary>Seconds left on the raid's clock.</summary>
+        public double SecondsRemaining => _lifecycle?.SecondsRemaining(Now) ?? 0;
 
         /// <summary>The raid's inventory, for gameplay that needs to read it (what's in a player's primary slot).</summary>
         public RaidInventoryService Inventory => _host?.Service;
@@ -58,40 +97,64 @@ namespace RaidZero.Net
         /// <summary>The ID of the player's character container, which is also their body's container ID once they die.</summary>
         public string CharacterIdOf(NetworkConnection connection) => Inventory?.CharacterOf(PlayerIdOf(connection));
 
+        private static double Now => Time.realtimeSinceStartupAsDouble;
+
         // ---- Called by RaidAuthenticator ----
 
         /// <summary>Redeems the ticket a connecting player presented. On success they're in the raid's inventory.</summary>
         internal async Task<(bool Success, string Error, string Message)> JoinAsync(NetworkConnection connection, string raidId, string joinToken)
         {
+            var lifecycle = _lifecycle;
             if (!IsRunning)
             {
                 return (false, "server_not_ready", "This server isn't running a raid.");
             }
 
-            var joined = await _backend.JoinAsync(raidId, joinToken);
-            if (!joined.Succeeded)
+            if (!lifecycle.TryBeginJoin())
             {
-                return (false, joined.Error, joined.Message);
+                return (false, "raid_ending", "This raid is over and takes no one new.");
             }
 
-            if (!IsRunning || !connection.IsActive)
+            try
             {
-                // They left while we waited. Their gear is in the raid now; the same ticket gets them back in.
-                return (false, "disconnected", "The connection closed during the join.");
-            }
+                var joined = await _backend.JoinAsync(raidId, joinToken);
+                if (!joined.Succeeded)
+                {
+                    return (false, joined.Error, joined.Message);
+                }
 
-            if (_connectionOf.TryGetValue(joined.PlayerId, out var existing) && existing != connection && existing.IsActive)
+                if (!IsRunning || lifecycle != _lifecycle || !connection.IsActive)
+                {
+                    // They left while we waited. Their gear is in the raid now; the same ticket gets them back in.
+                    lifecycle.PlayerJoined(joined.PlayerId, connected: false, Now);
+                    return (false, "disconnected", "The connection closed during the join.");
+                }
+
+                if (_connectionOf.TryGetValue(joined.PlayerId, out var existing) && existing != connection && existing.IsActive)
+                {
+                    return (false, "already_connected", "This player is already connected to the raid.");
+                }
+
+                _playerOf[connection] = joined.PlayerId;
+                _connectionOf[joined.PlayerId] = connection;
+                connection.CustomData = joined.PlayerId;
+
+                var wasWaiting = lifecycle.Phase == RaidPhase.Waiting;
+                lifecycle.PlayerJoined(joined.PlayerId, connected: true, Now);
+                if (wasWaiting)
+                {
+                    Debug.Log("[raid] Raid " + _backend.RaidId + " started: " + lifecycle.Duration.TotalMinutes + " minutes on the clock.");
+                    PhaseChanged?.Invoke(lifecycle.Phase);
+                }
+
+                // Their first views can only be sent once Fish-Net has marked them authenticated.
+                _welcome[connection] = _host.Join(joined.PlayerId, joined.Loadout);
+                return (true, null, null);
+            }
+            finally
             {
-                return (false, "already_connected", "This player is already connected to the raid.");
+                lifecycle.EndJoin();
             }
-
-            _playerOf[connection] = joined.PlayerId;
-            _connectionOf[joined.PlayerId] = connection;
-            connection.CustomData = joined.PlayerId;
-
-            // Their first views can only be sent once Fish-Net has marked them authenticated.
-            _welcome[connection] = _host.Join(joined.PlayerId, joined.Loadout);
-            return (true, null, null);
         }
 
         internal void OnAuthenticated(NetworkConnection connection)
@@ -101,6 +164,8 @@ namespace RaidZero.Net
                 _welcome.Remove(connection);
                 Dispatch(output, connection);
             }
+
+            SendState(connection);
         }
 
         // ---- Called by gameplay ----
@@ -108,43 +173,64 @@ namespace RaidZero.Net
         /// <summary>
         /// The player died. Their gear stays as a body: register the body object in ContainerRegistry under
         /// <see cref="CharacterIdOf"/> (before this call, while the ID is still theirs) so others can loot it.
+        /// The body must be its own object: the player is disconnected shortly after, and Fish-Net despawns
+        /// whatever their connection owns.
         /// </summary>
         public void PlayerDied(NetworkConnection connection)
         {
             var playerId = PlayerIdOf(connection);
-            if (playerId == null || !Inventory.IsActive(playerId))
+            if (!IsInside(playerId))
             {
                 return;
             }
 
             _host.Kill(playerId);
             _backend.ReportDied(playerId);
+            Leave(playerId, connection, RaidExit.Died);
         }
 
-        /// <summary>The player finished extracting. What they carry goes to the backend, and they leave the raid's inventory.</summary>
+        /// <summary>
+        /// Extracts the player at once. <see cref="ExtractionZone"/>s call this through the countdown; call it
+        /// directly only for extractions that work differently (a scripted exit).
+        /// </summary>
         public void PlayerExtracted(NetworkConnection connection, string extractPoint = null)
         {
             var playerId = PlayerIdOf(connection);
-            if (playerId == null || !Inventory.IsActive(playerId))
+            if (!IsInside(playerId))
             {
                 return;
             }
 
             _backend.ReportExtracted(playerId, _host.Extract(playerId), extractPoint);
+            Leave(playerId, connection, RaidExit.Extracted);
+        }
+
+        /// <summary>The player took damage: if they're extracting, their countdown starts over.</summary>
+        public void InterruptExtraction(NetworkConnection connection)
+        {
+            var playerId = PlayerIdOf(connection);
+            if (playerId != null && _extraction != null && _extraction.Interrupt(playerId, Now))
+            {
+                SendExtraction(connection, _extraction.ZoneOf(playerId), _extraction.SecondsLeft(playerId, Now) ?? 0);
+            }
         }
 
         /// <summary>Uses up rounds or a medkit the player carries. False, changing nothing, if they don't have that many.</summary>
         public bool Consume(NetworkConnection connection, string itemId, int quantity)
         {
             var playerId = PlayerIdOf(connection);
-            return playerId != null && _host.Consume(playerId, itemId, quantity, Time.realtimeSinceStartupAsDouble);
+            return IsInside(playerId) && _host.Consume(playerId, itemId, quantity, Now);
         }
 
-        /// <summary>
-        /// The raid is over (the timer ran out, or everyone left). Anyone still inside dies. Completes once the
-        /// backend has every report; after that the server process can exit.
-        /// </summary>
-        public Task EndRaidAsync() => IsRunning ? _backend.EndRaidAsync() : Task.CompletedTask;
+        /// <summary>Ends the raid now, as if the clock had run out: anyone still inside is missing in action.</summary>
+        public void EndRaid()
+        {
+            if (IsRunning && _lifecycle.Phase == RaidPhase.InProgress)
+            {
+                _lifecycle.End(RaidEndReason.TimeUp, Now);
+                BeginEnding();
+            }
+        }
 
         // ---- Lifecycle ----
 
@@ -172,9 +258,28 @@ namespace RaidZero.Net
 
         private void Update()
         {
-            if (IsRunning)
+            if (!IsRunning)
             {
-                Dispatch(_host.Tick(Time.realtimeSinceStartupAsDouble), null);
+                return;
+            }
+
+            var now = Now;
+            Dispatch(_host.Tick(now), null);
+            if (_lifecycle.Phase == RaidPhase.InProgress)
+            {
+                UpdateExtractions(now);
+            }
+
+            if (_lifecycle.Tick(now))
+            {
+                BeginEnding();
+            }
+
+            DisconnectThoseDue(now);
+            if (_lifecycle.Phase == RaidPhase.Ending && _disconnectAt.Count == 0
+                && (_closing.IsCompleted || now - _closingSince >= _closeTimeoutSeconds))
+            {
+                FinishClose();
             }
         }
 
@@ -197,14 +302,18 @@ namespace RaidZero.Net
                 return;
             }
 
-            // Their character stays in the raid where they left it; the raid's close counts them as dead.
+            // Their character stays in the raid where they left it, and they can come back with the same ticket.
+            // If the raid ends first, they're missing in action.
             _welcome.Remove(connection);
+            _disconnectAt.Remove(connection);
             if (_playerOf.TryGetValue(connection, out var playerId))
             {
                 _playerOf.Remove(connection);
                 if (_connectionOf.TryGetValue(playerId, out var current) && current == connection)
                 {
                     _connectionOf.Remove(playerId);
+                    _lifecycle?.PlayerDisconnected(playerId);
+                    _extraction?.Forget(playerId);
                 }
             }
         }
@@ -220,6 +329,8 @@ namespace RaidZero.Net
             {
                 var catalog = ServerConfig.LoadCatalog();
                 var settings = ServerConfig.ResolveBackend();
+                var minutes = ServerConfig.FloatArgument("--raid-minutes") ?? _raidMinutes;
+
                 _backend = new BackendClient(settings, catalog.Version, log: new UnityBackendLog());
                 _backend.RaidAborted += OnRaidAborted;
                 _backend.ReportRejected += rejection => Debug.LogError("[raid] The backend refused a report: " + rejection);
@@ -231,10 +342,21 @@ namespace RaidZero.Net
                     inventory.AddContainer(container.BuildContents(catalog));
                 }
 
+                _lifecycle = new RaidLifecycle(new RaidLifecycleOptions
+                {
+                    Duration = TimeSpan.FromMinutes(minutes),
+                    EmptyGrace = TimeSpan.FromSeconds(_emptyRaidSeconds),
+                });
+                _extraction = new ExtractionTracker();
                 _host = new RaidInventoryHost(inventory) { CanReach = CanReach };
                 _host.ProtocolViolation += OnProtocolViolation;
                 _networkManager.ServerManager.RegisterBroadcast<InventoryToServerBroadcast>(OnInventoryBroadcast);
-                Debug.Log("[raid] Server ready: " + settings + ", catalog " + catalog.Version + ".");
+                Debug.Log("[raid] Server ready: " + settings + ", catalog " + catalog.Version + ", " + minutes + "-minute raids, "
+                    + ExtractionZone.All.Count + " extraction zone(s).");
+                if (ExtractionZone.All.Count == 0)
+                {
+                    Debug.LogWarning("[raid] This level has no ExtractionZone, so the only way out is the clock running out.");
+                }
             }
             catch (Exception exception)
             {
@@ -256,8 +378,8 @@ namespace RaidZero.Net
             {
                 // Pressing Stop in the editor ends the raid properly, so the dev server is free again at once.
                 // Dev players are throwaway, so losing their gear doesn't matter. A real server ends raids
-                // through gameplay (EndRaidAsync) before it exits.
-                if (Application.isEditor && _backend.RaidId != null)
+                // through the lifecycle before it exits.
+                if (Application.isEditor && _backend.RaidId != null && Phase != RaidPhase.Closed)
                 {
                     try
                     {
@@ -273,10 +395,166 @@ namespace RaidZero.Net
 
             _backend = null;
             _host = null;
+            _lifecycle = null;
+            _extraction = null;
+            _closing = null;
             _playerOf.Clear();
             _connectionOf.Clear();
             _welcome.Clear();
             _violations.Clear();
+            _disconnectAt.Clear();
+        }
+
+        private void UpdateExtractions(double now)
+        {
+            List<(NetworkConnection Connection, string Point)> done = null;
+            foreach (var pair in _connectionOf)
+            {
+                var playerId = pair.Key;
+                var connection = pair.Value;
+                if (!_lifecycle.IsInside(playerId) || !connection.IsActive || connection.FirstObject == null)
+                {
+                    continue;
+                }
+
+                var zone = ExtractionZone.At(connection.FirstObject.transform.position);
+                switch (_extraction.Update(playerId, zone != null ? zone.PointName : null, zone != null ? zone.Seconds : 0, now))
+                {
+                    case ExtractionChange.Started:
+                        SendExtraction(connection, zone.PointName, zone.Seconds);
+                        break;
+                    case ExtractionChange.Cancelled:
+                        SendExtraction(connection, null, 0);
+                        break;
+                    case ExtractionChange.Completed:
+                        (done = done ?? new List<(NetworkConnection, string)>()).Add((connection, zone.PointName));
+                        break;
+                }
+            }
+
+            if (done != null)
+            {
+                foreach (var (connection, point) in done)
+                {
+                    PlayerExtracted(connection, point);
+                }
+            }
+        }
+
+        private void BeginEnding()
+        {
+            var reason = _lifecycle.EndReason;
+            Debug.Log("[raid] Raid " + (_backend.RaidId ?? "(nobody joined)") + " is over: " + reason + ". Still inside: "
+                + _lifecycle.PlayersInside.Count() + ".");
+
+            var exit = reason == RaidEndReason.Aborted ? RaidExit.Aborted : RaidExit.MissingInAction;
+            foreach (var playerId in _lifecycle.PlayersInside.ToList())
+            {
+                if (_connectionOf.TryGetValue(playerId, out var connection) && connection.IsActive)
+                {
+                    Tell(connection, exit);
+                }
+            }
+
+            _extraction = new ExtractionTracker();
+            foreach (var connection in _playerOf.Keys)
+            {
+                SendState(connection);
+            }
+
+            PhaseChanged?.Invoke(RaidPhase.Ending);
+
+            // An aborted raid is already settled on the backend; anything else needs the close. Either way the
+            // backend counts whoever is still inside as dead, so there's nothing to report for them.
+            _closing = reason == RaidEndReason.Aborted ? Task.CompletedTask : _backend.EndRaidAsync();
+            _closingSince = Now;
+        }
+
+        private void FinishClose()
+        {
+            if (!_closing.IsCompleted)
+            {
+                Debug.LogWarning("[raid] The backend hasn't taken every result yet. They stay in the outbox; the next run on this machine sends them.");
+            }
+            else if (_closing.IsFaulted)
+            {
+                Debug.LogError("[raid] Closing the raid failed: " + _closing.Exception?.GetBaseException().Message);
+            }
+
+            _lifecycle.MarkClosed();
+            PhaseChanged?.Invoke(RaidPhase.Closed);
+
+            if (Application.isBatchMode && !Application.isEditor)
+            {
+                // One raid per process: exit, and the supervisor starts a fresh server for the next one.
+                Debug.Log("[raid] Raid closed. Exiting.");
+                Application.Quit(0);
+            }
+            else
+            {
+                Debug.Log("[raid] Raid closed, so the server has stopped. Start it again for a new raid.");
+                _networkManager.ServerManager.StopConnection(true);
+            }
+        }
+
+        private bool IsInside(string playerId) =>
+            playerId != null && IsRunning && _lifecycle.Phase == RaidPhase.InProgress && _lifecycle.IsInside(playerId);
+
+        private void Leave(string playerId, NetworkConnection connection, RaidExit exit)
+        {
+            _lifecycle.PlayerLeft(playerId);
+            _extraction.Forget(playerId);
+            if (connection != null && connection.IsActive)
+            {
+                Tell(connection, exit);
+            }
+        }
+
+        /// <summary>Tells the player how they left, then disconnects them after a moment.</summary>
+        private void Tell(NetworkConnection connection, RaidExit exit)
+        {
+            _networkManager.ServerManager.Broadcast(connection, new LeftRaidBroadcast { Exit = exit });
+            _disconnectAt[connection] = Now + _leaveDelaySeconds;
+        }
+
+        private void DisconnectThoseDue(double now)
+        {
+            if (_disconnectAt.Count == 0)
+            {
+                return;
+            }
+
+            foreach (var pair in _disconnectAt.Where(p => p.Value <= now).ToList())
+            {
+                _disconnectAt.Remove(pair.Key);
+                if (pair.Key.IsActive)
+                {
+                    pair.Key.Disconnect(false);
+                }
+            }
+        }
+
+        private void SendState(NetworkConnection connection)
+        {
+            if (!IsRunning || connection == null || !connection.IsActive || !connection.IsAuthenticated)
+            {
+                return;
+            }
+
+            _networkManager.ServerManager.Broadcast(connection, new RaidStateBroadcast
+            {
+                Phase = _lifecycle.Phase,
+                SecondsRemaining = (float)_lifecycle.SecondsRemaining(Now),
+                Duration = (float)_lifecycle.Duration.TotalSeconds,
+            });
+        }
+
+        private void SendExtraction(NetworkConnection connection, string point, double secondsLeft)
+        {
+            if (connection.IsActive)
+            {
+                _networkManager.ServerManager.Broadcast(connection, new ExtractionBroadcast { Point = point, SecondsLeft = (float)secondsLeft });
+            }
         }
 
         // ---- Messages ----
@@ -286,7 +564,7 @@ namespace RaidZero.Net
             var playerId = PlayerIdOf(connection);
             if (playerId != null && IsRunning)
             {
-                Dispatch(_host.Receive(playerId, message.Data, Time.realtimeSinceStartupAsDouble), connection);
+                Dispatch(_host.Receive(playerId, message.Data, Now), connection);
             }
         }
 
@@ -337,9 +615,10 @@ namespace RaidZero.Net
         {
             // The backend has already given everyone their gear back; nothing here counts any more.
             Debug.LogError("[raid] The backend aborted raid " + aborted.RaidId + ": " + aborted.Message);
-            foreach (var connection in new List<NetworkConnection>(_playerOf.Keys))
+            if (IsRunning && (_lifecycle.Phase == RaidPhase.Waiting || _lifecycle.Phase == RaidPhase.InProgress))
             {
-                connection.Disconnect(false);
+                _lifecycle.End(RaidEndReason.Aborted, Now);
+                BeginEnding();
             }
         }
 

@@ -99,6 +99,8 @@ public sealed partial class RaidService
         public string State { get; set; } = "";
 
         public string LeaseExpiresAt { get; set; } = "";
+
+        public string? StartedAt { get; set; }
     }
 
     private sealed class ParticipantRow

@@ -88,6 +88,31 @@ public sealed class RaidLifecycleTests : IDisposable
     }
 
     [Fact]
+    public async Task Tickets_StopJoiningARaidOnceItsJoinWindowCloses()
+    {
+        using var f = new RaidFixture();
+        await f.StartAsync();
+        var sam = await f.PlayerAsync("Sam");
+        var ann = await f.PlayerAsync("Ann");
+        var bob = await f.PlayerAsync("Bob");
+        var (raidId, _) = await f.EnterAsync(sam);
+
+        // Still inside the window (120 seconds from the first join): Ann joins Sam.
+        f.Time.Now = f.Time.Now.AddSeconds(119);
+        var (annRaid, _) = await f.TicketAsync(ann);
+        f.Time.Now = f.Time.Now.AddSeconds(2);
+        var late = await f.Raids.CreateTicketAsync(bob, Map);
+
+        Assert.Equal(raidId, annRaid);
+        Assert.Equal("no_server_available", Error(late));
+
+        // Once that raid closes, the server takes Bob into a fresh one.
+        Assert.Equal(200, (await f.CloseAsync(raidId)).StatusCode);
+        var (bobRaid, _) = await f.TicketAsync(bob);
+        Assert.NotEqual(raidId, bobRaid);
+    }
+
+    [Fact]
     public async Task Ticket_WithNoServersConfigured_Is503()
     {
         using var f = new RaidFixture(withServer: false);

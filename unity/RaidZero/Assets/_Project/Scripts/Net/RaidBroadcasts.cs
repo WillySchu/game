@@ -1,4 +1,5 @@
 using FishNet.Broadcast;
+using RaidZero.Shared.Raid;
 
 namespace RaidZero.Net
 {
@@ -27,5 +28,29 @@ namespace RaidZero.Net
     public struct InventoryToClientBroadcast : IBroadcast
     {
         public byte[] Data;
+    }
+
+    /// <summary>
+    /// Server to client: where the raid is and how long it has left. Sent when the player joins and whenever
+    /// the phase changes; clients count down from it themselves.
+    /// </summary>
+    public struct RaidStateBroadcast : IBroadcast
+    {
+        public RaidPhase Phase;
+        public float SecondsRemaining;
+        public float Duration;
+    }
+
+    /// <summary>Server to client: you're out of the raid, and how. The server disconnects them a moment later.</summary>
+    public struct LeftRaidBroadcast : IBroadcast
+    {
+        public RaidExit Exit;
+    }
+
+    /// <summary>Server to client: your extraction countdown started (or started over), or stopped (Point is null).</summary>
+    public struct ExtractionBroadcast : IBroadcast
+    {
+        public string Point;
+        public float SecondsLeft;
     }
 }

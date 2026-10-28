@@ -10,6 +10,8 @@ namespace RaidZero.Net
     /// <summary>
     /// A throwaway debug screen for the raid inventory, until the real one exists. Press F1 in play mode:
     /// it lists your gear and anything you have open, opens the nearest crate, and takes or drops items.
+    /// A line in the top right always shows the raid's phase, its clock, any extraction countdown, and how
+    /// you left.
     /// Everything goes through RaidInventoryClient exactly as the real inventory screen will, so it
     /// exercises the whole path: client, Fish-Net, server, the raid's rules, and back.
     /// Put it on any GameObject in the raid scene. It does nothing in release builds.
@@ -47,6 +49,8 @@ namespace RaidZero.Net
                 Cursor.visible = _visible;
                 e.Use();
             }
+
+            DrawRaidStatus();
 
             var client = RaidInventoryClient.Instance;
             if (!_visible || client == null)
@@ -97,6 +101,35 @@ namespace RaidZero.Net
 
             GUILayout.EndScrollView();
             GUILayout.EndArea();
+        }
+
+        private static void DrawRaidStatus()
+        {
+            var session = RaidSessionClient.Instance;
+            if (session == null)
+            {
+                return;
+            }
+
+            var text = new StringBuilder("Raid: ").Append(session.Phase);
+            if (session.Phase == RaidPhase.InProgress)
+            {
+                var seconds = Mathf.CeilToInt(session.SecondsRemaining);
+                text.Append("  ").Append(seconds / 60).Append(':').Append((seconds % 60).ToString("00"));
+            }
+
+            if (session.IsExtracting)
+            {
+                text.Append("  |  extracting at ").Append(session.ExtractionPoint).Append(": ")
+                    .Append(Mathf.CeilToInt(session.ExtractionSecondsLeft)).Append(" s");
+            }
+
+            if (session.Exit.HasValue)
+            {
+                text.Append("  |  you left: ").Append(session.Exit.Value);
+            }
+
+            GUI.Label(new Rect(Screen.width - 430, 10, 420, 24), text.ToString(), GUI.skin.box);
         }
 
         private void DrawTree(RaidInventoryClient client, ItemNode node, int depth, bool isMine)
