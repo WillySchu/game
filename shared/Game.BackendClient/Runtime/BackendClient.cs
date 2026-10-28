@@ -153,10 +153,17 @@ namespace RaidZero.BackendApi
             }
 
             var path = $"/v1/server/raids/{raidId}/join";
-            var body = Wire.Compact(new JObject { ["join_token"] = joinToken });
+            var request = new JObject { ["join_token"] = joinToken };
+            if (_options.MapId != null)
+            {
+                request["map_id"] = _options.MapId;
+            }
 
-            // Derived from the token, so a player retrying the same connection gets the same answer back.
-            var key = "join-" + Wire.Sha256Hex(raidId + ":" + joinToken).Substring(0, 40);
+            var body = Wire.Compact(request);
+
+            // Derived from the token (and map), so a player retrying the same connection gets the same answer
+            // back, while a server restarted with another map makes a fresh request.
+            var key = "join-" + Wire.Sha256Hex(raidId + ":" + joinToken + (_options.MapId != null ? ":" + _options.MapId : "")).Substring(0, 40);
 
             using (var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _stopping.Token))
             {

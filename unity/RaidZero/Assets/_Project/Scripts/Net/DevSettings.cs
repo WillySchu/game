@@ -66,6 +66,21 @@ namespace RaidZero.Net
             }
         }
 
+        /// <summary>A number given on the command line as "--name 12.5", or null if it isn't there.</summary>
+        public static float? FloatArgument(string name)
+        {
+            var args = System.Environment.GetCommandLineArgs();
+            for (int i = 0; i < args.Length - 1; i++)
+            {
+                if (args[i] == name && float.TryParse(args[i + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var value))
+                {
+                    return value;
+                }
+            }
+
+            return null;
+        }
+
         /// <summary>
         /// The repo's shared/catalog/item_catalog.json in the editor, or the copy the build step puts in
         /// StreamingAssets for players and servers.

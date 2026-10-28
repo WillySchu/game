@@ -19,7 +19,8 @@ public sealed partial class RaidService
     ///
     /// M1 matchmaking: each configured server runs one raid at a time. A ticket joins that server's open raid
     /// when the map matches and there's room (which is how co-op and looting another player's body get tested
-    /// on one dev server), and otherwise opens a new raid on the first idle server.
+    /// on one dev server), and otherwise opens a new raid on the first idle server. A raid stops taking tickets
+    /// <see cref="RaidOptions.JoinWindowSeconds"/> after its first player joins.
     /// </summary>
     public Task<ServerResponse> CreateTicketAsync(string playerId, string? mapId, CancellationToken ct = default)
     {
@@ -50,7 +51,8 @@ public sealed partial class RaidService
                 new { now, playerId }, transaction: tx);
 
             var expires = nowValue.AddSeconds(_options.TicketSeconds);
-            var target = await FindOrOpenRaidAsync(c, tx, playerId, mapId, now, Timestamps.Format(expires.AddSeconds(_options.LeaseSeconds)));
+            var joinWindowOpenedAfter = Timestamps.Format(nowValue.AddSeconds(-_options.JoinWindowSeconds));
+            var target = await FindOrOpenRaidAsync(c, tx, playerId, mapId, now, joinWindowOpenedAfter, Timestamps.Format(expires.AddSeconds(_options.LeaseSeconds)));
             if (target is null)
             {
                 return ServerResponse.Error(503, "no_server_available", "Every game server is busy with another raid. Try again shortly.");
@@ -88,13 +90,13 @@ public sealed partial class RaidService
     }
 
     private async Task<(string RaidId, GameServerOptions Server, bool Rejoining)?> FindOrOpenRaidAsync(
-        SqliteConnection c, SqliteTransaction tx, string playerId, string mapId, string now, string newRaidLease)
+        SqliteConnection c, SqliteTransaction tx, string playerId, string mapId, string now, string joinWindowOpenedAfter, string newRaidLease)
     {
         foreach (var server in _servers.All)
         {
             var open = (await c.QueryAsync<RaidRow>(
                 """
-                SELECT id AS Id, map_id AS MapId, server_id AS ServerId, state AS State, lease_expires_at AS LeaseExpiresAt
+                SELECT id AS Id, map_id AS MapId, server_id AS ServerId, state AS State, lease_expires_at AS LeaseExpiresAt, started_at AS StartedAt
                 FROM raids WHERE server_id = @serverId AND state IN ('pending', 'active') ORDER BY created_at DESC
                 """,
                 new { serverId = server.Id }, transaction: tx)).FirstOrDefault();
@@ -109,6 +111,12 @@ public sealed partial class RaidService
             }
 
             if (open.MapId != mapId)
+            {
+                continue;
+            }
+
+            // Too far along to join. The server is busy until it ends.
+            if (open.StartedAt is not null && string.CompareOrdinal(open.StartedAt, joinWindowOpenedAfter) < 0)
             {
                 continue;
             }

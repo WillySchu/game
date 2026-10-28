@@ -29,3 +29,57 @@ dotnet run --project backend/Game.Backend
   the nearest crate, and Take and Drop buttons. Crates are objects with a `LootContainer`.
 - Pressing Stop ends the raid, so the dev server is free again straight away. Anyone who didn't extract
   loses their gear; it doesn't matter, because each dev player is new each time.
+
+## Raid lifecycle
+
+The raid waits until someone joins, then runs its clock. It ends when the clock runs out, when everyone who
+joined has extracted or died, or when nobody inside has been connected for 3 minutes. Anyone still inside
+then is missing in action, and the server stops; start it again for a new raid.
+
+To set it up in a scene:
+
+- Add `RaidSessionClient` to the NetworkManager, next to `RaidInventoryClient`. The HUD reads the clock and
+  the extraction countdown from it, and the end-of-raid screen listens to its `LeftRaid` event.
+- Add one or more `ExtractionZone`s to the level: an empty GameObject with the component, sized with the
+  green gizmo so the box covers where players stand. Stand in it for 8 seconds to extract.
+- For testing, set `Raid Minutes` on `RaidServer` to 2 or so, so the clock runs out quickly. A dedicated
+  server takes `--raid-minutes` on the command line instead.
+
+What to check (the top right of the screen shows the raid's phase, the clock, any extraction countdown, and
+how you left):
+
+1. The clock starts at the full raid length when the first client joins and counts down; a second client
+   joining later sees the same time left.
+2. Standing in a zone starts the countdown; stepping out cancels it; staying in extracts you. You see
+   "you left: Extracted", then the client disconnects about 3 seconds later.
+3. With two clients, the raid keeps going after one extracts, and ends once the other extracts too.
+4. Letting the clock run out with a client inside shows "you left: MissingInAction", and the server stops.
+5. Disconnecting every client (and not coming back) ends the raid after 3 minutes.
+
+In each case, `GET /v1/me/raids/{raid_id}` on the backend (or the admin tool) shows the outcome: extracted,
+or died for missing in action.
+
+## Deploying from the overlay
+
+When the client isn't connected, the F1 overlay has a **Deploy** button. It goes the way the Hideout will: a
+dev login, a ticket for `map_id` from `UserSettings/RaidZeroDev.json`, then a connection to whatever server the
+ticket names. Against the local backend that's this editor's server (start it first with the `Server` button);
+with `backend_url` pointing at a machine running `deploy/compose.local.yaml` (see `deploy/LOCAL.md`) or the VPS,
+it's the dedicated server there.
+
+## A dedicated server build
+
+CI builds the dedicated server on every change to the Unity project (`.github/workflows/server.yml`). To build
+one yourself, install the **Linux Dedicated Server Build Support** module in Unity Hub, pick **Linux Server** in
+the Build Profiles window, and build to `build/StandaloneLinux64` at the repo root under the name
+`RaidZeroServer`. Then, from the repo root, with the backend running:
+
+```sh
+docker build -f unity/server.Dockerfile -t raidzero-gameserver build/StandaloneLinux64
+docker run --rm -p 7770:7770/udp -e RAIDZERO_BACKEND_URL=http://host.docker.internal:5080 \
+  -e RAIDZERO_SERVER_TOKEN='3ogBGujpU2KY3j673e4CUY3CYXusmi72kOaph+xeRQs=' raidzero-gameserver --raid-minutes 5
+```
+
+The build is x86-64, so on an Apple Silicon Mac Docker runs it under emulation (add `--platform linux/amd64` to
+both commands); it's slow but fine for a check. Wait for `[raid] Server ready`, then use **Deploy** in the
+editor's overlay against the local backend.

@@ -8,6 +8,8 @@ namespace RaidZero.BackendApi
     ///
     /// - invalid_join_token, ticket_expired: the player needs a new ticket from the Hideout.
     /// - wrong_raid: the player's ticket is for a different raid than the one this server is running.
+    /// - wrong_map: the player's raid is on a different map from the one this server has loaded
+    ///   (BackendClientOptions.MapId). The backend sent them to a misconfigured server.
     /// - raid_ending, raid_aborted: this server's raid is over and takes no one new.
     /// - already_left_raid: this player extracted or died here already.
     /// - backend_unreachable: no usable answer after <see cref="BackendClientOptions.JoinAttempts"/> tries.

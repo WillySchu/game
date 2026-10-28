@@ -24,6 +24,8 @@ unity/*/[Mm]emoryCaptures/
 unity/*/*.csproj
 unity/*/*.sln
 unity/*/*.slnx
+# GameCI's build output (the dedicated server, built in CI or locally)
+/build/
 # Copied in by the build step from shared/catalog
 unity/*/Assets/StreamingAssets/item_catalog.json*
 
@@ -33,3 +35,4 @@ Thumbs.db
 
 # Deployment secrets
 deploy/.env
+deploy/.env.local

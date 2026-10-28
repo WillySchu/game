@@ -7,7 +7,8 @@ namespace RaidZero.Backend.Raids;
 
 public sealed partial class RaidService
 {
-    public sealed record JoinRequest(string? JoinToken);
+    /// <param name="MapId">The map the game server has loaded. When given, a raid on another map is refused before any gear moves.</param>
+    public sealed record JoinRequest(string? JoinToken, string? MapId = null);
 
     public sealed record JoinResponse(string PlayerId, string DisplayName, ItemNode Loadout);
 
@@ -33,6 +34,13 @@ public sealed partial class RaidService
             if (!IsLive(raid.State))
             {
                 return RaidNotActive(raid.State);
+            }
+
+            // A server running the wrong level would spawn players into the wrong world, so refuse before
+            // anything moves. The ticket stays good for when the right map is up.
+            if (request.MapId is not null && request.MapId != raid.MapId)
+            {
+                return ServerResponse.Error(409, "wrong_map", $"This raid is on {raid.MapId}, but the server has {request.MapId} loaded.", new { MapId = raid.MapId });
             }
 
             if (string.IsNullOrEmpty(request.JoinToken))

@@ -67,6 +67,12 @@ public sealed class RaidOptions
 
     public int MaxPlayersPerRaid { get; set; } = 4;
 
+    /// <summary>
+    /// How long after its first player joins a raid still takes new tickets. After that, players queue for the
+    /// next raid instead of dropping into one that's nearly over.
+    /// </summary>
+    public int JoinWindowSeconds { get; set; } = 120;
+
     /// <summary>How often the background job looks for raids whose lease has run out.</summary>
     public int ReaperIntervalSeconds { get; set; } = 10;
 

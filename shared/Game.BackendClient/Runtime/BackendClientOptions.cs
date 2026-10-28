@@ -24,6 +24,12 @@ namespace RaidZero.BackendApi
         /// reports, by contrast, retry for as long as the process runs.
         /// </summary>
         public int JoinAttempts { get; set; } = 3;
+
+        /// <summary>
+        /// The map this server has loaded, sent with every join so the backend refuses a raid on another map
+        /// (wrong_map) before the player's gear moves. Null skips the check.
+        /// </summary>
+        public string MapId { get; set; }
     }
 
     public enum BackendLogLevel

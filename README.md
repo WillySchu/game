@@ -8,7 +8,8 @@ Design docs: *Raid Zero: Backend API & Data Model* and *Raid Zero: Unity Client 
 ```
 shared/Game.Shared/        Code compiled by BOTH Unity and .NET: item tree, catalog, validation, UUIDv7, raid protocol
 shared/Game.BackendClient/ The game server's connection to the backend: join, heartbeats, durable outbox
-shared/Game.Raid/          The game server's raid rules: the raid's inventory, looting, drops, bodies
+shared/Game.Raid/          The game server's raid rules: the raid's inventory, looting, drops, bodies, and
+                           when a raid starts and ends
 shared/catalog/            item_catalog.json, exported from Unity's ItemDefinition assets
 backend/Game.Backend/      ASP.NET Core backend: SQLite + Dapper, migrations, catalog loading
 tests/Game.Shared.Tests/   Rules tests (fit, stacking, slots, IDs, catalog hashing)
@@ -17,8 +18,11 @@ tests/Game.BackendClient.Tests/  The game server client against a fake backend, 
 tests/Game.Raid.Tests/     Raid inventory rules, plus a raid with looting played through to the backend's stashes
 unity/RaidZero/            The Unity project; unity/TESTING-INSTRUCTIONS.md covers playing it against the backend
                            Everything we make lives in Assets/_Project; the rest of Assets is third-party or tooling
-deploy/                    Running the backend on a VPS: Compose, Caddy, backups (see deploy/README.md)
+unity/server.Dockerfile    The dedicated game server's image, around a Unity Linux Dedicated Server build
+deploy/                    Running the backend and a game server on a VPS (deploy/README.md) or on your own
+                           machine over Tailscale (deploy/LOCAL.md)
 .github/workflows/ci.yml   Tests every push and pull request; pushes the backend image to GHCR from main
+.github/workflows/server.yml  Builds the game server with Unity, smoke tests it, pushes its image to GHCR from main
 ```
 
 Build output goes to `artifacts/` at the repo root, never next to the projects (see `Directory.Build.props`).
@@ -77,6 +81,7 @@ Settings live under `Backend` in `appsettings.json`, with Development overrides 
 | `Raids:TicketSeconds` | `60` | How long a player has to connect after getting a ticket |
 | `Raids:LeaseSeconds` | `60` | A raid whose server sends no heartbeat for this long is aborted and refunded |
 | `Raids:MaxPlayersPerRaid` | `4` | |
+| `Raids:JoinWindowSeconds` | `120` | How long after its first player joins a raid still takes new tickets |
 | `Raids:ReaperIntervalSeconds` | `10` | How often the abort job runs |
 
 The key in `appsettings.Development.json` is for local runs only. Real deployments set
@@ -151,7 +156,8 @@ The key in `appsettings.Development.json` is for local runs only. Real deploymen
 - If a server stops heartbeating, `RaidReaper` aborts the raid: players still inside get their snapshot back,
   minus anything another player already extracted; extracted players keep their loot.
 - Tickets join the server's open raid when the map matches and there's room, so co-op and looting other players
-  work on one dev server. Each server runs one raid at a time.
+  work on one dev server. Each server runs one raid at a time, and a raid stops taking tickets two minutes
+  after its first player joins, so nobody drops into a raid that's nearly over.
 
 **Admin tool**
 - `/v1/admin` takes only the admin token; player and server tokens don't work there, and the admin token
@@ -205,12 +211,28 @@ The key in `appsettings.Development.json` is for local runs only. Real deploymen
 - The catalog must have `character` and `ground` definitions. Loot containers (such as `crate_wooden`) are
   ordinary definitions with a grid; their contents need fresh `Uuid7` IDs, which they keep into the stash.
 
+**Raid lifecycle** (`RaidLifecycle` and `ExtractionTracker` in `Game.Raid`, `RaidPhase` in `Game.Shared`)
+- A raid waits until its first join, then runs its clock (25 minutes by default). It ends when the clock
+  runs out, when everyone who joined has extracted or died, or when nobody inside has been connected for the
+  grace period (3 minutes). It doesn't end early while a join is still with the backend, and it refuses new
+  joins once it's ending, before anyone's gear moves.
+- When it ends, players still inside are missing in action: the server tells them, and the backend's close
+  counts them as dead. A dedicated server then exits, one raid per process, so a supervisor can start a fresh
+  one; in the editor the server just stops.
+- Extraction is staying inside one zone for its countdown (8 seconds by default). Leaving cancels it, and
+  taking damage starts it over.
+- Both are plain C# with no engine in them, so every rule is unit tested; `RaidServer` drives them.
+
 **Unity networking** (`unity/RaidZero/Assets/_Project/Scripts/Net`, assembly `Game.Net`)
 - The thin Fish-Net layer over everything above. `RaidAuthenticator` lets a client in only with a raid ticket
   the backend accepts; `RaidServer` owns the backend client and the raid's inventory on the server;
   `RaidInventoryClient` is the client's end, with the `View` the inventory screen draws from.
-- Gameplay calls `RaidServer.PlayerDied`, `PlayerExtracted`, `Consume` and `EndRaidAsync`. Crates carry a
-  `LootContainer`; bodies and ground piles register in `ContainerRegistry` so the server can check reach.
+- Gameplay calls `RaidServer.PlayerDied`, `Consume` and `InterruptExtraction` (on damage). Levels place
+  `ExtractionZone`s, and crates carry a `LootContainer`; bodies and ground piles register in
+  `ContainerRegistry` so the server can check reach. A dead player's body must be its own object: their
+  connection closes a few seconds after they leave, and Fish-Net despawns whatever it owned.
+- `RaidSessionClient` is the client's view of the raid: its phase, the clock, the extraction countdown, and
+  a `LeftRaid` event saying how the player left. It's carried by three small broadcasts.
 - Inventory messages travel as two Fish-Net broadcasts carrying `RaidProtocol` bytes, so the network layer
   never interprets them.
 - Clients get their ticket from `RaidTickets.Next`, which the Hideout will set; in the editor they fetch a
@@ -257,12 +279,19 @@ to `main` also builds `backend/Dockerfile` for amd64 and arm64 and pushes `ghcr.
 
 To build the image yourself, from the repo root: `docker build -f backend/Dockerfile -t raidzero-backend .`
 
+A second workflow builds the dedicated game server whenever the Unity project or shared code changes: a Unity
+Linux Dedicated Server build through [GameCI](https://game.ci), wrapped in `unity/server.Dockerfile`. It starts
+the backend and the server together and checks the server comes up ready, then on `main` pushes
+`ghcr.io/<owner>/<repo>/gameserver`. It needs a Unity license as repository secrets (`deploy/README.md` says
+how); without them it skips the build. The game server tells the backend which map it has loaded on every join
+(`RaidServer`'s Map Id), and the backend refuses a raid on another map (`wrong_map`) before anyone's gear moves.
+
 ## What's next (backend)
 
 The Milestone 1 backend is complete: every endpoint in the API doc exists and is covered by tests, including
 `RaidApiTests`, which plays whole raids over HTTP the way the game server will. The game server's side of that
 conversation exists too, as `shared/Game.BackendClient`, and so do the raid's inventory rules, in
 `shared/Game.Raid`, along with the inventory's network protocol, and the Hideout's side, as `PlayerSession`.
-The thin Unity layers over them live in `unity/RaidZero/Assets/_Project/Scripts/Net`. Next are the raid's
-lifecycle on the game server, dedicated server builds and deployment, then Steam login in place of dev login,
-and a matchmaker that spreads raids across several servers.
+The thin Unity layers over them live in `unity/RaidZero/Assets/_Project/Scripts/Net`, including the raid's
+lifecycle, and CI builds the dedicated server and deploys it next to the backend. Next are Steam login in place
+of dev login, and a matchmaker that spreads raids across several servers.

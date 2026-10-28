@@ -1,5 +1,6 @@
 using Dapper;
 using RaidZero.Backend.Players;
+using RaidZero.Backend.Raids;
 using RaidZero.Shared.Ids;
 using RaidZero.Shared.Inventory;
 using static Game.Backend.Tests.RaidFixture;
@@ -88,6 +89,31 @@ public sealed class RaidLifecycleTests : IDisposable
     }
 
     [Fact]
+    public async Task Tickets_StopJoiningARaidOnceItsJoinWindowCloses()
+    {
+        using var f = new RaidFixture();
+        await f.StartAsync();
+        var sam = await f.PlayerAsync("Sam");
+        var ann = await f.PlayerAsync("Ann");
+        var bob = await f.PlayerAsync("Bob");
+        var (raidId, _) = await f.EnterAsync(sam);
+
+        // Still inside the window (120 seconds from the first join): Ann joins Sam.
+        f.Time.Now = f.Time.Now.AddSeconds(119);
+        var (annRaid, _) = await f.TicketAsync(ann);
+        f.Time.Now = f.Time.Now.AddSeconds(2);
+        var late = await f.Raids.CreateTicketAsync(bob, Map);
+
+        Assert.Equal(raidId, annRaid);
+        Assert.Equal("no_server_available", Error(late));
+
+        // Once that raid closes, the server takes Bob into a fresh one.
+        Assert.Equal(200, (await f.CloseAsync(raidId)).StatusCode);
+        var (bobRaid, _) = await f.TicketAsync(bob);
+        Assert.NotEqual(raidId, bobRaid);
+    }
+
+    [Fact]
     public async Task Ticket_WithNoServersConfigured_Is503()
     {
         using var f = new RaidFixture(withServer: false);
@@ -139,6 +165,25 @@ public sealed class RaidLifecycleTests : IDisposable
         var late = await _f.JoinAsync(raidId, token);
         Assert.Equal(410, late.StatusCode);
         Assert.Equal("ticket_expired", Error(late));
+    }
+
+    [Fact]
+    public async Task Join_FromAServerWithAnotherMapLoaded_IsRefusedBeforeAnyGearMoves()
+    {
+        using var f = new RaidFixture();
+        await f.StartAsync();
+        var sam = await f.PlayerAsync("Sam");
+        var (raidId, token) = await f.TicketAsync(sam);
+
+        var wrong = await f.Raids.JoinAsync(RaidFixture.ServerId, raidId, f.NextKey(), "h1", new RaidService.JoinRequest(token, "other_map"));
+
+        Assert.Equal((409, "wrong_map"), (wrong.StatusCode, Error(wrong)));
+        Assert.Equal(Map, Body(wrong).GetProperty("map_id").GetString());
+        Assert.NotEmpty((await f.ProfileAsync(sam)).Character.Children);
+        Assert.Equal("ticketed", await f.ParticipantStateAsync(raidId, sam));
+
+        var right = await f.Raids.JoinAsync(RaidFixture.ServerId, raidId, f.NextKey(), "h2", new RaidService.JoinRequest(token, Map));
+        Assert.Equal(200, right.StatusCode);
     }
 
     [Fact]

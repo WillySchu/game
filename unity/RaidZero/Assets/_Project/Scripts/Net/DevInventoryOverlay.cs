@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Text;
+using FishNet.Managing;
 using RaidZero.Items;
 using RaidZero.Shared.Inventory;
 using RaidZero.Shared.Raid;
@@ -10,6 +11,10 @@ namespace RaidZero.Net
     /// <summary>
     /// A throwaway debug screen for the raid inventory, until the real one exists. Press F1 in play mode:
     /// it lists your gear and anything you have open, opens the nearest crate, and takes or drops items.
+    /// A line in the top right always shows the raid's phase, its clock, any extraction countdown, and how
+    /// you left. When not connected, the screen has a Deploy button that goes through the Hideout's path:
+    /// a dev login, a ticket, and a connection to the server the ticket names (a dedicated server on a VPS,
+    /// say), instead of the Multiplayer Play Mode buttons' local address.
     /// Everything goes through RaidInventoryClient exactly as the real inventory screen will, so it
     /// exercises the whole path: client, Fish-Net, server, the raid's rules, and back.
     /// Put it on any GameObject in the raid scene. It does nothing in release builds.
@@ -20,6 +25,7 @@ namespace RaidZero.Net
         private float _openRange = 2.5f;
 
         private bool _visible;
+        private bool _deploying;
         private string _lastResult = "";
         private Vector2 _scroll;
 
@@ -48,6 +54,8 @@ namespace RaidZero.Net
                 e.Use();
             }
 
+            DrawRaidStatus();
+
             var client = RaidInventoryClient.Instance;
             if (!_visible || client == null)
             {
@@ -57,6 +65,7 @@ namespace RaidZero.Net
             GUILayout.BeginArea(new Rect(10, 10, 460, Screen.height - 20), GUI.skin.box);
             _scroll = GUILayout.BeginScrollView(_scroll);
             GUILayout.Label("Raid inventory (F1 to close)   last request: " + _lastResult);
+            DrawDeploy();
 
             var character = client.View.Character;
             if (character == null)
@@ -97,6 +106,86 @@ namespace RaidZero.Net
 
             GUILayout.EndScrollView();
             GUILayout.EndArea();
+        }
+
+        private void DrawDeploy()
+        {
+            var networkManager = ClientNetworkManager();
+            if (networkManager == null || networkManager.ClientManager.Started || networkManager.ServerManager.Started)
+            {
+                return;
+            }
+
+            GUILayout.Label("Backend: " + Hideout.BackendUrl + "   map: " + DevSettings.MapId);
+            GUI.enabled = !_deploying;
+            if (GUILayout.Button(_deploying ? "Deploying..." : "Deploy (dev login, ticket, connect to the ticket's server)"))
+            {
+                DeployAsync(networkManager);
+            }
+
+            GUI.enabled = true;
+        }
+
+        private async void DeployAsync(NetworkManager networkManager)
+        {
+            _deploying = true;
+            try
+            {
+                if (!Hideout.Session.IsLoggedIn)
+                {
+                    var login = await Hideout.Session.DevLoginAsync("dev-" + UnityEngine.Random.Range(10000, 99999));
+                    if (!login.Succeeded)
+                    {
+                        _lastResult = "dev login failed: " + login;
+                        return;
+                    }
+                }
+
+                var ticket = await Hideout.DeployAsync(networkManager, DevSettings.MapId);
+                _lastResult = ticket.Succeeded
+                    ? "connecting to " + ticket.Value.ServerHost + ":" + ticket.Value.ServerPort
+                    : "no ticket: " + ticket;
+            }
+            catch (System.Exception exception)
+            {
+                _lastResult = "deploy failed: " + exception.Message;
+            }
+            finally
+            {
+                _deploying = false;
+            }
+        }
+
+        private static NetworkManager ClientNetworkManager() =>
+            RaidInventoryClient.Instance != null ? RaidInventoryClient.Instance.GetComponent<NetworkManager>() : null;
+
+        private static void DrawRaidStatus()
+        {
+            var session = RaidSessionClient.Instance;
+            if (session == null)
+            {
+                return;
+            }
+
+            var text = new StringBuilder("Raid: ").Append(session.Phase);
+            if (session.Phase == RaidPhase.InProgress)
+            {
+                var seconds = Mathf.CeilToInt(session.SecondsRemaining);
+                text.Append("  ").Append(seconds / 60).Append(':').Append((seconds % 60).ToString("00"));
+            }
+
+            if (session.IsExtracting)
+            {
+                text.Append("  |  extracting at ").Append(session.ExtractionPoint).Append(": ")
+                    .Append(Mathf.CeilToInt(session.ExtractionSecondsLeft)).Append(" s");
+            }
+
+            if (session.Exit.HasValue)
+            {
+                text.Append("  |  you left: ").Append(session.Exit.Value);
+            }
+
+            GUI.Label(new Rect(Screen.width - 430, 10, 420, 24), text.ToString(), GUI.skin.box);
         }
 
         private void DrawTree(RaidInventoryClient client, ItemNode node, int depth, bool isMine)

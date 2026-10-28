@@ -37,8 +37,12 @@ public class BackendClientApiTests
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
-    private static BackendClient Client(ApiHost api, string catalog, TempFolder outbox, IBackendTransport transport) =>
-        new(new BackendSettings(api.Client.BaseAddress!.ToString(), ApiHost.ServerToken, outbox.Path), catalog, Fast(), transport, new CapturingLog());
+    private static BackendClient Client(ApiHost api, string catalog, TempFolder outbox, IBackendTransport transport, string? mapId = null)
+    {
+        var options = Fast();
+        options.MapId = mapId;
+        return new(new BackendSettings(api.Client.BaseAddress!.ToString(), ApiHost.ServerToken, outbox.Path), catalog, options, transport, new CapturingLog());
+    }
 
     /// <summary>The real HTTP transport, plus a switch that throws away chosen answers after the backend has acted.</summary>
     private sealed class LossyTransport(string baseUrl) : IBackendTransport
@@ -167,5 +171,30 @@ public class BackendClientApiTests
         Assert.Equal("catalog_mismatch", joined.Error);
         var character = (await GetAsync(api, "/v1/me/profile", playerToken)).GetProperty("character");
         Assert.NotEmpty(character.GetProperty("children").EnumerateArray());
+    }
+
+    [Fact]
+    public async Task AServerWithAnotherMapLoaded_IsTurnedAwayAtTheDoor()
+    {
+        await using var api = await ApiHost.StartAsync();
+        using var outbox = new TempFolder();
+        var (_, playerToken) = await api.LoginAsync();
+        var (raidId, joinToken) = await TicketAsync(api, playerToken);
+        using var transport = new HttpClientTransport(api.Client.BaseAddress!.ToString(), TimeSpan.FromSeconds(10));
+        var catalog = await CatalogVersionAsync(api);
+
+        using (var wrong = Client(api, catalog, outbox, transport, mapId: "other_map"))
+        {
+            wrong.Start();
+            Assert.Equal("wrong_map", (await wrong.JoinAsync(raidId, joinToken)).Error);
+        }
+
+        var character = (await GetAsync(api, "/v1/me/profile", playerToken)).GetProperty("character");
+        Assert.NotEmpty(character.GetProperty("children").EnumerateArray());
+
+        using var right = Client(api, catalog, outbox, transport, mapId: "greybox_01");
+        right.Start();
+        var joined = await right.JoinAsync(raidId, joinToken);
+        Assert.True(joined.Succeeded, joined.ToString());
     }
 }
