@@ -1,0 +1,81 @@
+using System.IO;
+using Newtonsoft.Json.Linq;
+using RaidZero.BackendApi;
+using RaidZero.Shared.Catalog;
+using UnityEngine;
+
+namespace RaidZero.Net
+{
+    /// <summary>
+    /// Settings for playing in the editor, from UserSettings/RaidZeroDev.json. Unity's own .gitignore keeps
+    /// UserSettings/ out of the repo, so each of you can point at a different backend. The file is created
+    /// on first use with values for the local dev backend (dotnet run --project backend/Game.Backend).
+    /// </summary>
+    public static class DevSettings
+    {
+        // The dev-local server token from the backend's appsettings.Development.json. Dev-only, like that file.
+        private const string LocalDevServerToken = "3ogBGujpU2KY3j673e4CUY3CYXusmi72kOaph+xeRQs=";
+
+        public static string FilePath => Path.GetFullPath(Path.Combine(Application.dataPath, "..", "UserSettings", "RaidZeroDev.json"));
+
+        /// <summary>The backend the editor talks to, as the game server and for dev tickets.</summary>
+        public static string BackendUrl => Read()["backend_url"]?.ToString() ?? "http://localhost:5080";
+
+        public static string ServerToken => Read()["server_token"]?.ToString() ?? LocalDevServerToken;
+
+        /// <summary>The map tickets ask for. Raids only group players asking for the same map.</summary>
+        public static string MapId => Read()["map_id"]?.ToString() ?? "greybox_01";
+
+        private static JObject Read()
+        {
+            var path = FilePath;
+            if (!File.Exists(path))
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(path));
+                var defaults = new JObject
+                {
+                    ["backend_url"] = "http://localhost:5080",
+                    ["server_token"] = LocalDevServerToken,
+                    ["map_id"] = "greybox_01",
+                };
+                File.WriteAllText(path, defaults.ToString());
+                Debug.Log("Created " + path + " with settings for the local dev backend. Edit it to use another.");
+            }
+
+            return JObject.Parse(File.ReadAllText(path));
+        }
+    }
+
+    /// <summary>Where the game server finds its backend and its item catalog.</summary>
+    public static class ServerConfig
+    {
+        /// <summary>
+        /// The command line, then environment variables, as BackendSettings.Resolve reads them. In the editor,
+        /// where neither is convenient, anything missing comes from <see cref="DevSettings"/> instead.
+        /// </summary>
+        public static BackendSettings ResolveBackend()
+        {
+            var outbox = Path.Combine(Application.persistentDataPath, "outbox");
+            try
+            {
+                return BackendSettings.Resolve(System.Environment.GetCommandLineArgs(), System.Environment.GetEnvironmentVariable, outbox);
+            }
+            catch (BackendSettingsException) when (Application.isEditor)
+            {
+                return new BackendSettings(DevSettings.BackendUrl, DevSettings.ServerToken, outbox);
+            }
+        }
+
+        /// <summary>
+        /// The repo's shared/catalog/item_catalog.json in the editor, or the copy the build step puts in
+        /// StreamingAssets for players and servers.
+        /// </summary>
+        public static ItemCatalog LoadCatalog()
+        {
+            var path = Application.isEditor
+                ? Path.Combine(Application.dataPath, "..", "..", "..", "shared", "catalog", "item_catalog.json")
+                : Path.Combine(Application.streamingAssetsPath, "item_catalog.json");
+            return CatalogJson.LoadFile(path);
+        }
+    }
+}

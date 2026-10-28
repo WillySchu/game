@@ -15,7 +15,7 @@ tests/Game.Shared.Tests/   Rules tests (fit, stacking, slots, IDs, catalog hashi
 tests/Game.Backend.Tests/  Catalog loading, migrations and database behaviour against a real SQLite file
 tests/Game.BackendClient.Tests/  The game server client against a fake backend, and whole raids against the real one
 tests/Game.Raid.Tests/     Raid inventory rules, plus a raid with looting played through to the backend's stashes
-unity/                     The Unity project goes here (unity/RaidZero)
+unity/RaidZero/            The Unity project; unity/TESTING-INSTRUCTIONS.md covers playing it against the backend
 deploy/                    Running the backend on a VPS: Compose, Caddy, backups (see deploy/README.md)
 .github/workflows/ci.yml   Tests every push and pull request; pushes the backend image to GHCR from main
 ```
@@ -190,6 +190,17 @@ The key in `appsettings.Development.json` is for local runs only. Real deploymen
 - The catalog must have `character` and `ground` definitions. Loot containers (such as `crate_wooden`) are
   ordinary definitions with a grid; their contents need fresh `Uuid7` IDs, which they keep into the stash.
 
+**Unity networking** (`unity/RaidZero/Assets/_Project/Scripts/Net`, assembly `Game.Net`)
+- The thin Fish-Net layer over everything above. `RaidAuthenticator` lets a client in only with a raid ticket
+  the backend accepts; `RaidServer` owns the backend client and the raid's inventory on the server;
+  `RaidInventoryClient` is the client's end, with the `View` the inventory screen draws from.
+- Gameplay calls `RaidServer.PlayerDied`, `PlayerExtracted`, `Consume` and `EndRaidAsync`. Crates carry a
+  `LootContainer`; bodies and ground piles register in `ContainerRegistry` so the server can check reach.
+- Inventory messages travel as two Fish-Net broadcasts carrying `RaidProtocol` bytes, so the network layer
+  never interprets them.
+- Clients get their ticket from `RaidTickets.Next`, which the Hideout will set; in the editor they fetch a
+  dev ticket from the local backend instead.
+
 **Shared code**
 - `shared/Game.Shared` targets netstandard2.1 with C# 9 and nullable off, because Unity compiles it too.
   The compiler enforces the language version; avoid .NET APIs newer than netstandard2.1
@@ -227,5 +238,6 @@ The Milestone 1 backend is complete: every endpoint in the API doc exists and is
 `RaidApiTests`, which plays whole raids over HTTP the way the game server will. The game server's side of that
 conversation exists too, as `shared/Game.BackendClient`, and so do the raid's inventory rules, in
 `shared/Game.Raid`, along with the inventory's network protocol. Next are the thin Unity layers over them
-(the Fish-Net authenticator, and two broadcasts carrying the protocol's bytes), then Steam login in place of
-dev login, and a matchmaker that spreads raids across several servers.
+(the Fish-Net authenticator, and two broadcasts carrying the protocol's bytes), drafted in
+`unity/RaidZero/Assets/_Project/Scripts/Net`, then Steam login in place of dev login, and a matchmaker that
+spreads raids across several servers.
