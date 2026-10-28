@@ -104,6 +104,10 @@ ticket names. Against the local backend that's this editor's server (start it fi
 with `backend_url` pointing at a machine running `deploy/compose.local.yaml` (see `deploy/LOCAL.md`) or the VPS,
 it's the dedicated server there.
 
+The editor stays logged in as the same dev player between Play sessions, so Deploy brings them back: into the
+raid they dropped out of, or with whatever they extracted with. A dev player who died or went missing in action
+has no gear left, so Deploy starts a fresh one with the starter kit instead.
+
 ## A dedicated server build
 
 CI builds the dedicated server on every change to the Unity project (`.github/workflows/server.yml`). To build

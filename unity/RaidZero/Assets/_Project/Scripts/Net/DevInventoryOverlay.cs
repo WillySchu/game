@@ -139,7 +139,7 @@ namespace RaidZero.Net
             _deploying = true;
             try
             {
-                if (!Hideout.Session.IsLoggedIn && !await NewDevPlayerAsync())
+                if (!await ReadyDevPlayerAsync())
                 {
                     return;
                 }
@@ -171,6 +171,30 @@ namespace RaidZero.Net
             {
                 _deploying = false;
             }
+        }
+
+        // The editor keeps its login between Play sessions (domain reload is off), so the same dev player deploys
+        // again and again. That's what you want for rejoining a raid you dropped out of, or for bringing back what
+        // you extracted with. But a dev player who died or went missing in action has nothing left on them, so
+        // they'd deploy with no gear: start a fresh one with the starter kit instead. Also when the backend no
+        // longer knows the login (its database was reset, say).
+        private async Task<bool> ReadyDevPlayerAsync()
+        {
+            if (Hideout.Session.IsLoggedIn)
+            {
+                var refreshed = await Hideout.Session.RefreshAsync();
+                var profile = refreshed.Succeeded ? refreshed.Value : null;
+                if (profile != null && (profile.IsInRaid || (profile.Character != null && profile.Character.Children.Count > 0)))
+                {
+                    return true;
+                }
+
+                Debug.Log(profile == null
+                    ? "[raid] The backend didn't recognise this dev player (" + refreshed.Error + "); deploying as a new one."
+                    : "[raid] Dev player " + profile.DisplayName + " has no gear left; deploying as a new one with the starter kit.");
+            }
+
+            return await NewDevPlayerAsync();
         }
 
         private async Task<bool> NewDevPlayerAsync()
