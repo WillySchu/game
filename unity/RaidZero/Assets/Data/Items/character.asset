@@ -1,0 +1,47 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 53f60060760042fbb1f79d9b596735f3, type: 3}
+  m_Name: character
+  m_EditorClassIdentifier: Game.Items::RaidZero.Items.ItemDefinitionAsset
+  _defId: character
+  _displayName: Character
+  _description: 
+  _width: 1
+  _height: 1
+  _maxStack: 1
+  _hasDurability: 0
+  _tags: []
+  _hasGrid: 0
+  _gridSize: {x: 1, y: 1}
+  _slots:
+  - Name: primary
+    Accepts:
+    - weapon_long
+    MaxQuantity: 0
+  - Name: secondary
+    Accepts:
+    - weapon_short
+    MaxQuantity: 0
+  - Name: armor
+    Accepts:
+    - armor
+    MaxQuantity: 0
+  - Name: rig
+    Accepts:
+    - rig
+    MaxQuantity: 0
+  - Name: backpack
+    Accepts:
+    - backpack
+    MaxQuantity: 0
+  _icon: {fileID: 0}
+  _worldPrefab: {fileID: 0}

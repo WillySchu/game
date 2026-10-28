@@ -1,0 +1,20 @@
+{
+    "name": "Game.Items.Editor",
+    "rootNamespace": "RaidZero.Items.Editor",
+    "references": [
+        "Game.Items",
+        "RaidZero.Shared",
+        "RaidZero.BackendClient"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

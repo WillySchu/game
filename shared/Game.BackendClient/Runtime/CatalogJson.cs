@@ -8,7 +8,7 @@ using RaidZero.Shared.Catalog;
 namespace RaidZero.BackendApi
 {
     /// <summary>
-    /// Reads item_catalog.json in Unity, where System.Text.Json isn't available. It reads the same snake_case
+    /// Reads and writes item_catalog.json in Unity, where System.Text.Json isn't available. It reads the same snake_case
     /// fields as the backend's loader, by hand rather than by reflection, so IL2CPP stripping can't break it.
     /// Like the backend, it refuses a file whose declared catalog_version doesn't match its contents: a server
     /// running on the wrong rules must fail at startup, not halfway through a raid.
@@ -94,6 +94,80 @@ namespace RaidZero.BackendApi
             }
 
             return catalog;
+        }
+
+        /// <summary>
+        /// Writes item_catalog.json the way the Unity exporter does: items sorted by def_id, fields that are
+        /// at their defaults left out, and catalog_version computed from the contents. The same definitions
+        /// always produce the same text, so an export with no rule changes is no diff at all.
+        /// </summary>
+        public static string Write(IEnumerable<ItemDefinition> definitions)
+        {
+            var list = new List<ItemDefinition>(definitions ?? throw new ArgumentNullException(nameof(definitions)));
+            var catalog = new ItemCatalog(list);
+            list.Sort((a, b) => string.CompareOrdinal(a.DefId, b.DefId));
+
+            var items = new JArray();
+            foreach (var definition in list)
+            {
+                var item = new JObject { ["def_id"] = definition.DefId };
+                if (!string.IsNullOrEmpty(definition.DisplayName))
+                {
+                    item["display_name"] = definition.DisplayName;
+                }
+
+                if (definition.Width != 1)
+                {
+                    item["width"] = definition.Width;
+                }
+
+                if (definition.Height != 1)
+                {
+                    item["height"] = definition.Height;
+                }
+
+                if (definition.MaxStack != 1)
+                {
+                    item["max_stack"] = definition.MaxStack;
+                }
+
+                if (definition.HasDurability)
+                {
+                    item["has_durability"] = true;
+                }
+
+                if (definition.Tags != null && definition.Tags.Count > 0)
+                {
+                    item["tags"] = new JArray(definition.Tags);
+                }
+
+                if (definition.Grid != null)
+                {
+                    item["grid"] = new JObject { ["width"] = definition.Grid.Width, ["height"] = definition.Grid.Height };
+                }
+
+                if (definition.Slots != null && definition.Slots.Count > 0)
+                {
+                    var slots = new JArray();
+                    foreach (var slot in definition.Slots)
+                    {
+                        var json = new JObject { ["name"] = slot.Name, ["accepts"] = new JArray(slot.Accepts ?? new List<string>()) };
+                        if (slot.MaxQuantity != 0)
+                        {
+                            json["max_quantity"] = slot.MaxQuantity;
+                        }
+
+                        slots.Add(json);
+                    }
+
+                    item["slots"] = slots;
+                }
+
+                items.Add(item);
+            }
+
+            var document = new JObject { ["catalog_version"] = catalog.Version, ["items"] = items };
+            return document.ToString(Formatting.Indented).Replace("\r\n", "\n") + "\n";
         }
 
         private static List<string> Strings(JToken token)

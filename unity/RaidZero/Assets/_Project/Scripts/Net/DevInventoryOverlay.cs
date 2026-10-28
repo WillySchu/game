@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Text;
+using RaidZero.Items;
 using RaidZero.Shared.Inventory;
 using RaidZero.Shared.Raid;
 using UnityEngine;
@@ -125,7 +126,7 @@ namespace RaidZero.Net
 
         private static string Describe(ItemNode item)
         {
-            var text = new StringBuilder(item.DefId);
+            var text = new StringBuilder(ItemLibrary.DisplayNameOf(item.DefId));
             if (item.Quantity > 1)
             {
                 text.Append(" x").Append(item.Quantity);

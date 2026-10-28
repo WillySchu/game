@@ -2,74 +2,20 @@
   "catalog_version": "3a78d1f2e0dde6df",
   "items": [
     {
-      "def_id": "stash",
-      "display_name": "Stash",
-      "grid": { "width": 10, "height": 30 }
-    },
-    {
-      "def_id": "character",
-      "display_name": "Character",
-      "slots": [
-        { "name": "primary", "accepts": ["weapon_long"] },
-        { "name": "secondary", "accepts": ["weapon_short"] },
-        { "name": "armor", "accepts": ["armor"] },
-        { "name": "rig", "accepts": ["rig"] },
-        { "name": "backpack", "accepts": ["backpack"] }
-      ]
-    },
-    {
-      "def_id": "ground",
-      "display_name": "Ground",
-      "grid": { "width": 10, "height": 10 }
-    },
-    {
-      "def_id": "crate_wooden",
-      "display_name": "Wooden Crate",
-      "grid": { "width": 6, "height": 4 }
-    },
-    {
-      "def_id": "rifle_ak_basic",
-      "display_name": "AK Rifle",
-      "width": 4,
-      "height": 2,
-      "has_durability": true,
-      "tags": ["weapon_long"],
-      "slots": [{ "name": "magazine", "accepts": ["mag_ak"] }]
-    },
-    {
-      "def_id": "pistol_pm",
-      "display_name": "PM Pistol",
-      "width": 2,
-      "height": 1,
-      "has_durability": true,
-      "tags": ["weapon_short"],
-      "slots": [{ "name": "magazine", "accepts": ["mag_pm"] }]
-    },
-    {
-      "def_id": "mag_ak_30",
-      "display_name": "AK 30-round magazine",
-      "width": 1,
-      "height": 2,
-      "tags": ["mag_ak"],
-      "slots": [{ "name": "rounds", "accepts": ["ammo_545"], "max_quantity": 30 }]
-    },
-    {
-      "def_id": "mag_pm_8",
-      "display_name": "PM 8-round magazine",
-      "tags": ["mag_pm"],
-      "slots": [{ "name": "rounds", "accepts": ["ammo_9x18"], "max_quantity": 8 }]
-    },
-    {
       "def_id": "ammo_545_ps",
       "display_name": "5.45x39 PS",
       "max_stack": 60,
-      "tags": ["ammo_545"]
+      "tags": [
+        "ammo_545"
+      ]
     },
     {
       "def_id": "ammo_9x18_pst",
       "display_name": "9x18 PST",
       "max_stack": 50,
-      "tags": ["ammo_9x18"]
+      "tags": [
+        "ammo_9x18"
+      ]
     },
     {
       "def_id": "armor_vest_light",
@@ -77,45 +23,190 @@
       "width": 3,
       "height": 3,
       "has_durability": true,
-      "tags": ["armor"]
-    },
-    {
-      "def_id": "rig_chest_basic",
-      "display_name": "Chest rig",
-      "width": 2,
-      "height": 2,
-      "tags": ["rig"],
-      "grid": { "width": 4, "height": 2 }
+      "tags": [
+        "armor"
+      ]
     },
     {
       "def_id": "backpack_small",
       "display_name": "Small backpack",
       "width": 3,
       "height": 3,
-      "tags": ["backpack"],
-      "grid": { "width": 4, "height": 5 }
+      "tags": [
+        "backpack"
+      ],
+      "grid": {
+        "width": 4,
+        "height": 5
+      }
+    },
+    {
+      "def_id": "character",
+      "display_name": "Character",
+      "slots": [
+        {
+          "name": "primary",
+          "accepts": [
+            "weapon_long"
+          ]
+        },
+        {
+          "name": "secondary",
+          "accepts": [
+            "weapon_short"
+          ]
+        },
+        {
+          "name": "armor",
+          "accepts": [
+            "armor"
+          ]
+        },
+        {
+          "name": "rig",
+          "accepts": [
+            "rig"
+          ]
+        },
+        {
+          "name": "backpack",
+          "accepts": [
+            "backpack"
+          ]
+        }
+      ]
+    },
+    {
+      "def_id": "crate_wooden",
+      "display_name": "Wooden Crate",
+      "grid": {
+        "width": 6,
+        "height": 4
+      }
+    },
+    {
+      "def_id": "currency_credits",
+      "display_name": "Credits",
+      "max_stack": 500000,
+      "tags": [
+        "currency"
+      ]
+    },
+    {
+      "def_id": "ground",
+      "display_name": "Ground",
+      "grid": {
+        "width": 10,
+        "height": 10
+      }
+    },
+    {
+      "def_id": "loot_fuse",
+      "display_name": "Fuse",
+      "tags": [
+        "barter"
+      ]
+    },
+    {
+      "def_id": "loot_gpu",
+      "display_name": "Graphics card",
+      "width": 2,
+      "tags": [
+        "valuable"
+      ]
+    },
+    {
+      "def_id": "mag_ak_30",
+      "display_name": "AK 30-round magazine",
+      "height": 2,
+      "tags": [
+        "mag_ak"
+      ],
+      "slots": [
+        {
+          "name": "rounds",
+          "accepts": [
+            "ammo_545"
+          ],
+          "max_quantity": 30
+        }
+      ]
+    },
+    {
+      "def_id": "mag_pm_8",
+      "display_name": "PM 8-round magazine",
+      "tags": [
+        "mag_pm"
+      ],
+      "slots": [
+        {
+          "name": "rounds",
+          "accepts": [
+            "ammo_9x18"
+          ],
+          "max_quantity": 8
+        }
+      ]
     },
     {
       "def_id": "medkit_basic",
       "display_name": "Medkit"
     },
     {
-      "def_id": "currency_credits",
-      "display_name": "Credits",
-      "max_stack": 500000,
-      "tags": ["currency"]
-    },
-    {
-      "def_id": "loot_gpu",
-      "display_name": "Graphics card",
+      "def_id": "pistol_pm",
+      "display_name": "PM Pistol",
       "width": 2,
-      "height": 1,
-      "tags": ["valuable"]
+      "has_durability": true,
+      "tags": [
+        "weapon_short"
+      ],
+      "slots": [
+        {
+          "name": "magazine",
+          "accepts": [
+            "mag_pm"
+          ]
+        }
+      ]
     },
     {
-      "def_id": "loot_fuse",
-      "display_name": "Fuse",
-      "tags": ["barter"]
+      "def_id": "rifle_ak_basic",
+      "display_name": "AK Rifle",
+      "width": 4,
+      "height": 2,
+      "has_durability": true,
+      "tags": [
+        "weapon_long"
+      ],
+      "slots": [
+        {
+          "name": "magazine",
+          "accepts": [
+            "mag_ak"
+          ]
+        }
+      ]
+    },
+    {
+      "def_id": "rig_chest_basic",
+      "display_name": "Chest rig",
+      "width": 2,
+      "height": 2,
+      "tags": [
+        "rig"
+      ],
+      "grid": {
+        "width": 4,
+        "height": 2
+      }
+    },
+    {
+      "def_id": "stash",
+      "display_name": "Stash",
+      "grid": {
+        "width": 10,
+        "height": 30
+      }
     }
   ]
 }

@@ -96,10 +96,19 @@ The key in `appsettings.Development.json` is for local runs only. Real deploymen
 - Item states live in `ItemStates`; a test fails if they drift from the database's CHECK constraint.
 
 **Item catalog**
+- Items are defined in Unity: one `ItemDefinitionAsset` per item in `unity/RaidZero/Assets/Data/Items`, holding the
+  rules (size, stacking, tags, slots, grid) and the presentation (display name, description, icon, world prefab).
+  Create one with Create > Raid Zero > Item Definition.
+- Saving an item rewrites `shared/catalog/item_catalog.json` by itself, and refreshes the `ItemLibrary` that game
+  code uses to find an item's name, icon and model (`ItemLibrary.Instance.Find(defId)`). The export refuses an
+  invalid catalog and changes nothing; removing an item that's in the current file needs confirming through
+  Raid Zero > Items > Export Catalog, since stashes holding one would stop loading.
+- Don't edit the JSON by hand; a test fails if it isn't in the exporter's format. If someone did, run
+  Raid Zero > Items > Import Catalog to bring the change into the assets.
 - `catalog_version` is a hash of every rule-relevant field (sizes, stacks, tags, slots, grids). Display names are
-  excluded, so renaming an item needs no redeploy.
-- The backend refuses to start if the declared version doesn't match the contents, and a test checks the same
-  thing in CI. If you edit the file by hand, the error message tells you the correct value.
+  excluded, so renaming an item needs no redeploy. A rule change means deploying the backend and game servers from
+  the same commit: the backend refuses servers built from another catalog.
+- The backend and game servers read the JSON, never the assets, so all three always agree on the rules.
 - `def_id`s are permanent once an item has existed in anyone's stash.
 
 **Inventory operations**

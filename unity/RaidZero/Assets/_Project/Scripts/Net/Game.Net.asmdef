@@ -5,7 +5,8 @@
         "FishNet.Runtime",
         "RaidZero.Shared",
         "RaidZero.Raid",
-        "RaidZero.BackendClient"
+        "RaidZero.BackendClient",
+        "Game.Items"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
