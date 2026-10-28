@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Text;
+using System.Threading.Tasks;
 using FishNet.Managing;
 using RaidZero.Items;
 using RaidZero.Shared.Inventory;
@@ -131,20 +132,29 @@ namespace RaidZero.Net
             _deploying = true;
             try
             {
-                if (!Hideout.Session.IsLoggedIn)
+                if (!Hideout.Session.IsLoggedIn && !await NewDevPlayerAsync())
                 {
-                    var login = await Hideout.Session.DevLoginAsync("dev-" + UnityEngine.Random.Range(10000, 99999));
-                    if (!login.Succeeded)
-                    {
-                        _lastResult = "dev login failed: " + login;
-                        return;
-                    }
+                    return;
                 }
 
-                var ticket = await Hideout.DeployAsync(networkManager, DevSettings.MapId);
-                _lastResult = ticket.Succeeded
-                    ? "connecting to " + ticket.Value.ServerHost + ":" + ticket.Value.ServerPort
-                    : "no ticket: " + ticket;
+                var deployed = await Hideout.DeployAsync(networkManager, DevSettings.MapId);
+
+                // This dev player is still in a raid this client has no ticket for (the editor forgot it, or it
+                // was another machine's). Dev players are throwaway, so deploy as a fresh one instead of waiting.
+                if (deployed.Error == "already_in_raid")
+                {
+                    Debug.Log("[raid] This dev player is still in raid " + deployed.RaidId + "; deploying as a new dev player.");
+                    if (!await NewDevPlayerAsync())
+                    {
+                        return;
+                    }
+
+                    deployed = await Hideout.DeployAsync(networkManager, DevSettings.MapId);
+                }
+
+                _lastResult = !deployed.Succeeded
+                    ? "no ticket: " + deployed
+                    : (deployed.Rejoined ? "rejoining your raid at " : "connecting to ") + deployed.Ticket.ServerHost + ":" + deployed.Ticket.ServerPort;
             }
             catch (System.Exception exception)
             {
@@ -154,6 +164,18 @@ namespace RaidZero.Net
             {
                 _deploying = false;
             }
+        }
+
+        private async Task<bool> NewDevPlayerAsync()
+        {
+            Hideout.ForgetLastTicket();
+            var login = await Hideout.Session.DevLoginAsync("dev-" + UnityEngine.Random.Range(10000, 99999));
+            if (!login.Succeeded)
+            {
+                _lastResult = "dev login failed: " + login;
+            }
+
+            return login.Succeeded;
         }
 
         private static NetworkManager ClientNetworkManager() =>
