@@ -89,6 +89,18 @@ jobs:
           restore-keys: |
             library-linux-server-
 
+      # Headroom for memory spikes: past the runner's RAM and swap, Unity is killed outright (exit code 137).
+      # With more swap the build slows down for a moment instead.
+      - name: Add swap
+        run: |
+          dir=/mnt; [ -d "$dir" ] || dir=/
+          sudo fallocate -l 8G "$dir/extra-swapfile"
+          sudo chmod 600 "$dir/extra-swapfile"
+          sudo mkswap "$dir/extra-swapfile"
+          sudo swapon "$dir/extra-swapfile"
+          swapon --show
+          free -h
+
       # Unity defines UNITY_SERVER for the Server subtarget, which is what makes Fish-Net start the server
       # on its own. The output is build/StandaloneLinux64/RaidZeroServer.x86_64 plus its data folder.
       - uses: game-ci/unity-builder@v5
@@ -165,3 +177,17 @@ jobs:
             docker tag raidzero-gameserver "$tag"
             docker push "$tag"
           done
+
+      # Only when something failed: what the runner looked like, and whether the kernel killed anything for
+      # running out of memory, so a "Killed" in the log comes with its reason.
+      - name: Diagnostics
+        if: failure()
+        run: |
+          free -h
+          df -h
+          swapon --show
+          echo "--- kernel out-of-memory messages:"
+          oom=$(sudo dmesg -T | grep -iE "out of memory|oom-kill|killed process" | tail -n 20 || true)
+          echo "${oom:-(none)}"
+          echo "--- containers:"
+          docker ps -a
