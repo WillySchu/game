@@ -12,7 +12,8 @@ namespace RaidZero.Shared.Catalog
     ///
     /// The Unity exporter writes it into item_catalog.json, the game server sends it on every backend
     /// call, and the backend rejects mismatches. Cosmetic fields (display names) are left out, so a
-    /// rename never forces a redeploy. Definition, tag and slot order don't matter either.
+    /// rename never forces a redeploy. Definition, tag and slot order don't matter either; grid order does,
+    /// since it decides which grid "the first free spot" fills first.
     /// </summary>
     public static class CatalogHash
     {
@@ -33,15 +34,14 @@ namespace RaidZero.Shared.Catalog
                 text.Append(def.HasDurability ? "D1" : "D0");
                 AppendList(text, def.Tags);
 
-                if (def.Grid == null)
+                var grids = def.Grids ?? new List<GridSpec>();
+                text.Append('G');
+                AppendInt(text, grids.Count);
+                foreach (var grid in grids)
                 {
-                    text.Append("G-");
-                }
-                else
-                {
-                    text.Append('G');
-                    AppendInt(text, def.Grid.Width);
-                    AppendInt(text, def.Grid.Height);
+                    AppendString(text, grid?.Name);
+                    AppendInt(text, grid?.Width ?? 0);
+                    AppendInt(text, grid?.Height ?? 0);
                 }
 
                 var slots = (def.Slots ?? new List<SlotSpec>()).OrderBy(s => s.Name, StringComparer.Ordinal).ToList();

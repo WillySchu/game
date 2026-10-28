@@ -12,7 +12,7 @@ internal static class TestCatalog
 {
     public static List<ItemDefinition> Definitions() =>
     [
-        new() { DefId = "stash", Grid = new GridSpec { Width = 10, Height = 10 } },
+        new() { DefId = "stash", Grids = [GridSpec.Main(10, 10)] },
         new()
         {
             DefId = "character",
@@ -40,8 +40,16 @@ internal static class TestCatalog
             Slots = [new() { Name = "rounds", Accepts = ["ammo_rifle"], MaxQuantity = 30 }],
         },
         new() { DefId = "ammo", MaxStack = 60, Tags = ["ammo_rifle"] },
-        new() { DefId = "backpack", Width = 3, Height = 3, Tags = ["backpack"], Grid = new GridSpec { Width = 4, Height = 3 } },
+        new() { DefId = "backpack", Width = 3, Height = 3, Tags = ["backpack"], Grids = [GridSpec.Main(4, 3)] },
         new() { DefId = "gpu", Width = 2, Height = 1 },
+        // Two separate 1x2 pockets: a 2x1 gpu fits neither unrotated, though the vest has 2x2 cells in all.
+        new()
+        {
+            DefId = "vest",
+            Width = 2,
+            Height = 2,
+            Grids = [new GridSpec { Name = "left", Width = 1, Height = 2 }, new GridSpec { Name = "right", Width = 1, Height = 2 }],
+        },
         new() { DefId = "fuse" },
     ];
 

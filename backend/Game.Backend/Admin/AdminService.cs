@@ -129,13 +129,13 @@ public sealed class AdminService
             foreach (var item in items)
             {
                 var def = _catalog.Get(item.DefId!);
-                var node = new ItemNode { Id = Uuid7.NewId(), DefId = def.DefId, Slot = SlotNames.Grid, Quantity = item.Quantity, Durability = def.HasDurability ? 1.0 : null };
-                if (!GridPlacement.TryFindFreeSpot(_catalog, stash, def, out var x, out var y, out var rotated))
+                var node = new ItemNode { Id = Uuid7.NewId(), DefId = def.DefId, Quantity = item.Quantity, Durability = def.HasDurability ? 1.0 : null };
+                if (!GridPlacement.TryFindFreeSpot(_catalog, stash, def, out var grid, out var x, out var y, out var rotated))
                 {
                     return ServerResponse.Error(422, "no_space", $"The stash has no room for {def.DefId}; nothing was granted.", new { def.DefId });
                 }
 
-                (node.X, node.Y, node.Rotated) = (x, y, rotated);
+                (node.Slot, node.X, node.Y, node.Rotated) = (grid, x, y, rotated);
                 stash.Children.Add(node);
                 granted.Add((node, def.DefId));
             }

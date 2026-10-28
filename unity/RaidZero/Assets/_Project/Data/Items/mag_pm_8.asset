@@ -21,8 +21,7 @@ MonoBehaviour:
   _hasDurability: 0
   _tags:
   - mag_pm
-  _hasGrid: 0
-  _gridSize: {x: 1, y: 1}
+  _grids: []
   _slots:
   - Name: rounds
     Accepts:
@@ -30,3 +29,5 @@ MonoBehaviour:
     MaxQuantity: 8
   _icon: {fileID: 0}
   _worldPrefab: {fileID: 0}
+  _hasGrid: 0
+  _gridSize: {x: 1, y: 1}

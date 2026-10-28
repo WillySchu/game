@@ -21,8 +21,9 @@ MonoBehaviour:
   _hasDurability: 1
   _tags:
   - armor
-  _hasGrid: 0
-  _gridSize: {x: 1, y: 1}
+  _grids: []
   _slots: []
   _icon: {fileID: 0}
   _worldPrefab: {fileID: 0}
+  _hasGrid: 0
+  _gridSize: {x: 1, y: 1}

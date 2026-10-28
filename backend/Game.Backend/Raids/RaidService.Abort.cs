@@ -121,10 +121,10 @@ public sealed partial class RaidService
             {
                 (parentId, slot, x, y, rotated) = (parent, node.Slot, node.X, node.Y, node.Rotated);
             }
-            else if (_catalog.TryGet(node.DefId, out var def) && GridPlacement.TryFindFreeSpot(_catalog, stash, def, out var fx, out var fy, out var frot))
+            else if (_catalog.TryGet(node.DefId, out var def) && GridPlacement.TryFindFreeSpot(_catalog, stash, def, out var fgrid, out var fx, out var fy, out var frot))
             {
-                (parentId, slot, x, y, rotated) = (stash.Id, SlotNames.Grid, fx, fy, frot);
-                stash.Children.Add(new ItemNode { Id = node.Id, DefId = node.DefId, Slot = SlotNames.Grid, X = fx, Y = fy, Rotated = frot });
+                (parentId, slot, x, y, rotated) = (stash.Id, fgrid, fx, fy, frot);
+                stash.Children.Add(new ItemNode { Id = node.Id, DefId = node.DefId, Slot = fgrid, X = fx, Y = fy, Rotated = frot });
             }
             else
             {

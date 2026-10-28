@@ -28,18 +28,55 @@ namespace RaidZero.Shared.Catalog
         /// <summary>Tags decide which named slots accept this item, e.g. "weapon_long" or "ammo_545".</summary>
         public List<string> Tags { get; set; } = new List<string>();
 
-        /// <summary>Set when this item holds a grid of other items (backpacks, rigs, the stash).</summary>
-        public GridSpec Grid { get; set; }
+        /// <summary>
+        /// The grids this item holds other items in: the stash, a backpack's compartment, each of a rig's pockets.
+        /// Each is separate, so an item can't straddle two. Items in a grid have the grid's name as their slot.
+        /// A container with one grid names it "grid" (<see cref="GridSpec.MainName"/>). Order matters: "the first
+        /// free spot" fills the grids in this order.
+        /// </summary>
+        public List<GridSpec> Grids { get; set; } = new List<GridSpec>();
 
         /// <summary>Named slots this item has (a rifle's magazine, a magazine's rounds, the character's primary).</summary>
         public List<SlotSpec> Slots { get; set; } = new List<SlotSpec>();
+
+        /// <summary>The grid with this name, or null if the item has none by that name (it's a slot, or nothing).</summary>
+        public GridSpec FindGrid(string name)
+        {
+            if (name == null || Grids == null)
+            {
+                return null;
+            }
+
+            foreach (var grid in Grids)
+            {
+                if (grid != null && grid.Name == name)
+                {
+                    return grid;
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>Whether the item holds other items in at least one grid.</summary>
+        public bool HasGrids() => Grids != null && Grids.Count > 0;
     }
 
+    /// <summary>One grid of cells inside an item: a whole compartment, or one pocket of several.</summary>
     public sealed class GridSpec
     {
+        /// <summary>The name of a container's only grid, by convention. Also what "any grid" targets use.</summary>
+        public const string MainName = "grid";
+
+        /// <summary>Unique within the item, and never the same as one of its named slots.</summary>
+        public string Name { get; set; } = MainName;
+
         public int Width { get; set; }
 
         public int Height { get; set; }
+
+        /// <summary>A grid named "grid": what a container with a single compartment has.</summary>
+        public static GridSpec Main(int width, int height) => new GridSpec { Name = MainName, Width = width, Height = height };
     }
 
     public sealed class SlotSpec

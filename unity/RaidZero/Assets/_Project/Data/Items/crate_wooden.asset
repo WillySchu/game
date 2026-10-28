@@ -20,8 +20,12 @@ MonoBehaviour:
   _maxStack: 1
   _hasDurability: 0
   _tags: []
-  _hasGrid: 1
-  _gridSize: {x: 6, y: 4}
+  _grids:
+  - Name: grid
+    Width: 6
+    Height: 4
   _slots: []
   _icon: {fileID: 0}
   _worldPrefab: {fileID: 0}
+  _hasGrid: 0
+  _gridSize: {x: 1, y: 1}

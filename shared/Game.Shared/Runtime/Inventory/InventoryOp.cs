@@ -55,11 +55,14 @@ namespace RaidZero.Shared.Inventory
     {
         public string ParentId { get; set; }
 
-        /// <summary>"grid" or a named slot such as "primary".</summary>
+        /// <summary>
+        /// A grid's name ("grid" for a container's only grid, or a pocket's name), or a named slot such as
+        /// "primary". "grid" with no X and Y means the first free spot in any of the container's grids.
+        /// </summary>
         public string Slot { get; set; }
 
         /// <summary>
-        /// Grid cell. Leave both X and Y null in a grid to take the first free spot, which is what
+        /// Grid cell. Leave both X and Y null to take the first free spot in the grid, which is what
         /// "quick move" and server-side pickups want.
         /// </summary>
         public int? X { get; set; }
@@ -68,15 +71,31 @@ namespace RaidZero.Shared.Inventory
 
         public bool Rotated { get; set; }
 
+        /// <summary>A cell of the container's main grid, the one named "grid".</summary>
         public static InventoryTarget Grid(string parentId, int x, int y, bool rotated = false)
         {
-            return new InventoryTarget { ParentId = parentId, Slot = SlotNames.Grid, X = x, Y = y, Rotated = rotated };
+            return InGrid(parentId, SlotNames.Grid, x, y, rotated);
         }
 
-        /// <summary>The first free spot in the container's grid.</summary>
+        /// <summary>A cell of one of the container's grids, by the grid's name.</summary>
+        public static InventoryTarget InGrid(string parentId, string gridName, int x, int y, bool rotated = false)
+        {
+            return new InventoryTarget { ParentId = parentId, Slot = gridName, X = x, Y = y, Rotated = rotated };
+        }
+
+        /// <summary>The first free spot in any of the container's grids, trying them in the order the definition lists them.</summary>
         public static InventoryTarget AnyGridSpot(string parentId)
         {
             return new InventoryTarget { ParentId = parentId, Slot = SlotNames.Grid };
+        }
+
+        /// <summary>
+        /// The first free spot in one of the container's grids. For "grid" this is the same as
+        /// <see cref="AnyGridSpot"/>: any of them.
+        /// </summary>
+        public static InventoryTarget AnySpotIn(string parentId, string gridName)
+        {
+            return new InventoryTarget { ParentId = parentId, Slot = gridName };
         }
 
         public static InventoryTarget NamedSlot(string parentId, string slot)

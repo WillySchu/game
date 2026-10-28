@@ -84,7 +84,7 @@ namespace RaidZero.Net
                     continue;
                 }
 
-                if (!GridPlacement.TryFindFreeSpot(catalog, root, definition, out var x, out var y, out var rotated))
+                if (!GridPlacement.TryFindFreeSpot(catalog, root, definition, out var grid, out var x, out var y, out var rotated))
                 {
                     Debug.LogWarning(name + " has no room left for " + entry.DefId + ".", this);
                     continue;
@@ -94,7 +94,7 @@ namespace RaidZero.Net
                 {
                     Id = Uuid7.NewId(),
                     DefId = entry.DefId,
-                    Slot = SlotNames.Grid,
+                    Slot = grid,
                     X = x,
                     Y = y,
                     Rotated = rotated,

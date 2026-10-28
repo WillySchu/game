@@ -1,5 +1,5 @@
 {
-  "catalog_version": "3a78d1f2e0dde6df",
+  "catalog_version": "df2da967dc29bafe",
   "items": [
     {
       "def_id": "ammo_545_ps",
@@ -35,10 +35,13 @@
       "tags": [
         "backpack"
       ],
-      "grid": {
-        "width": 4,
-        "height": 5
-      }
+      "grids": [
+        {
+          "name": "grid",
+          "width": 4,
+          "height": 5
+        }
+      ]
     },
     {
       "def_id": "character",
@@ -79,10 +82,13 @@
     {
       "def_id": "crate_wooden",
       "display_name": "Wooden Crate",
-      "grid": {
-        "width": 6,
-        "height": 4
-      }
+      "grids": [
+        {
+          "name": "grid",
+          "width": 6,
+          "height": 4
+        }
+      ]
     },
     {
       "def_id": "currency_credits",
@@ -95,10 +101,13 @@
     {
       "def_id": "ground",
       "display_name": "Ground",
-      "grid": {
-        "width": 10,
-        "height": 10
-      }
+      "grids": [
+        {
+          "name": "grid",
+          "width": 10,
+          "height": 10
+        }
+      ]
     },
     {
       "def_id": "loot_fuse",
@@ -195,18 +204,24 @@
       "tags": [
         "rig"
       ],
-      "grid": {
-        "width": 4,
-        "height": 2
-      }
+      "grids": [
+        {
+          "name": "grid",
+          "width": 4,
+          "height": 2
+        }
+      ]
     },
     {
       "def_id": "stash",
       "display_name": "Stash",
-      "grid": {
-        "width": 10,
-        "height": 30
-      }
+      "grids": [
+        {
+          "name": "grid",
+          "width": 10,
+          "height": 30
+        }
+      ]
     }
   ]
 }

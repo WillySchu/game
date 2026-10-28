@@ -5,7 +5,7 @@ namespace RaidZero.Shared.InventoryUi
         /// <summary>Nowhere the item can go: over the screen's background, say. Releasing puts it back.</summary>
         None,
 
-        /// <summary>A cell of a container's grid: the cell the dragged item's top-left corner would land on.</summary>
+        /// <summary>A cell of one of a container's grids: the cell the dragged item's top-left corner would land on.</summary>
         GridCell,
 
         /// <summary>A named slot, such as the character's primary weapon slot.</summary>
@@ -40,7 +40,7 @@ namespace RaidZero.Shared.InventoryUi
         /// <summary>For a grid cell or slot: the item whose grid or slot it is.</summary>
         public string ParentId { get; }
 
-        /// <summary>For a slot: its name.</summary>
+        /// <summary>For a slot: its name. For a grid cell: the grid's name ("grid", or a pocket's).</summary>
         public string Slot { get; }
 
         /// <summary>For a grid cell: the column and row. They can be out of the grid's bounds (shown as refused).</summary>
@@ -51,7 +51,7 @@ namespace RaidZero.Shared.InventoryUi
         /// <summary>For an item: the item under the cursor.</summary>
         public string ItemId { get; }
 
-        public static DropTarget GridCell(string containerId, int x, int y) => new DropTarget(DropTargetKind.GridCell, containerId, null, x, y, null);
+        public static DropTarget GridCell(string containerId, string gridName, int x, int y) => new DropTarget(DropTargetKind.GridCell, containerId, gridName, x, y, null);
 
         public static DropTarget NamedSlot(string parentId, string slot) => new DropTarget(DropTargetKind.Slot, parentId, slot, 0, 0, null);
 
@@ -62,7 +62,7 @@ namespace RaidZero.Shared.InventoryUi
             switch (Kind)
             {
                 case DropTargetKind.GridCell:
-                    return "cell (" + X + "," + Y + ") of " + ParentId;
+                    return "cell (" + X + "," + Y + ") of " + ParentId + "'s " + Slot;
                 case DropTargetKind.Slot:
                     return "slot " + Slot + " of " + ParentId;
                 case DropTargetKind.Item:

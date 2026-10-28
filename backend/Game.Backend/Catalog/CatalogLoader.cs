@@ -38,6 +38,17 @@ public static class CatalogLoader
             throw new CatalogLoadException($"{source} has no items.");
         }
 
+        // The format before named grids had one "grid" object per item. Read as today's format, those items
+        // would silently have no grid at all, so refuse the file instead.
+        using (var raw = JsonDocument.Parse(json))
+        {
+            if (raw.RootElement.TryGetProperty("items", out var items) && items.ValueKind == JsonValueKind.Array
+                && items.EnumerateArray().Any(i => i.ValueKind == JsonValueKind.Object && i.TryGetProperty("grid", out _)))
+            {
+                throw new CatalogLoadException($"{source} is in the old format (\"grid\" instead of \"grids\"). Re-export the catalog from Unity.");
+            }
+        }
+
         ItemCatalog catalog;
         try
         {
@@ -68,7 +79,7 @@ public static class CatalogLoader
             throw new CatalogLoadException($"{source} must define the '{defId}' root container.");
         }
 
-        if (needsGrid && def.Grid is null)
+        if (needsGrid && !def.HasGrids())
         {
             throw new CatalogLoadException($"{source}: '{defId}' must have a grid.");
         }

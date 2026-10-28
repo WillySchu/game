@@ -94,7 +94,8 @@ namespace RaidZero.Shared.Inventory
     /// </summary>
     public static class SlotNames
     {
-        public const string Grid = "grid";
+        /// <summary>The main grid's name (a container with one grid). In a target with no x and y: any grid.</summary>
+        public const string Grid = RaidZero.Shared.Catalog.GridSpec.MainName;
         public const string Primary = "primary";
         public const string Secondary = "secondary";
         public const string Armor = "armor";

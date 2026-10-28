@@ -71,7 +71,7 @@ namespace RaidZero.Shared.Inventory
                 return;
             }
 
-            CheckNamedSlotOccupancy(ctx, node);
+            CheckNamedSlotOccupancy(ctx, node, def);
             CheckGridLayout(ctx, node, def);
 
             foreach (var child in node.Children)
@@ -119,18 +119,19 @@ namespace RaidZero.Shared.Inventory
                 return;
             }
 
-            if (node.Slot == SlotNames.Grid)
+            if (parentDef.FindGrid(node.Slot) != null)
             {
-                if (parentDef.Grid == null)
-                {
-                    ctx.Add(node.Id, InventoryErrorCodes.SlotMismatch, parentDef.DefId + " has no grid.");
-                }
-
                 if (node.X == null || node.Y == null)
                 {
                     ctx.Add(node.Id, InventoryErrorCodes.PositionMismatch, "Items in a grid need x and y.");
                 }
 
+                return;
+            }
+
+            if (node.Slot == SlotNames.Grid)
+            {
+                ctx.Add(node.Id, InventoryErrorCodes.SlotMismatch, parentDef.DefId + " has no grid named 'grid'.");
                 return;
             }
 
@@ -163,12 +164,12 @@ namespace RaidZero.Shared.Inventory
             }
         }
 
-        private static void CheckNamedSlotOccupancy(Context ctx, ItemNode container)
+        private static void CheckNamedSlotOccupancy(Context ctx, ItemNode container, ItemDefinition containerDef)
         {
             var used = new HashSet<string>(StringComparer.Ordinal);
             foreach (var child in container.Children)
             {
-                if (child == null || child.Slot == null || child.Slot == SlotNames.Grid)
+                if (child == null || child.Slot == null || containerDef.FindGrid(child.Slot) != null)
                 {
                     continue;
                 }
@@ -182,16 +183,22 @@ namespace RaidZero.Shared.Inventory
 
         private static void CheckGridLayout(Context ctx, ItemNode container, ItemDefinition containerDef)
         {
-            var grid = containerDef.Grid;
-            if (grid == null)
+            foreach (var grid in containerDef.Grids ?? new List<GridSpec>())
             {
-                return;
+                if (grid != null)
+                {
+                    CheckGridLayout(ctx, container, grid);
+                }
             }
+        }
 
+        // One grid at a time: items only collide with items in the same grid.
+        private static void CheckGridLayout(Context ctx, ItemNode container, GridSpec grid)
+        {
             var owner = new string[grid.Width, grid.Height];
             foreach (var child in container.Children)
             {
-                if (child == null || child.Slot != SlotNames.Grid || child.X == null || child.Y == null)
+                if (child == null || child.Slot != grid.Name || child.X == null || child.Y == null)
                 {
                     continue;
                 }

@@ -34,7 +34,7 @@ Requires the .NET 10 SDK.
 ```sh
 dotnet test                                   # everything should pass before you change anything
 dotnet run --project backend/Game.Backend     # http://localhost:5080, Development mode
-curl http://localhost:5080/healthz            # {"status":"ok","catalog_version":"...","schema_version":4}
+curl http://localhost:5080/healthz            # {"status":"ok","catalog_version":"...","schema_version":5}
 
 # Log in (creates the player with the starter kit the first time), then read the profile
 TOKEN=$(curl -s -X POST localhost:5080/v1/auth/dev-login -H 'Content-Type: application/json' \
@@ -107,8 +107,12 @@ The key in `appsettings.Development.json` is for local runs only. Real deploymen
 
 **Item catalog**
 - Items are defined in Unity: one `ItemDefinitionAsset` per item in `unity/RaidZero/Assets/_Project/Data/Items`,
-  holding the rules (size, stacking, tags, slots, grid) and the presentation (display name, description, icon,
+  holding the rules (size, stacking, tags, slots, grids) and the presentation (display name, description, icon,
   world prefab).
+- Containers hold items in one or more named grids. A backpack, crate or the stash has one, named `grid`; a rig
+  can have one per pocket. Each grid is separate, so an item can't straddle two pockets. An item in a grid stores
+  the grid's name as its slot, plus x and y within it. A target of `"slot": "grid"` with no x and y means the
+  first free spot in any of the container's grids, trying them in the order the item lists them.
   Create one with Create > Raid Zero > Item Definition.
 - Saving an item rewrites `shared/catalog/item_catalog.json` by itself, and refreshes the `ItemLibrary` that game
   code uses to find an item's name, icon and model (`ItemLibrary.Instance.Find(defId)`). The export refuses an
@@ -116,7 +120,7 @@ The key in `appsettings.Development.json` is for local runs only. Real deploymen
   Raid Zero > Items > Export Catalog, since stashes holding one would stop loading.
 - Don't edit the JSON by hand; a test fails if it isn't in the exporter's format. If someone did, run
   Raid Zero > Items > Import Catalog to bring the change into the assets.
-- `catalog_version` is a hash of every rule-relevant field (sizes, stacks, tags, slots, grids). Display names are
+- `catalog_version` is a hash of every rule-relevant field (sizes, stacks, tags, slots, grids and their order). Display names are
   excluded, so renaming an item needs no redeploy. A rule change means deploying the backend and game servers from
   the same commit: the backend refuses servers built from another catalog.
 - The backend and game servers read the JSON, never the assets, so all three always agree on the rules.

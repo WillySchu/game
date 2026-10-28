@@ -80,4 +80,35 @@ public class CatalogJsonTests
     {
         Assert.Throws<InvalidDataException>(() => CatalogJson.Parse(json));
     }
+
+    [Fact]
+    public void Pockets_SurviveAWriteAndRead_InOrder_ForUnityAndTheBackend()
+    {
+        var definitions = CatalogJson.LoadFile(TestPaths.CatalogPath).All.ToList();
+        var rig = definitions.Single(d => d.DefId == "rig_chest_basic");
+        rig.Grids = [new() { Name = "right", Width = 1, Height = 2 }, new() { Name = "left", Width = 2, Height = 2 }];
+
+        var written = CatalogJson.Write(definitions);
+        var unity = CatalogJson.Parse(written).Get("rig_chest_basic");
+        var backend = CatalogLoader.Parse(written).Get("rig_chest_basic");
+
+        foreach (var reread in new[] { unity, backend })
+        {
+            Assert.Equal([("right", 1, 2), ("left", 2, 2)], reread.Grids.Select(g => (g.Name, g.Width, g.Height)));
+        }
+    }
+
+    [Fact]
+    public void TheFormatBeforeNamedGrids_IsRefused_RatherThanReadWithoutGrids()
+    {
+        var text = File.ReadAllText(TestPaths.CatalogPath);
+        var old = Newtonsoft.Json.Linq.JObject.Parse(text);
+        var backpack = old["items"]!.Single(i => (string?)i["def_id"] == "backpack_small")!;
+        backpack["grid"] = new Newtonsoft.Json.Linq.JObject { ["width"] = 4, ["height"] = 5 };
+        ((Newtonsoft.Json.Linq.JObject)backpack).Remove("grids");
+        var json = old.ToString();
+
+        Assert.Contains("old format", Assert.Throws<InvalidDataException>(() => CatalogJson.Parse(json)).Message);
+        Assert.Contains("old format", Assert.Throws<CatalogLoadException>(() => CatalogLoader.Parse(json)).Message);
+    }
 }

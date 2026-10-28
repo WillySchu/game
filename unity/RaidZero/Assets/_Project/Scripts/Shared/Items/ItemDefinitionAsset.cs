@@ -13,7 +13,7 @@ namespace RaidZero.Items
     /// Never change an item's def_id once it has existed in anyone's stash; rename the display name instead.
     /// </summary>
     [CreateAssetMenu(menuName = "Raid Zero/Item Definition", fileName = "new_item")]
-    public sealed class ItemDefinitionAsset : ScriptableObject
+    public sealed class ItemDefinitionAsset : ScriptableObject, ISerializationCallbackReceiver
     {
         [Header("Identity")]
         [Tooltip("Permanent ID: lowercase letters, digits and underscores. Never change it once the item has been in a stash.")]
@@ -51,12 +51,9 @@ namespace RaidZero.Items
         [SerializeField]
         private List<string> _tags = new List<string>();
 
-        [Tooltip("Holds a grid of other items (backpacks, rigs, crates, the stash).")]
+        [Tooltip("Grids of other items it holds: one named \"grid\" for a backpack, crate or the stash, or one per pocket for a rig. Items can't straddle two. The first free spot fills them in this order.")]
         [SerializeField]
-        private bool _hasGrid;
-
-        [SerializeField]
-        private Vector2Int _gridSize = new Vector2Int(1, 1);
+        private List<Grid> _grids = new List<Grid>();
 
         [Tooltip("Named slots, such as a rifle's magazine or a character's primary.")]
         [SerializeField]
@@ -69,6 +66,17 @@ namespace RaidZero.Items
         [Tooltip("What it looks like in the world: on the ground, in hands, on a body.")]
         [SerializeField]
         private GameObject _worldPrefab = null;
+
+        // The single grid, before items could have several. Assets saved that way are converted when they load
+        // (OnAfterDeserialize), so a container never silently loses its grid. Safe to delete once every item
+        // asset has been saved since named grids arrived.
+        [SerializeField]
+        [HideInInspector]
+        private bool _hasGrid;
+
+        [SerializeField]
+        [HideInInspector]
+        private Vector2Int _gridSize = new Vector2Int(1, 1);
 
         public string DefId => _defId;
 
@@ -92,8 +100,12 @@ namespace RaidZero.Items
                 MaxStack = _maxStack,
                 HasDurability = _hasDurability,
                 Tags = new List<string>(_tags),
-                Grid = _hasGrid ? new GridSpec { Width = _gridSize.x, Height = _gridSize.y } : null,
             };
+
+            foreach (var grid in _grids)
+            {
+                definition.Grids.Add(new GridSpec { Name = grid.Name, Width = grid.Width, Height = grid.Height });
+            }
 
             foreach (var slot in _slots)
             {
@@ -113,13 +125,50 @@ namespace RaidZero.Items
             _maxStack = definition.MaxStack;
             _hasDurability = definition.HasDurability;
             _tags = new List<string>(definition.Tags ?? new List<string>());
-            _hasGrid = definition.Grid != null;
-            _gridSize = definition.Grid != null ? new Vector2Int(definition.Grid.Width, definition.Grid.Height) : new Vector2Int(1, 1);
+            _grids = new List<Grid>();
+            foreach (var grid in definition.Grids ?? new List<GridSpec>())
+            {
+                _grids.Add(new Grid { Name = grid.Name, Width = grid.Width, Height = grid.Height });
+            }
+
+            _hasGrid = false;
+            _gridSize = new Vector2Int(1, 1);
             _slots = new List<Slot>();
             foreach (var slot in definition.Slots ?? new List<SlotSpec>())
             {
                 _slots.Add(new Slot { Name = slot.Name, Accepts = new List<string>(slot.Accepts ?? new List<string>()), MaxQuantity = slot.MaxQuantity });
             }
+        }
+
+        public void OnBeforeSerialize()
+        {
+        }
+
+        public void OnAfterDeserialize()
+        {
+            if (_hasGrid)
+            {
+                if (_grids.Count == 0)
+                {
+                    _grids.Add(new Grid { Name = GridSpec.MainName, Width = _gridSize.x, Height = _gridSize.y });
+                }
+
+                _hasGrid = false;
+                _gridSize = new Vector2Int(1, 1);
+            }
+        }
+
+        [Serializable]
+        public sealed class Grid
+        {
+            [Tooltip("\"grid\" for a container's only grid; otherwise a name per pocket, such as left_pocket. Lowercase letters, digits and underscores.")]
+            public string Name = GridSpec.MainName;
+
+            [Min(1)]
+            public int Width = 1;
+
+            [Min(1)]
+            public int Height = 1;
         }
 
         [Serializable]

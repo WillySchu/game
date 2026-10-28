@@ -534,9 +534,32 @@ namespace RaidZero.Shared.Inventory
                     return new InventoryError(parent.Id, InventoryErrorCodes.UnknownDef, "Unknown def_id '" + parent.DefId + "'.");
                 }
 
+                // "grid" with no position: the first free spot in any of the container's grids, in order.
+                if (to.Slot == SlotNames.Grid && to.X == null && to.Y == null)
+                {
+                    if (!parentDef.HasGrids())
+                    {
+                        return new InventoryError(itemId, InventoryErrorCodes.SlotMismatch, parentDef.DefId + " has no grid.");
+                    }
+
+                    if (!GridPlacement.TryFindFreeSpot(_catalog, parent, def, out string anyGrid, out int ax, out int ay, out bool arot))
+                    {
+                        return new InventoryError(itemId, InventoryErrorCodes.NoSpace, "No room for " + def.DefId + " in " + parentDef.DefId + ".");
+                    }
+
+                    placement = new Placement(anyGrid, ax, ay, arot);
+                    return null;
+                }
+
+                var grid = parentDef.FindGrid(to.Slot);
+                if (grid != null)
+                {
+                    return ResolveGridPlacement(itemId, def, parent, parentDef, grid, to, out placement);
+                }
+
                 if (to.Slot == SlotNames.Grid)
                 {
-                    return ResolveGridPlacement(itemId, def, parent, parentDef, to, out placement);
+                    return new InventoryError(itemId, InventoryErrorCodes.SlotMismatch, parentDef.DefId + " has no grid named 'grid'.");
                 }
 
                 if (to.X != null || to.Y != null || to.Rotated)
@@ -570,14 +593,9 @@ namespace RaidZero.Shared.Inventory
                 return null;
             }
 
-            private InventoryError ResolveGridPlacement(string itemId, ItemDefinition def, ItemNode parent, ItemDefinition parentDef, InventoryTarget to, out Placement placement)
+            private InventoryError ResolveGridPlacement(string itemId, ItemDefinition def, ItemNode parent, ItemDefinition parentDef, GridSpec grid, InventoryTarget to, out Placement placement)
             {
                 placement = default;
-                if (parentDef.Grid == null)
-                {
-                    return new InventoryError(itemId, InventoryErrorCodes.SlotMismatch, parentDef.DefId + " has no grid.");
-                }
-
                 if ((to.X == null) != (to.Y == null))
                 {
                     return new InventoryError(itemId, InventoryErrorCodes.PositionMismatch, "Give both x and y, or neither for the first free spot.");
@@ -585,30 +603,30 @@ namespace RaidZero.Shared.Inventory
 
                 if (to.X == null)
                 {
-                    if (!GridPlacement.TryFindFreeSpot(_catalog, parent, def, out int fx, out int fy, out bool frot))
+                    if (!GridPlacement.TryFindFreeSpot(_catalog, parent, grid.Name, def, out int fx, out int fy, out bool frot))
                     {
-                        return new InventoryError(itemId, InventoryErrorCodes.NoSpace, "No room for " + def.DefId + " in " + parentDef.DefId + ".");
+                        return new InventoryError(itemId, InventoryErrorCodes.NoSpace, "No room for " + def.DefId + " in " + parentDef.DefId + "'s " + grid.Name + ".");
                     }
 
-                    placement = new Placement(SlotNames.Grid, fx, fy, frot);
+                    placement = new Placement(grid.Name, fx, fy, frot);
                     return null;
                 }
 
                 int x = to.X.Value;
                 int y = to.Y.Value;
                 GridPlacement.GetSize(def, to.Rotated, out int w, out int h);
-                if (x < 0 || y < 0 || x + w > parentDef.Grid.Width || y + h > parentDef.Grid.Height)
+                if (x < 0 || y < 0 || x + w > grid.Width || y + h > grid.Height)
                 {
                     return new InventoryError(itemId, InventoryErrorCodes.OutOfBounds,
-                        def.DefId + " at (" + x + "," + y + ") does not fit in a " + parentDef.Grid.Width + "x" + parentDef.Grid.Height + " grid.");
+                        def.DefId + " at (" + x + "," + y + ") does not fit in a " + grid.Width + "x" + grid.Height + " grid.");
                 }
 
-                if (!GridPlacement.Fits(_catalog, parent, def, x, y, to.Rotated, itemId))
+                if (!GridPlacement.Fits(_catalog, parent, grid.Name, def, x, y, to.Rotated, itemId))
                 {
                     return new InventoryError(itemId, InventoryErrorCodes.Overlap, "That space is taken.");
                 }
 
-                placement = new Placement(SlotNames.Grid, x, y, to.Rotated);
+                placement = new Placement(grid.Name, x, y, to.Rotated);
                 return null;
             }
 
@@ -616,7 +634,8 @@ namespace RaidZero.Shared.Inventory
             private int StackLimit(ItemNode stack, ItemDefinition def)
             {
                 int limit = def.MaxStack;
-                if (stack.Slot != null && stack.Slot != SlotNames.Grid
+                // Grids have no quantity cap, and a grid's name never matches a slot's.
+                if (stack.Slot != null
                     && ParentOf.TryGetValue(stack.Id, out var parent)
                     && _catalog.TryGet(parent.DefId, out var parentDef))
                 {

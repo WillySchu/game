@@ -75,7 +75,7 @@ public class InventoryUiTests
     [Fact]
     public void OntoAFreeCell_MovesThere_KeepingTheRotation()
     {
-        var plan = Drop(_gpu, DropTarget.GridCell(_crate.Id, 8, 2), rotated: true);
+        var plan = Drop(_gpu, DropTarget.GridCell(_crate.Id, "grid", 8, 2), rotated: true);
 
         Assert.True(plan.IsValid, plan.ToString());
         Assert.Equal(DropAction.Move, plan.Action);
@@ -87,8 +87,8 @@ public class InventoryUiTests
     [Fact]
     public void OntoATakenOrOutOfBoundsCell_IsRefused_WithAReason()
     {
-        var taken = Drop(_gpu, DropTarget.GridCell(_crate.Id, 3, 0));
-        var outside = Drop(_gpu, DropTarget.GridCell(_crate.Id, 9, 0));
+        var taken = Drop(_gpu, DropTarget.GridCell(_crate.Id, "grid", 3, 0));
+        var outside = Drop(_gpu, DropTarget.GridCell(_crate.Id, "grid", 9, 0));
 
         Assert.Equal((false, InventoryErrorCodes.Overlap, "That space is taken."), (taken.IsValid, taken.Error, taken.Message));
         Assert.Equal(InventoryErrorCodes.OutOfBounds, outside.Error);
@@ -98,7 +98,7 @@ public class InventoryUiTests
     [Fact]
     public void BackWhereItStarted_DoesNothing()
     {
-        var plan = Drop(_gpu, DropTarget.GridCell(_crate.Id, 2, 0));
+        var plan = Drop(_gpu, DropTarget.GridCell(_crate.Id, "grid", 2, 0));
 
         Assert.Equal((DropAction.None, false, null), (plan.Action, plan.IsValid, plan.Error));
         Assert.Empty(plan.Ops);
@@ -107,7 +107,7 @@ public class InventoryUiTests
     [Fact]
     public void IntoAnotherContainersGrid_MovesItThere()
     {
-        var plan = Drop(_gpu, DropTarget.GridCell(_backpack.Id, 1, 1));
+        var plan = Drop(_gpu, DropTarget.GridCell(_backpack.Id, "grid", 1, 1));
 
         Assert.True(plan.IsValid, plan.ToString());
         Assert.Equal(_backpack.Id, Assert.Single(plan.Ops).To.ParentId);
@@ -337,7 +337,7 @@ public class InventoryUiTests
     {
         var (model, source) = Model();
 
-        var move = model.Plan(_gpu.Id, false, DropTarget.GridCell(_crate.Id, 8, 8));
+        var move = model.Plan(_gpu.Id, false, DropTarget.GridCell(_crate.Id, "grid", 8, 8));
         var drop = model.Plan(_fuse.Id, false, DropTarget.Outside);
 
         Assert.True(model.Execute(_gpu.Id, move));
@@ -351,7 +351,7 @@ public class InventoryUiTests
     {
         var (model, source) = Model();
 
-        var plan = model.Plan(_gpu.Id, false, DropTarget.GridCell(_crate.Id, 0, 0));
+        var plan = model.Plan(_gpu.Id, false, DropTarget.GridCell(_crate.Id, "grid", 0, 0));
 
         Assert.False(model.Execute(_gpu.Id, plan));
         Assert.Empty(source.Sent);
@@ -364,7 +364,7 @@ public class InventoryUiTests
         source.PendingIds.Add(_gpu.Id);
         source.CanDrop = false;
 
-        Assert.Equal(InventoryUiErrors.Pending, model.Plan(_gpu.Id, false, DropTarget.GridCell(_crate.Id, 8, 8)).Error);
+        Assert.Equal(InventoryUiErrors.Pending, model.Plan(_gpu.Id, false, DropTarget.GridCell(_crate.Id, "grid", 8, 8)).Error);
         Assert.Equal(InventoryUiErrors.Pending, model.PlanQuickMove(_gpu.Id).Error);
         Assert.Equal(InventoryUiErrors.CantDrop, model.Plan(_fuse.Id, false, DropTarget.Outside).Error);
     }
@@ -373,7 +373,7 @@ public class InventoryUiTests
     public void Model_SeesTheSourcesNewState_AfterItChanges()
     {
         var (model, source) = Model();
-        Assert.True(model.Plan(_gpu.Id, false, DropTarget.GridCell(_crate.Id, 8, 8)).IsValid);
+        Assert.True(model.Plan(_gpu.Id, false, DropTarget.GridCell(_crate.Id, "grid", 8, 8)).IsValid);
         var changes = 0;
         model.Changed += () => changes++;
 
@@ -383,7 +383,7 @@ public class InventoryUiTests
         source.RaiseChanged();
 
         Assert.Equal(1, changes);
-        Assert.Equal(InventoryErrorCodes.Overlap, model.Plan(_gpu.Id, false, DropTarget.GridCell(_crate.Id, 8, 8)).Error);
+        Assert.Equal(InventoryErrorCodes.Overlap, model.Plan(_gpu.Id, false, DropTarget.GridCell(_crate.Id, "grid", 8, 8)).Error);
     }
 
     [Fact]

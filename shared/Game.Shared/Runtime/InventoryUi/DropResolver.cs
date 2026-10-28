@@ -68,7 +68,7 @@ namespace RaidZero.Shared.InventoryUi
                 {
                     foreach (var spec in SlotsOf(characterDef))
                     {
-                        if (spec.Name != SlotNames.Grid && InventoryValidator.Accepts(spec, def) && SlotOccupant(character, spec.Name) == null)
+                        if (InventoryValidator.Accepts(spec, def) && SlotOccupant(character, spec.Name) == null)
                         {
                             candidates.Add((InventoryTarget.NamedSlot(character.Id, spec.Name), character.Id + "/" + spec.Name, true));
                         }
@@ -102,15 +102,15 @@ namespace RaidZero.Shared.InventoryUi
         private static DropPlan OnGridCell(InventoryTree tree, ItemNode item, ItemDefinition def, bool rotated, DropTarget target)
         {
             GridPlacement.GetSize(def, rotated, out int width, out int height);
-            if (tree.ParentOf(item.Id)?.Id == target.ParentId && item.Slot == SlotNames.Grid
+            if (tree.ParentOf(item.Id)?.Id == target.ParentId && item.Slot == target.Slot
                 && item.X == target.X && item.Y == target.Y && item.Rotated == rotated)
             {
                 // Back where it started: nothing to send.
-                return DropPlan.Nothing().OnGrid(target.ParentId, target.X, target.Y, width, height);
+                return DropPlan.Nothing().OnGrid(target.ParentId, target.Slot, target.X, target.Y, width, height);
             }
 
-            var ops = new[] { InventoryOp.Move(item.Id, InventoryTarget.Grid(target.ParentId, target.X, target.Y, rotated)) };
-            return DropPlan.For(DropAction.Move, ops, tree.Check(ops)).OnGrid(target.ParentId, target.X, target.Y, width, height);
+            var ops = new[] { InventoryOp.Move(item.Id, InventoryTarget.InGrid(target.ParentId, target.Slot, target.X, target.Y, rotated)) };
+            return DropPlan.For(DropAction.Move, ops, tree.Check(ops)).OnGrid(target.ParentId, target.Slot, target.X, target.Y, width, height);
         }
 
         private static DropPlan OnSlot(InventoryTree tree, ItemNode item, DropTarget target)
@@ -155,7 +155,7 @@ namespace RaidZero.Shared.InventoryUi
             DropPlan refusedLoad = null;
             foreach (var spec in SlotsOf(targetDef))
             {
-                if (spec.Name == SlotNames.Grid || !InventoryValidator.Accepts(spec, def))
+                if (!InventoryValidator.Accepts(spec, def))
                 {
                     continue;
                 }
@@ -191,8 +191,8 @@ namespace RaidZero.Shared.InventoryUi
                 return refusedLoad;
             }
 
-            // A container: put it inside, wherever there's room.
-            if (targetDef.Grid != null)
+            // A container: put it inside, wherever there's room, trying its grids (pockets) in order.
+            if (targetDef.HasGrids())
             {
                 var put = new[] { InventoryOp.Move(item.Id, InventoryTarget.AnyGridSpot(target.Id)) };
                 return DropPlan.For(DropAction.PutInside, put, tree.Check(put)).OnItem(target.Id);
@@ -233,7 +233,7 @@ namespace RaidZero.Shared.InventoryUi
             return null;
         }
 
-        private static bool HasGrid(ItemCatalog catalog, ItemNode node) => catalog.TryGet(node.DefId, out var def) && def.Grid != null;
+        private static bool HasGrid(ItemCatalog catalog, ItemNode node) => catalog.TryGet(node.DefId, out var def) && def.HasGrids();
 
         private static bool IsInside(InventoryTree tree, ItemNode node, string ancestorId)
         {

@@ -21,8 +21,12 @@ MonoBehaviour:
   _hasDurability: 0
   _tags:
   - backpack
-  _hasGrid: 1
-  _gridSize: {x: 4, y: 5}
+  _grids:
+  - Name: grid
+    Width: 4
+    Height: 5
   _slots: []
   _icon: {fileID: 0}
   _worldPrefab: {fileID: 0}
+  _hasGrid: 0
+  _gridSize: {x: 1, y: 1}

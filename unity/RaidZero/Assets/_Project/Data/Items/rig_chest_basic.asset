@@ -21,8 +21,12 @@ MonoBehaviour:
   _hasDurability: 0
   _tags:
   - rig
-  _hasGrid: 1
-  _gridSize: {x: 4, y: 2}
+  _grids:
+  - Name: grid
+    Width: 4
+    Height: 2
   _slots: []
   _icon: {fileID: 0}
   _worldPrefab: {fileID: 0}
+  _hasGrid: 0
+  _gridSize: {x: 1, y: 1}

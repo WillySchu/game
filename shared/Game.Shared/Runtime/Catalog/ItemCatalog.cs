@@ -11,8 +11,11 @@ namespace RaidZero.Shared.Catalog
     /// </summary>
     public sealed class ItemCatalog
     {
-        /// <summary>Slot name used for grid placement. A definition may not declare a named slot with it.</summary>
-        public const string GridSlotName = "grid";
+        /// <summary>
+        /// The main grid's name. A target with this slot and no x and y means "the first free spot in any of the
+        /// container's grids", so a definition may not declare a named slot with it.
+        /// </summary>
+        public const string GridSlotName = GridSpec.MainName;
 
         private readonly Dictionary<string, ItemDefinition> _byId;
 
@@ -116,9 +119,24 @@ namespace RaidZero.Shared.Catalog
                     }
                 }
 
-                if (def.Grid != null && (def.Grid.Width < 1 || def.Grid.Height < 1))
+                var gridNames = new HashSet<string>(StringComparer.Ordinal);
+                foreach (var grid in def.Grids ?? new List<GridSpec>())
                 {
-                    errors.Add(where + ": grid width and height must be at least 1");
+                    if (grid == null || !IsIdentifier(grid.Name))
+                    {
+                        errors.Add(where + ": grid names must be lowercase letters, digits and underscores");
+                        continue;
+                    }
+
+                    if (!gridNames.Add(grid.Name))
+                    {
+                        errors.Add(where + ": duplicate grid '" + grid.Name + "'");
+                    }
+
+                    if (grid.Width < 1 || grid.Height < 1)
+                    {
+                        errors.Add(where + ": grid '" + grid.Name + "' width and height must be at least 1");
+                    }
                 }
 
                 var slotNames = new HashSet<string>(StringComparer.Ordinal);
@@ -132,7 +150,11 @@ namespace RaidZero.Shared.Catalog
 
                     if (slot.Name == GridSlotName)
                     {
-                        errors.Add(where + ": slot name 'grid' is reserved; use the grid field instead");
+                        errors.Add(where + ": slot name 'grid' is reserved for grids");
+                    }
+                    else if (gridNames.Contains(slot.Name))
+                    {
+                        errors.Add(where + ": '" + slot.Name + "' is both a grid and a slot");
                     }
 
                     if (!slotNames.Add(slot.Name))

@@ -10,13 +10,13 @@ public static class RaidTestKit
     public static readonly ItemCatalog Catalog = new(
     [
         new() { DefId = "character", Slots = [Slot("primary", "weapon_long"), Slot("rig", "rig"), Slot("backpack", "backpack")] },
-        new() { DefId = "ground", Grid = new GridSpec { Width = 10, Height = 10 } },
-        new() { DefId = "crate", Grid = new GridSpec { Width = 6, Height = 4 } },
+        new() { DefId = "ground", Grids = [GridSpec.Main(10, 10)] },
+        new() { DefId = "crate", Grids = [GridSpec.Main(6, 4)] },
         new() { DefId = "rifle", Width = 4, Height = 2, Tags = ["weapon_long"], Slots = [Slot("magazine", "mag")] },
         new() { DefId = "mag", Width = 1, Height = 2, Tags = ["mag"], Slots = [new() { Name = "rounds", Accepts = ["ammo"], MaxQuantity = 30 }] },
         new() { DefId = "ammo", MaxStack = 60, Tags = ["ammo"] },
-        new() { DefId = "rig", Width = 2, Height = 2, Tags = ["rig"], Grid = new GridSpec { Width = 2, Height = 1 } },
-        new() { DefId = "backpack", Width = 3, Height = 3, Tags = ["backpack"], Grid = new GridSpec { Width = 4, Height = 4 } },
+        new() { DefId = "rig", Width = 2, Height = 2, Tags = ["rig"], Grids = [GridSpec.Main(2, 1)] },
+        new() { DefId = "backpack", Width = 3, Height = 3, Tags = ["backpack"], Grids = [GridSpec.Main(4, 4)] },
         new() { DefId = "gpu", Width = 2, Height = 1 },
         new() { DefId = "fuse" },
     ]);

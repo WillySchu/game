@@ -55,8 +55,10 @@ namespace RaidZero.Shared.InventoryUi
         /// <summary>Releasing here does something the server will accept.</summary>
         public bool IsValid => Error == null && Action != DropAction.None;
 
-        /// <summary>For a grid drop: the container whose cells to highlight, and the cells the item would cover.</summary>
+        /// <summary>For a grid drop: the container and grid whose cells to highlight, and the cells the item would cover.</summary>
         public string GridId { get; private set; }
+
+        public string GridName { get; private set; }
 
         public int X { get; private set; }
 
@@ -89,9 +91,10 @@ namespace RaidZero.Shared.InventoryUi
 
         internal static DropPlan Dropping() => new DropPlan(DropAction.Drop, null, null, null);
 
-        internal DropPlan OnGrid(string gridId, int x, int y, int width, int height)
+        internal DropPlan OnGrid(string gridId, string gridName, int x, int y, int width, int height)
         {
             GridId = gridId;
+            GridName = gridName;
             X = x;
             Y = y;
             Width = width;

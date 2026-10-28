@@ -1,0 +1,54 @@
+-- migrator: foreign_keys=off
+--
+-- 0005: items can have several grids (a rig's pockets), each named; an item in a grid stores the grid's name
+-- as its slot. Before, a grid position required slot = 'grid' and the named-slot index skipped 'grid'. Now a
+-- grid position needs some slot (the grid's name), and named slots are the placements with no position.
+-- Existing items are unchanged: slot 'grid' is the name of every container's only grid.
+--
+-- Same table rebuild as 0003_merged_state.sql; only the two grid rules change.
+
+CREATE TABLE item_instances_new (
+    id             TEXT PRIMARY KEY,
+    def_id         TEXT NOT NULL,
+    owner_id       TEXT REFERENCES players (id) DEFERRABLE INITIALLY DEFERRED,
+    state          TEXT NOT NULL CHECK (state IN ('stash', 'in_raid', 'lost', 'consumed', 'sold', 'discarded', 'merged')),
+    raid_id        TEXT REFERENCES raids (id) DEFERRABLE INITIALLY DEFERRED,
+    parent_id      TEXT REFERENCES item_instances (id) DEFERRABLE INITIALLY DEFERRED,
+    slot           TEXT,
+    grid_x         INTEGER,
+    grid_y         INTEGER,
+    rotated        BOOLEAN NOT NULL DEFAULT FALSE,
+    quantity       INTEGER NOT NULL DEFAULT 1 CHECK (quantity >= 1),
+    durability     REAL CHECK (durability IS NULL OR (durability >= 0 AND durability <= 1)),
+    attrs          TEXT,
+    origin         TEXT NOT NULL CHECK (origin IN ('starter', 'raid_loot', 'purchase', 'craft', 'admin')),
+    origin_raid_id TEXT REFERENCES raids (id) DEFERRABLE INITIALLY DEFERRED,
+    created_at     TIMESTAMP NOT NULL,
+    updated_at     TIMESTAMP NOT NULL,
+
+    CHECK ((state = 'in_raid') = (raid_id IS NOT NULL)),
+    CHECK (state <> 'in_raid' OR owner_id IS NULL),
+    CHECK (state <> 'stash' OR owner_id IS NOT NULL),
+    CHECK ((grid_x IS NULL) = (grid_y IS NULL)),
+    CHECK (grid_x IS NULL OR slot IS NOT NULL)
+);
+
+INSERT INTO item_instances_new (
+    id, def_id, owner_id, state, raid_id, parent_id, slot, grid_x, grid_y, rotated,
+    quantity, durability, attrs, origin, origin_raid_id, created_at, updated_at)
+SELECT
+    id, def_id, owner_id, state, raid_id, parent_id, slot, grid_x, grid_y, rotated,
+    quantity, durability, attrs, origin, origin_raid_id, created_at, updated_at
+FROM item_instances;
+
+DROP TABLE item_instances;
+
+ALTER TABLE item_instances_new RENAME TO item_instances;
+
+CREATE INDEX ix_items_owner  ON item_instances (owner_id, state);
+CREATE INDEX ix_items_parent ON item_instances (parent_id);
+CREATE INDEX ix_items_raid   ON item_instances (raid_id) WHERE state = 'in_raid';
+
+-- A named slot (primary, magazine, ...) holds at most one live item. Grid items have a position; slots don't.
+CREATE UNIQUE INDEX ux_items_named_slot ON item_instances (parent_id, slot)
+    WHERE grid_x IS NULL AND slot IS NOT NULL AND state IN ('stash', 'in_raid');

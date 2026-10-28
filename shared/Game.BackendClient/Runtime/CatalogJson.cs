@@ -62,9 +62,26 @@ namespace RaidZero.BackendApi
                     Tags = Strings(item["tags"]),
                 };
 
-                if (item["grid"] is JObject grid)
+                if (item["grid"] != null)
                 {
-                    definition.Grid = new GridSpec { Width = (int?)grid["width"] ?? 0, Height = (int?)grid["height"] ?? 0 };
+                    // The format before named grids. Read as today's, the item would silently have no grid.
+                    throw new InvalidDataException(source + " is in the old format (\"grid\" instead of \"grids\"). Re-export the catalog from Unity.");
+                }
+
+                if (item["grids"] is JArray grids)
+                {
+                    foreach (var gridToken in grids)
+                    {
+                        if (gridToken is JObject grid)
+                        {
+                            definition.Grids.Add(new GridSpec
+                            {
+                                Name = (string)grid["name"],
+                                Width = (int?)grid["width"] ?? 0,
+                                Height = (int?)grid["height"] ?? 0,
+                            });
+                        }
+                    }
                 }
 
                 if (item["slots"] is JArray slots)
@@ -141,9 +158,16 @@ namespace RaidZero.BackendApi
                     item["tags"] = new JArray(definition.Tags);
                 }
 
-                if (definition.Grid != null)
+                if (definition.Grids != null && definition.Grids.Count > 0)
                 {
-                    item["grid"] = new JObject { ["width"] = definition.Grid.Width, ["height"] = definition.Grid.Height };
+                    // In definition order, which is the order free spots are filled in.
+                    var grids = new JArray();
+                    foreach (var grid in definition.Grids)
+                    {
+                        grids.Add(new JObject { ["name"] = grid.Name, ["width"] = grid.Width, ["height"] = grid.Height });
+                    }
+
+                    item["grids"] = grids;
                 }
 
                 if (definition.Slots != null && definition.Slots.Count > 0)

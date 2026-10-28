@@ -110,7 +110,7 @@ namespace RaidZero.Raid
                 throw new ArgumentException("Characters join with AddPlayer, and ground piles come from Drop.", nameof(container));
             }
 
-            if (!_catalog.TryGet(container.DefId, out var def) || (def.Grid == null && (def.Slots == null || def.Slots.Count == 0)))
+            if (!_catalog.TryGet(container.DefId, out var def) || (!def.HasGrids() && (def.Slots == null || def.Slots.Count == 0)))
             {
                 throw new ArgumentException("'" + container.DefId + "' can't hold anything, so it can't be a loot container.", nameof(container));
             }
@@ -404,7 +404,7 @@ namespace RaidZero.Raid
             foreach (var slot in characterDef.Slots)
             {
                 var worn = character.Children.FirstOrDefault(c => c.Slot == slot.Name);
-                if (worn != null && _catalog.TryGet(worn.DefId, out var wornDef) && wornDef.Grid != null)
+                if (worn != null && _catalog.TryGet(worn.DefId, out var wornDef) && wornDef.HasGrids())
                 {
                     yield return InventoryTarget.AnyGridSpot(worn.Id);
                 }

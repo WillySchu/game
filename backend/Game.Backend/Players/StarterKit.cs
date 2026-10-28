@@ -112,16 +112,23 @@ public sealed class StarterKit
                 Durability = spec.Durability,
             };
 
-            if (child.Slot == SlotNames.Grid && child.X is null && child.Y is null)
+            // "grid" with no position: the first free spot in any of the parent's grids. A pocket's name with no
+            // position: the first free spot in that pocket.
+            if (child.X is null && child.Y is null && _catalog.TryGet(parent.DefId, out var parentDef)
+                && (child.Slot == SlotNames.Grid || parentDef.FindGrid(child.Slot) is not null))
             {
-                if (!GridPlacement.TryFindFreeSpot(_catalog, parent, def, out var x, out var y, out var rotated))
+                string? grid = child.Slot;
+                int x, y;
+                bool rotated;
+                var found = child.Slot == SlotNames.Grid
+                    ? GridPlacement.TryFindFreeSpot(_catalog, parent, def, out grid, out x, out y, out rotated)
+                    : GridPlacement.TryFindFreeSpot(_catalog, parent, child.Slot, def, out x, out y, out rotated);
+                if (!found)
                 {
                     throw new StarterKitException($"no room for {spec.DefId} in {parent.DefId}.");
                 }
 
-                child.X = x;
-                child.Y = y;
-                child.Rotated = rotated;
+                (child.Slot, child.X, child.Y, child.Rotated) = (grid, x, y, rotated);
             }
 
             parent.Children.Add(child);
