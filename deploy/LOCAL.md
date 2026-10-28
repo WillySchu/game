@@ -83,7 +83,8 @@ The admin tool is at `http://<tailscale address>:5080/admin`, with `ADMIN_TOKEN`
 
 | What you see | Why, and what to do |
 | --- | --- |
-| Deploy says `no_server_available` | The game server is busy with a raid that started more than two minutes ago. Wait for it to end |
+| Deploy says `no_server_available` | The game server is busy with a raid that started more than two minutes ago, or that's full (four players, counting ones who disconnected and haven't come back). Wait for it to end; shorter `RAID_MINUTES` helps while testing |
+| Deploy says `rejoining your raid` | You'd disconnected from a raid that's still going, so Deploy puts you back in it with the same ticket |
 | Deploy hangs at "connecting", then times out | The client can't reach UDP 7770: check `GAME_SERVER_HOST` is the Tailscale address and the firewall rule exists |
 | Deploy fails reaching the backend | Check `backend_url`, the TCP 5080 rule, and that Tailscale is connected on both machines |
 | `catalog_mismatch` in the game server's log | The two images were built from different item catalogs. `pull` both, then `up -d` |
