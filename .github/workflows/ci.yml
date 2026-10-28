@@ -45,7 +45,7 @@ jobs:
 
       - name: Keep test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: test-results
           path: artifacts/test-results
@@ -66,11 +66,11 @@ jobs:
           lfs: false
 
       # QEMU runs the one RUN step of the arm64 runtime stage; the .NET build itself runs natively (see the Dockerfile).
-      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-qemu-action@v4
 
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
 
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -78,14 +78,14 @@ jobs:
 
       # Tags each image with its commit (sha-abc1234) and moves "latest" along with main.
       - id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ghcr.io/${{ github.repository }}/backend
           tags: |
             type=sha
             type=raw,value=latest
 
-      - uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@v7
         with:
           context: .
           file: backend/Dockerfile

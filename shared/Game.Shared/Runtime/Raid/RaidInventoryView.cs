@@ -30,6 +30,9 @@ namespace RaidZero.Shared.Raid
         /// <summary>A request was answered. On failure, Error says why (show it, and un-grey the items).</summary>
         public event Action<RequestResult> RequestCompleted;
 
+        /// <summary>Everything was forgotten (<see cref="Clear"/>): the player left the raid or lost the connection.</summary>
+        public event Action Cleared;
+
         /// <summary>Every container the player can see, by ID: their own gear and whatever they have open.</summary>
         public IReadOnlyDictionary<string, ContainerView> Containers => _containers;
 
@@ -127,6 +130,7 @@ namespace RaidZero.Shared.Raid
         {
             _containers.Clear();
             _pending.Clear();
+            Cleared?.Invoke();
         }
 
         private uint NextId()

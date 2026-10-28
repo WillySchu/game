@@ -185,7 +185,16 @@ namespace RaidZero.Shared.Inventory
         }
 
         /// <summary>Runs the ops in order. If any op is rejected, or the result is invalid, nothing changes.</summary>
-        public ApplyResult Apply(IReadOnlyList<InventoryOp> ops)
+        public ApplyResult Apply(IReadOnlyList<InventoryOp> ops) => Run(ops, commit: true);
+
+        /// <summary>
+        /// Whether <see cref="Apply(IReadOnlyList{InventoryOp})"/> would accept these ops, by every rule it checks,
+        /// without changing anything. The result is the one Apply would return. For previews, such as showing
+        /// where a dragged item can go.
+        /// </summary>
+        public ApplyResult Check(IReadOnlyList<InventoryOp> ops) => Run(ops, commit: false);
+
+        private ApplyResult Run(IReadOnlyList<InventoryOp> ops, bool commit)
         {
             if (ops == null)
             {
@@ -211,6 +220,11 @@ namespace RaidZero.Shared.Inventory
                 {
                     return ApplyResult.Failed(null, errors[0]);
                 }
+            }
+
+            if (!commit)
+            {
+                return ApplyResult.Succeeded(work.Created.Where(c => work.ById.ContainsKey(c.ItemId)).ToList(), work.Changes);
             }
 
             _roots = work.Roots;

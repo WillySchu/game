@@ -223,6 +223,20 @@ The key in `appsettings.Development.json` is for local runs only. Real deploymen
   taking damage starts it over.
 - Both are plain C# with no engine in them, so every rule is unit tested; `RaidServer` drives them.
 
+**Inventory screen logic** (`shared/Game.Shared/Runtime/InventoryUi`, namespace `RaidZero.Shared.InventoryUi`)
+- Everything the inventory screen decides, as plain C# with tests, so the Unity screen only draws and forwards
+  pointer events. `DropResolver` turns "let go of this item here" into ops: a grid cell moves it there, an empty
+  slot equips it, the same stackable item merges, an item with a slot that takes it loads it (more rounds than a
+  magazine holds splits off what fits), a container puts it inside, and outside the window drops it. Ctrl+click
+  (`QuickMove`) equips into an empty slot, then the rig, then the backpack; from the character, into the open
+  container.
+- Every plan is checked with `InventoryTree.Check`, a dry run of exactly the rules the server applies, so the
+  screen shows green or red while dragging and never sends what it knows will be refused. Refusals carry a
+  sentence for the player (`InventoryUiErrors`).
+- `InventoryModel` is what the screen talks to. It sits on an `IInventorySource`: `RaidInventorySource` in a raid
+  (made by `RaidInventoryClient.CreateSource()`), and later a Hideout source over `PlayerSession`, so the same
+  screen serves both. Nothing changes on screen until the source reports the server's answer.
+
 **Unity networking** (`unity/RaidZero/Assets/_Project/Scripts/Net`, assembly `Game.Net`)
 - The thin Fish-Net layer over everything above. `RaidAuthenticator` lets a client in only with a raid ticket
   the backend accepts; `RaidServer` owns the backend client and the raid's inventory on the server;

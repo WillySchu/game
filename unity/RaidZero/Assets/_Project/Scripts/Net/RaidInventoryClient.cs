@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using FishNet.Managing;
 using FishNet.Transporting;
 using RaidZero.Shared.Inventory;
+using RaidZero.Shared.InventoryUi;
 using RaidZero.Shared.Raid;
 using UnityEngine;
 
@@ -21,6 +22,9 @@ namespace RaidZero.Net
 
         /// <summary>What the player can see: their gear and whatever they have open. Updated by the server only.</summary>
         public RaidInventoryView View { get; } = new RaidInventoryView();
+
+        /// <summary>The inventory screen's source for this raid. Dispose it when the screen goes away.</summary>
+        public RaidInventorySource CreateSource() => new RaidInventorySource(View, Send);
 
         /// <summary>Move, split or merge as one all-or-nothing batch. Grey out View.IsPending items until answered.</summary>
         public void Request(IReadOnlyList<InventoryOp> ops) => Send(View.Request(ops));
