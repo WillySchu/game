@@ -25,6 +25,8 @@ MonoBehaviour:
   - Name: grid
     Width: 4
     Height: 5
+    PlaceOnScreen: 0
+    Position: {x: 0, y: 0}
   _slots: []
   _icon: {fileID: 0}
   _worldPrefab: {fileID: 0}

@@ -1,0 +1,215 @@
+/*
+ * The inventory screen's look. Everything visual is here, so restyle freely.
+ * Sizes that come from item data (grids, cells, items, slot boxes) are set in code from
+ * InventoryPanels.Cell (52 units per cell at the 1920x1080 reference resolution).
+ *
+ * One rule to keep: don't give .inv-grid a border or padding. Items and the drop highlight
+ * are placed by cell from the grid's top-left, and a border would shift them off the cells.
+ * Draw grid lines on .inv-cell instead.
+ */
+
+/* The whole screen. The dimmed backdrop counts as "outside": dropping there drops the item. */
+.inv-root {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(0, 0, 0, 0.55);
+}
+
+.inv-window {
+    flex-direction: column;
+    padding: 12px;
+    background-color: rgb(22, 24, 22);
+    border-width: 1px;
+    border-color: rgb(70, 74, 66);
+    border-radius: 4px;
+}
+
+.inv-columns {
+    flex-direction: row;
+    height: 860px;
+}
+
+.inv-column {
+    margin: 0 6px;
+}
+
+.inv-panel {
+    margin-bottom: 12px;
+    padding: 8px;
+    background-color: rgb(32, 35, 31);
+    border-radius: 3px;
+}
+
+.inv-panel--nested {
+    background-color: rgb(28, 31, 28);
+}
+
+.inv-panel__header {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+}
+
+.inv-panel__title {
+    font-size: 15px;
+    -unity-font-style: bold;
+    color: rgb(214, 210, 196);
+}
+
+.inv-panel__close {
+    width: 24px;
+    height: 24px;
+    margin: 0;
+    padding: 0;
+    font-size: 16px;
+}
+
+/* Named slots (primary, secondary, armor, rig, backpack). */
+.inv-slots {
+    flex-direction: row;
+    flex-wrap: wrap;
+}
+
+.inv-slot-holder {
+    margin: 0 8px 8px 0;
+}
+
+.inv-slot__caption {
+    font-size: 11px;
+    color: rgb(150, 150, 138);
+    margin-bottom: 2px;
+}
+
+.inv-slot {
+    background-color: rgb(18, 20, 18);
+    border-width: 1px;
+    border-color: rgb(64, 68, 60);
+}
+
+/* An item in a slot box fills the box rather than being drawn to its footprint. */
+.inv-item--in-slot {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+}
+
+.inv-grids {
+    margin-top: 2px;
+}
+
+.inv-grid {
+    background-color: rgb(18, 20, 18);
+}
+
+.inv-cell {
+    border-width: 0 1px 1px 0;
+    border-color: rgba(255, 255, 255, 0.06);
+}
+
+/* Items. Category classes come from ItemBadges.Category. */
+.inv-item {
+    padding: 2px 3px;
+    border-width: 1px;
+    border-color: rgba(255, 255, 255, 0.18);
+    background-color: rgb(56, 56, 58);
+    overflow: hidden;
+}
+
+.inv-item--weapon { background-color: rgb(72, 64, 50); }
+.inv-item--magazine { background-color: rgb(60, 66, 50); }
+.inv-item--ammo { background-color: rgb(76, 68, 40); }
+.inv-item--gear { background-color: rgb(44, 56, 66); }
+.inv-item--valuable { background-color: rgb(84, 62, 30); }
+.inv-item--barter { background-color: rgb(52, 62, 58); }
+.inv-item--other { background-color: rgb(56, 56, 58); }
+
+/* Waiting for the server to answer a request that involves it. */
+.inv-item--pending {
+    opacity: 0.45;
+}
+
+/* The item being dragged, left in place while its ghost follows the pointer. */
+.inv-item--dragging {
+    opacity: 0.3;
+}
+
+.inv-item__name {
+    font-size: 11px;
+    white-space: normal;
+    color: rgb(232, 228, 214);
+    -unity-text-align: upper-left;
+}
+
+.inv-item__count {
+    position: absolute;
+    right: 3px;
+    bottom: 1px;
+    font-size: 11px;
+    -unity-font-style: bold;
+    color: rgb(240, 236, 220);
+}
+
+/* Dragging. */
+.inv-ghost {
+    opacity: 0.85;
+    padding: 2px 3px;
+    border-width: 2px;
+    border-color: rgba(255, 255, 255, 0.35);
+}
+
+.inv-ghost--ok { border-color: rgb(110, 200, 110); }
+.inv-ghost--bad { border-color: rgb(220, 90, 80); }
+.inv-ghost--drop { opacity: 0.5; }
+
+/* Where the item would land. Neither ok nor bad: it's where it already is. */
+.inv-drop-cells {
+    border-width: 2px;
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.inv-drop-cells--ok {
+    background-color: rgba(110, 200, 110, 0.25);
+    border-color: rgb(110, 200, 110);
+}
+
+.inv-drop-cells--bad {
+    background-color: rgba(220, 90, 80, 0.25);
+    border-color: rgb(220, 90, 80);
+}
+
+.inv-target--ok {
+    border-width: 2px;
+    border-color: rgb(110, 200, 110);
+}
+
+.inv-target--bad {
+    border-width: 2px;
+    border-color: rgb(220, 90, 80);
+}
+
+/* Messages and help. */
+.inv-status {
+    min-height: 20px;
+    margin-top: 6px;
+    font-size: 14px;
+    color: rgb(230, 150, 120);
+}
+
+.inv-help {
+    font-size: 11px;
+    color: rgb(130, 130, 120);
+}
+
+.inv-empty {
+    font-size: 13px;
+    color: rgb(150, 150, 138);
+    margin: 8px 0;
+}

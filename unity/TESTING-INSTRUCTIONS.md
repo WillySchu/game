@@ -30,6 +30,43 @@ dotnet run --project backend/Game.Backend
 - Pressing Stop ends the raid, so the dev server is free again straight away. Anyone who didn't extract
   loses their gear; it doesn't matter, because each dev player is new each time.
 
+## Inventory screen
+
+Add `InventoryScreen` (assembly `Game.UI`) to any GameObject in the raid scene, next to `DevInventoryOverlay`
+is fine. It makes its own UIDocument from `Assets/_Project/UI/Resources/InventoryPanelSettings` and styles
+itself with `InventoryScreen.uss` beside it, so there's nothing else to wire up. Join a raid as above, then:
+
+- **Tab** opens and closes the screen. The mouse is freed and the player's input switches to the `UI` action
+  map, so the camera stays still; closing puts both back and closes anything you had open.
+- **F** opens the nearest crate (within 2.5 m of the camera) and the screen with it. This is a stand-in until
+  interaction exists.
+- **Drag** an item; **R** while dragging turns it; **Escape** cancels the drag (or closes the screen).
+- **Ctrl+click** (Cmd+click on a Mac) quick-moves an item.
+
+What to check:
+
+1. Your gear is on the left: the five slot boxes, then a panel each for the rig and backpack grids. The crate
+   is on the right, with a × that closes it.
+2. Dragging shows a ghost that follows the pointer from where you grabbed it, and the cells it would land on
+   in green, or red where it won't fit. Letting go on green moves it; the item dims until the server answers.
+   Letting go on red changes nothing and the status line says why.
+3. R turns a 2x1 (the graphics card) mid-drag; the ghost and the cells follow, and it lands turned.
+4. Dropping ammo on the same ammo merges; ammo on a magazine loads it (the magazine's corner shows rounds,
+   like `30/30`, and so does a rifle holding it); a magazine on the rifle loads it; anything on the backpack
+   puts it inside. The target gets a green or red outline.
+5. Dragging the rifle onto the empty primary box equips it; dragging something that doesn't fit a slot goes
+   red with a reason.
+6. Letting go over the dimmed backdrop, outside the window, drops the item; with two clients, the other one
+   sees it go.
+7. Ctrl+click on a crate item puts it in an empty slot that takes it, else the rig, else the backpack;
+   Ctrl+click on your own item puts it in the crate.
+8. Closing and reopening the screen, and opening the crate from the F1 overlay, keep it in step: anything
+   that changes on the server shows up without reopening.
+
+Positions of a container's pockets: each grid on an item asset has **Place On Screen** and **Position** (in
+cells). Grids with it ticked go there; the rest flow left to right in their fill order, wrapping, below the
+placed ones. It's presentation only, so it isn't in the catalog and changing it needs no export.
+
 ## Raid lifecycle
 
 The raid waits until someone joins, then runs its clock. It ends when the clock runs out, when everyone who

@@ -240,6 +240,16 @@ The key in `appsettings.Development.json` is for local runs only. Real deploymen
 - `InventoryModel` is what the screen talks to. It sits on an `IInventorySource`: `RaidInventorySource` in a raid
   (made by `RaidInventoryClient.CreateSource()`), and later a Hideout source over `PlayerSession`, so the same
   screen serves both. Nothing changes on screen until the source reports the server's answer.
+- `PocketLayout` places a container's grids on screen: where the item asset's grid says (Place On Screen,
+  Position), or flowing left to right in fill order. `ItemBadges` gives an item its colour family (from its tags)
+  and its corner number (stack size, or rounds in a magazine or a weapon's magazine).
+
+**Inventory screen** (`unity/RaidZero/Assets/_Project/Scripts/UI`, assembly `Game.UI`)
+- `InventoryScreen` is the raid's inventory in UI Toolkit: Tab toggles it, F opens the nearest crate for now.
+  `InventoryPanels` builds the elements from the model (gear and its rig and backpack on the left, open
+  containers on the right); `InventoryDrag` turns pointer movement into `DropTarget`s and asks the model for a
+  plan. All the look is in `Assets/_Project/UI/Resources/InventoryScreen.uss`; cell size is
+  `InventoryPanels.Cell`, at a 1920x1080 reference resolution set on `InventoryPanelSettings`.
 
 **Unity networking** (`unity/RaidZero/Assets/_Project/Scripts/Net`, assembly `Game.Net`)
 - The thin Fish-Net layer over everything above. `RaidAuthenticator` lets a client in only with a raid ticket

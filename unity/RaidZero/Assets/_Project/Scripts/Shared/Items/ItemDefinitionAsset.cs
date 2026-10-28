@@ -88,6 +88,25 @@ namespace RaidZero.Items
 
         public GameObject WorldPrefab => _worldPrefab;
 
+        /// <summary>
+        /// Where the inventory screen should draw one of this item's grids, if the asset says. Presentation only:
+        /// it isn't exported, so moving a pocket on screen never changes the catalog.
+        /// </summary>
+        public bool TryGetScreenPosition(string gridName, out Vector2Int position)
+        {
+            foreach (var grid in _grids)
+            {
+                if (grid.Name == gridName && grid.PlaceOnScreen)
+                {
+                    position = grid.Position;
+                    return true;
+                }
+            }
+
+            position = default;
+            return false;
+        }
+
         /// <summary>The rules as the shared code, backend and servers see them.</summary>
         public ItemDefinition ToDefinition()
         {
@@ -169,6 +188,12 @@ namespace RaidZero.Items
 
             [Min(1)]
             public int Height = 1;
+
+            [Tooltip("Presentation only: draw this grid at Position in the inventory screen instead of placing it automatically. Not part of the rules, so changing it never changes the catalog version.")]
+            public bool PlaceOnScreen;
+
+            [Tooltip("In cells, from the top-left of the item's panel.")]
+            public Vector2Int Position;
         }
 
         [Serializable]
