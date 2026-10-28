@@ -16,6 +16,7 @@ tests/Game.Backend.Tests/  Catalog loading, migrations and database behaviour ag
 tests/Game.BackendClient.Tests/  The game server client against a fake backend, and whole raids against the real one
 tests/Game.Raid.Tests/     Raid inventory rules, plus a raid with looting played through to the backend's stashes
 unity/RaidZero/            The Unity project; unity/TESTING-INSTRUCTIONS.md covers playing it against the backend
+                           Everything we make lives in Assets/_Project; the rest of Assets is third-party or tooling
 deploy/                    Running the backend on a VPS: Compose, Caddy, backups (see deploy/README.md)
 .github/workflows/ci.yml   Tests every push and pull request; pushes the backend image to GHCR from main
 ```
@@ -96,8 +97,9 @@ The key in `appsettings.Development.json` is for local runs only. Real deploymen
 - Item states live in `ItemStates`; a test fails if they drift from the database's CHECK constraint.
 
 **Item catalog**
-- Items are defined in Unity: one `ItemDefinitionAsset` per item in `unity/RaidZero/Assets/Data/Items`, holding the
-  rules (size, stacking, tags, slots, grid) and the presentation (display name, description, icon, world prefab).
+- Items are defined in Unity: one `ItemDefinitionAsset` per item in `unity/RaidZero/Assets/_Project/Data/Items`,
+  holding the rules (size, stacking, tags, slots, grid) and the presentation (display name, description, icon,
+  world prefab).
   Create one with Create > Raid Zero > Item Definition.
 - Saving an item rewrites `shared/catalog/item_catalog.json` by itself, and refreshes the `ItemLibrary` that game
   code uses to find an item's name, icon and model (`ItemLibrary.Instance.Find(defId)`). The export refuses an

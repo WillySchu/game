@@ -65,7 +65,7 @@ public class CatalogJsonTests
     public void TheCommittedCatalog_IsInTheExportersFormat()
     {
         // Unity's exporter writes this file. If this fails, the file was edited by hand: change the item in
-        // Unity instead (Assets/Data/Items), or run Raid Zero > Items > Import Catalog first to bring a hand
+        // Unity instead (Assets/_Project/Data/Items), or run Raid Zero > Items > Import Catalog first to bring a hand
         // edit into the assets.
         var text = File.ReadAllText(TestPaths.CatalogPath).Replace("\r\n", "\n");
 

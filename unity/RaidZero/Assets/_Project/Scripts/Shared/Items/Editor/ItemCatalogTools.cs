@@ -20,9 +20,9 @@ namespace RaidZero.Items.Editor
     public static class ItemCatalogTools
     {
         /// <summary>Where new item assets go. Saving anything here triggers an export.</summary>
-        public const string ItemsFolder = "Assets/Data/Items";
+        public const string ItemsFolder = "Assets/_Project/Data/Items";
 
-        public const string LibraryFolder = "Assets/Data/Resources";
+        public const string LibraryFolder = "Assets/_Project/Data/Resources";
 
         private static readonly string[] RequiredDefIds = { WellKnownDefs.Stash, WellKnownDefs.Character, WellKnownDefs.Ground };
 
