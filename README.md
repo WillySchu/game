@@ -235,6 +235,10 @@ The key in `appsettings.Development.json` is for local runs only. Real deploymen
   a `LeftRaid` event saying how the player left. It's carried by three small broadcasts.
 - Inventory messages travel as two Fish-Net broadcasts carrying `RaidProtocol` bytes, so the network layer
   never interprets them.
+- Fish-Net needs a client and server to have the same networked code. `NetworkFingerprint` hashes every
+  NetworkBehaviour's RPCs, prediction methods and synced fields; clients send it with their ticket, and the
+  server refuses a different one (`version_mismatch`) before the ticket is redeemed. Method bodies don't count.
+  The server logs its fingerprint and build commit at startup.
 - Clients get their ticket from `RaidTickets.Next`, which the Hideout will set; in the editor they fetch a
   dev ticket from the local backend instead.
 

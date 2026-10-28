@@ -31,7 +31,15 @@ public sealed class PlayerTokenHandler : AuthenticationHandler<AuthenticationSch
             return Task.FromResult(AuthenticateResult.NoResult());
         }
 
-        if (!_tokens.TryValidate(header[prefix.Length..].Trim(), out var playerId))
+        // Player tokens are payload.signature. Game server and admin tokens have no dot: they're for the other
+        // schemes, so leave them alone rather than logging every game server call as a failed player login.
+        var token = header[prefix.Length..].Trim();
+        if (!token.Contains('.'))
+        {
+            return Task.FromResult(AuthenticateResult.NoResult());
+        }
+
+        if (!_tokens.TryValidate(token, out var playerId))
         {
             return Task.FromResult(AuthenticateResult.Fail("Invalid or expired player token."));
         }

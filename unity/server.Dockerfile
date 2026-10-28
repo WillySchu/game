@@ -24,7 +24,10 @@ COPY --chown=raidzero . .
 RUN chmod +x RaidZeroServer.x86_64
 
 USER raidzero
-ENV RAIDZERO_OUTBOX_DIR=/data/outbox
+# The commit the server was built from, which it logs at startup. CI passes it in.
+ARG BUILD_COMMIT=local
+ENV RAIDZERO_OUTBOX_DIR=/data/outbox \
+    RAIDZERO_BUILD=$BUILD_COMMIT
 VOLUME /data
 EXPOSE 7770/udp
 

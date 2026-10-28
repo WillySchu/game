@@ -30,6 +30,13 @@ namespace RaidZero.Net
         private string _lastResult = "";
         private Vector2 _scroll;
 
+        private void OnEnable() => RaidAuthenticator.JoinAnswered += OnJoinAnswered;
+
+        private void OnDisable() => RaidAuthenticator.JoinAnswered -= OnJoinAnswered;
+
+        private void OnJoinAnswered(JoinRaidResultBroadcast answer) =>
+            _lastResult = answer.Success ? "joined" : "the server refused: " + answer.Error + ": " + answer.Message;
+
         private void Start()
         {
             if (RaidInventoryClient.Instance != null)
@@ -117,7 +124,7 @@ namespace RaidZero.Net
                 return;
             }
 
-            GUILayout.Label("Backend: " + Hideout.BackendUrl + "   map: " + DevSettings.MapId);
+            GUILayout.Label("Backend: " + Hideout.BackendUrl + "   map: " + DevSettings.MapId + "   network code: " + NetworkFingerprint.Current);
             GUI.enabled = !_deploying;
             if (GUILayout.Button(_deploying ? "Deploying..." : "Deploy (dev login, ticket, connect to the ticket's server)"))
             {

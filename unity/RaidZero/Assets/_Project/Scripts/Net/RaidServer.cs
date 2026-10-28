@@ -355,7 +355,10 @@ namespace RaidZero.Net
                 _host = new RaidInventoryHost(inventory) { CanReach = CanReach };
                 _host.ProtocolViolation += OnProtocolViolation;
                 _networkManager.ServerManager.RegisterBroadcast<InventoryToServerBroadcast>(OnInventoryBroadcast);
-                Debug.Log("[raid] Server ready: " + settings + ", map " + _mapId + ", catalog " + catalog.Version + ", " + minutes + "-minute raids, "
+                // CI bakes the commit into the server image (RAIDZERO_BUILD); anything else is a local build.
+                var build = System.Environment.GetEnvironmentVariable("RAIDZERO_BUILD");
+                Debug.Log("[raid] Server ready: build " + (string.IsNullOrEmpty(build) ? "local" : build) + ", network code " + NetworkFingerprint.Current
+                    + ", " + settings + ", map " + _mapId + ", catalog " + catalog.Version + ", " + minutes + "-minute raids, "
                     + ExtractionZone.All.Count + " extraction zone(s).");
                 if (ExtractionZone.All.Count == 0)
                 {

@@ -74,7 +74,7 @@ jobs:
           git lfs ls-files -l | cut -d' ' -f1 | sort > .lfs-assets-id
           echo ".lfs-assets-id" >> .git/info/exclude
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v5
         with:
           path: .git/lfs
           key: lfs-${{ hashFiles('.lfs-assets-id') }}
@@ -82,7 +82,7 @@ jobs:
       - name: Fetch LFS objects
         run: git lfs pull
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v5
         with:
           path: unity/RaidZero/Library
           key: library-linux-server-${{ hashFiles('unity/RaidZero/Assets/**', 'unity/RaidZero/Packages/**', 'unity/RaidZero/ProjectSettings/**', 'shared/**/*.cs') }}
@@ -106,7 +106,7 @@ jobs:
       - name: Build the image
         run: |
           sudo rm -rf build/StandaloneLinux64/*_DoNotShip
-          docker build -f unity/server.Dockerfile -t raidzero-gameserver build/StandaloneLinux64
+          docker build -f unity/server.Dockerfile --build-arg "BUILD_COMMIT=${GITHUB_SHA::7}" -t raidzero-gameserver build/StandaloneLinux64
 
       - uses: actions/setup-dotnet@v5
         with:
@@ -139,7 +139,7 @@ jobs:
           ss -lun | grep -q ':7770 ' || { echo "::error::Nothing is listening on UDP 7770."; exit 1; }
           docker rm -f gameserver
 
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@v4
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         with:
           registry: ghcr.io
@@ -149,7 +149,7 @@ jobs:
       # Tags each image with its commit (sha-abc1234) and moves "latest" along with main.
       - id: meta
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ghcr.io/${{ github.repository }}/gameserver
           tags: |

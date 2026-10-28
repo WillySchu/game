@@ -85,6 +85,7 @@ The admin tool is at `http://<tailscale address>:5080/admin`, with `ADMIN_TOKEN`
 | --- | --- |
 | Deploy says `no_server_available` | The game server is busy with a raid that started more than two minutes ago, or that's full (four players, counting ones who disconnected and haven't come back). Wait for it to end; shorter `RAID_MINUTES` helps while testing |
 | Deploy says `rejoining your raid` | You'd disconnected from a raid that's still going, so Deploy puts you back in it with the same ticket |
+| Deploy says `the server refused: version_mismatch` | Your editor's networked code (RPCs, prediction methods, synced fields) differs from the server's, such as unpushed work on the player controller. Everyone needs the same code as the server: `git pull` (or stash local changes while playtesting), and if the change is new, push it, wait for CI's game server build, then `pull` and `up -d` on the server PC. The server's log shows its build and network code at startup; the editor's overlay shows its network code next to Deploy |
 | Deploy hangs at "connecting", then times out | The client can't reach UDP 7770: check `GAME_SERVER_HOST` is the Tailscale address and the firewall rule exists |
 | Deploy fails reaching the backend | Check `backend_url`, the TCP 5080 rule, and that Tailscale is connected on both machines |
 | `catalog_mismatch` in the game server's log | The two images were built from different item catalogs. `pull` both, then `up -d` |

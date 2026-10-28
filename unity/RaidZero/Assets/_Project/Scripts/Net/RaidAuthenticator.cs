@@ -51,7 +51,12 @@ namespace RaidZero.Net
             try
             {
                 var ticket = await RaidTickets.TakeAsync();
-                NetworkManager.ClientManager.Broadcast(new JoinRaidBroadcast { RaidId = ticket.RaidId, JoinToken = ticket.JoinToken });
+                NetworkManager.ClientManager.Broadcast(new JoinRaidBroadcast
+                {
+                    RaidId = ticket.RaidId,
+                    JoinToken = ticket.JoinToken,
+                    Fingerprint = NetworkFingerprint.Current,
+                });
             }
             catch (Exception exception)
             {
@@ -72,6 +77,12 @@ namespace RaidZero.Net
 
         // ---- Server ----
 
+        private void Refuse(NetworkConnection connection, string error, string message)
+        {
+            NetworkManager.ServerManager.Broadcast(connection, new JoinRaidResultBroadcast { Success = false, Error = error, Message = message }, requireAuthenticated: false);
+            OnAuthenticationResult?.Invoke(connection, false);
+        }
+
         private async void OnJoinRequest(NetworkConnection connection, JoinRaidBroadcast request, Channel channel)
         {
             // An authenticated connection asking again, or a second request while the first is in flight, is
@@ -84,6 +95,18 @@ namespace RaidZero.Net
 
             try
             {
+                // A client with different networked code would be kicked on its first message that differs, so
+                // turn it away now, before the backend moves its gear. Its ticket stays good for after it updates.
+                if (request.Fingerprint != NetworkFingerprint.Current)
+                {
+                    Debug.LogWarning("[raid] Refused a client with network code " + (request.Fingerprint ?? "(none)")
+                        + "; this server has " + NetworkFingerprint.Current + ".");
+                    Refuse(connection, "version_mismatch",
+                        "Your game's network code (" + (request.Fingerprint ?? "unknown") + ") differs from the server's (" + NetworkFingerprint.Current
+                        + "). Everyone needs the same version: pull the latest, and update the server.");
+                    return;
+                }
+
                 var raidServer = GetComponent<RaidServer>();
                 var (success, error, message) = await raidServer.JoinAsync(connection, request.RaidId, request.JoinToken);
                 if (!connection.IsActive)

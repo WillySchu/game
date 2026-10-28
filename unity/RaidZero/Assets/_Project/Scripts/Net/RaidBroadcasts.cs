@@ -3,11 +3,15 @@ using RaidZero.Shared.Raid;
 
 namespace RaidZero.Net
 {
-    /// <summary>Client to server, right after connecting: the ticket the backend issued for this raid.</summary>
+    /// <summary>
+    /// Client to server, right after connecting: the ticket the backend issued for this raid, and the client's
+    /// NetworkFingerprint, which must match the server's.
+    /// </summary>
     public struct JoinRaidBroadcast : IBroadcast
     {
         public string RaidId;
         public string JoinToken;
+        public string Fingerprint;
     }
 
     /// <summary>Server to client: whether the join worked, and if not, why (a JoinResult error code).</summary>
