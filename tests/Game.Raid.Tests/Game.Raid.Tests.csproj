@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="..\..\shared\Game.Raid\Game.Raid.csproj" />
+    <!-- For the raid played end to end: the game server's client against the real backend. -->
+    <ProjectReference Include="..\..\shared\Game.BackendClient\Game.BackendClient.csproj" />
+    <ProjectReference Include="..\..\backend\Game.Backend\Game.Backend.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Shared with the backend tests: the app on a random port, and finding the repo's files. -->
+    <Compile Include="..\Game.Backend.Tests\ApiHost.cs" Link="Backend\ApiHost.cs" />
+    <Compile Include="..\Game.Backend.Tests\TestPaths.cs" Link="Backend\TestPaths.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+</Project>

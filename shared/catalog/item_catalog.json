@@ -1,5 +1,5 @@
 {
-  "catalog_version": "104e569b1e37134c",
+  "catalog_version": "3a78d1f2e0dde6df",
   "items": [
     {
       "def_id": "stash",
@@ -16,6 +16,16 @@
         { "name": "rig", "accepts": ["rig"] },
         { "name": "backpack", "accepts": ["backpack"] }
       ]
+    },
+    {
+      "def_id": "ground",
+      "display_name": "Ground",
+      "grid": { "width": 10, "height": 10 }
+    },
+    {
+      "def_id": "crate_wooden",
+      "display_name": "Wooden Crate",
+      "grid": { "width": 6, "height": 4 }
     },
     {
       "def_id": "rifle_ak_basic",

@@ -36,6 +36,7 @@ public static class ItemStates
     {
         RemovalReason.Discarded => Discarded,
         RemovalReason.Merged => Merged,
+        RemovalReason.Consumed => Consumed,
         _ => throw new ArgumentOutOfRangeException(nameof(reason), reason, "No item state for this removal reason."),
     };
 }

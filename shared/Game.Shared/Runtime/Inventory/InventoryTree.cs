@@ -58,6 +58,127 @@ namespace RaidZero.Shared.Inventory
             return itemId != null && _parentOf.TryGetValue(itemId, out var parent) ? parent : null;
         }
 
+        /// <summary>The root container an item is in (the item itself, for a root); null for unknown IDs.</summary>
+        public ItemNode RootOf(string itemId)
+        {
+            if (!TryGet(itemId, out var node))
+            {
+                return null;
+            }
+
+            while (_parentOf.TryGetValue(node.Id, out var parent))
+            {
+                node = parent;
+            }
+
+            return node;
+        }
+
+        /// <summary>
+        /// Adds a root container and everything in it: a player joining a raid, a crate spawning, an item
+        /// dropped on the ground. The tree takes ownership of the nodes. Throws if the root is invalid or
+        /// reuses an ID already in the tree, since either means a bug in the caller rather than a bad request.
+        /// </summary>
+        public void AddRoot(ItemNode root)
+        {
+            if (root == null)
+            {
+                throw new ArgumentNullException(nameof(root));
+            }
+
+            var errors = InventoryValidator.Validate(_catalog, root);
+            if (errors.Count > 0)
+            {
+                throw new ArgumentException("Root '" + root.Id + "' is invalid: " + errors[0], nameof(root));
+            }
+
+            BuildIndex(new List<ItemNode> { root }, out var byId, out var parentOf);
+            foreach (var id in byId.Keys)
+            {
+                if (_byId.ContainsKey(id))
+                {
+                    throw new ArgumentException("Item '" + id + "' is already in the tree.", nameof(root));
+                }
+            }
+
+            _roots.Add(root);
+            foreach (var entry in byId)
+            {
+                _byId.Add(entry.Key, entry.Value);
+            }
+
+            foreach (var entry in parentOf)
+            {
+                _parentOf.Add(entry.Key, entry.Value);
+            }
+        }
+
+        /// <summary>
+        /// Takes a root container and everything in it out of the tree, and returns it: a player extracting,
+        /// an empty pile on the ground disappearing. Null if there's no root with that ID.
+        /// </summary>
+        public ItemNode RemoveRoot(string rootId)
+        {
+            if (rootId == null || !_byId.TryGetValue(rootId, out var root) || _parentOf.ContainsKey(rootId))
+            {
+                return null;
+            }
+
+            _roots.Remove(root);
+            foreach (var node in root.Walk())
+            {
+                _byId.Remove(node.Id);
+                _parentOf.Remove(node.Id);
+            }
+
+            return root;
+        }
+
+        /// <summary>
+        /// Uses up part or all of a stack: rounds fired, a medkit used. A stack that reaches zero leaves the
+        /// tree with <see cref="RemovalReason.Consumed"/>, and so does everything inside it.
+        ///
+        /// This is deliberately not an <see cref="InventoryOp"/>: only the game server consumes items, so no
+        /// client request can ever ask for it. Unlike <see cref="Apply(IReadOnlyList{InventoryOp})"/>, it
+        /// changes the existing node in place, because it runs on every shot and a quantity can only shrink.
+        /// </summary>
+        public ApplyResult Consume(string itemId, int quantity)
+        {
+            if (!TryGet(itemId, out var item))
+            {
+                return ApplyResult.Failed(0, new InventoryError(itemId, InventoryErrorCodes.ItemNotFound, "No item '" + itemId + "'."));
+            }
+
+            if (!_parentOf.TryGetValue(item.Id, out var parent))
+            {
+                return ApplyResult.Failed(0, new InventoryError(item.Id, InventoryErrorCodes.RootItem, "Root containers can't be consumed."));
+            }
+
+            if (quantity < 1 || quantity > item.Quantity)
+            {
+                return ApplyResult.Failed(0, new InventoryError(item.Id, InventoryErrorCodes.InvalidQuantity,
+                    "Can't consume " + quantity + " of a stack of " + item.Quantity + "."));
+            }
+
+            var changes = new ChangeSet();
+            if (quantity < item.Quantity)
+            {
+                item.Quantity -= quantity;
+                changes.MarkUpdated(item.Id);
+                return ApplyResult.Succeeded(new List<CreatedItem>(), changes);
+            }
+
+            parent.Children.Remove(item);
+            foreach (var node in item.Walk())
+            {
+                _byId.Remove(node.Id);
+                _parentOf.Remove(node.Id);
+                changes.MarkRemoved(node.Id, RemovalReason.Consumed);
+            }
+
+            return ApplyResult.Succeeded(new List<CreatedItem>(), changes);
+        }
+
         public ApplyResult Apply(InventoryOp op)
         {
             return Apply(new[] { op });

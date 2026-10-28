@@ -1,0 +1,16 @@
+{
+    "name": "RaidZero.Raid",
+    "rootNamespace": "RaidZero.Raid",
+    "references": [
+        "RaidZero.Shared"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}

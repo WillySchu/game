@@ -10,6 +10,9 @@ namespace RaidZero.Shared.Inventory
 
         /// <summary>Its whole quantity moved into another stack.</summary>
         Merged,
+
+        /// <summary>Used up in a raid: rounds fired, a medkit used. Only the game server does this.</summary>
+        Consumed,
     }
 
     /// <summary>

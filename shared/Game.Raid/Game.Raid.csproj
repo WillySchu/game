@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Raid rules that run on the game server: who can touch which items, looting, drops and bodies.
+    Plain C#, so it's tested with dotnet test and compiled by Unity as a package (see package.json).
+    Same rules as Game.Shared: netstandard2.1, C# 9, nullable off, no package dependencies.
+  -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <RootNamespace>RaidZero.Raid</RootNamespace>
+    <AssemblyName>RaidZero.Raid</AssemblyName>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Game.Shared\Game.Shared.csproj" />
+  </ItemGroup>
+
+</Project>

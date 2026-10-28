@@ -73,5 +73,11 @@ namespace RaidZero.Shared.Catalog
 
         /// <summary>Root container of a player's equipped gear; checked out whole into a raid.</summary>
         public const string Character = "character";
+
+        /// <summary>
+        /// A pile on the ground in a raid, holding one dropped item. Its grid only needs to be big enough for
+        /// the largest item. Raid servers need it; the backend never sees one.
+        /// </summary>
+        public const string Ground = "ground";
     }
 }

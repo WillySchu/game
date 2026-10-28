@@ -1,0 +1,7 @@
+{
+  "name": "com.raidzero.raid",
+  "version": "0.1.0",
+  "displayName": "Raid Zero Raid Rules",
+  "description": "Server-side raid rules: the raid's inventory, looting, drops and bodies.",
+  "unity": "6000.0"
+}

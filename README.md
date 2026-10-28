@@ -8,11 +8,13 @@ Design docs: *Raid Zero: Backend API & Data Model* and *Raid Zero: Unity Client 
 ```
 shared/Game.Shared/        Code compiled by BOTH Unity and .NET: item tree, catalog, validation, UUIDv7
 shared/Game.BackendClient/ The game server's connection to the backend: join, heartbeats, durable outbox
+shared/Game.Raid/          The game server's raid rules: the raid's inventory, looting, drops, bodies
 shared/catalog/            item_catalog.json, exported from Unity's ItemDefinition assets
 backend/Game.Backend/      ASP.NET Core backend: SQLite + Dapper, migrations, catalog loading
 tests/Game.Shared.Tests/   Rules tests (fit, stacking, slots, IDs, catalog hashing)
 tests/Game.Backend.Tests/  Catalog loading, migrations and database behaviour against a real SQLite file
 tests/Game.BackendClient.Tests/  The game server client against a fake backend, and whole raids against the real one
+tests/Game.Raid.Tests/     Raid inventory rules, plus a raid with looting played through to the backend's stashes
 unity/                     The Unity project goes here (unity/RaidZero)
 deploy/                    Running the backend on a VPS: Compose, Caddy, backups (see deploy/README.md)
 .github/workflows/ci.yml   Tests every push and pull request; pushes the backend image to GHCR from main
@@ -158,6 +160,23 @@ The key in `appsettings.Development.json` is for local runs only. Real deploymen
 - Same rules as `Game.Shared` (Unity compiles it), plus one dependency: Newtonsoft.Json. JSON is built by hand
   with `JObject`, never by reflection, so IL2CPP code stripping can't break it.
 
+**Raid inventory** (`shared/Game.Raid`, `RaidInventoryService`)
+- One `InventoryTree` per raid. Its roots are every player's character, every loot container, every body
+  and every pile on the ground, so looting, picking up and dropping are moves between roots and an item can't
+  be in two places.
+- A living player can touch their own gear, plus containers they have open (`Open`/`Close`) and piles on the
+  ground (`PickUp`). The service doesn't know about distance: the game checks reach before calling `Open` or
+  `PickUp`, and calls `Close` when the player walks away. Another living player's gear is never reachable.
+- Players can't destroy items in a raid: `discard` is refused, and `Drop` puts the item in a new `ground`
+  pile, which disappears once someone empties it. `Kill` turns a character into a body anyone can open.
+  `Extract` hands back the tree for `BackendClient.ReportExtracted`.
+- `Consume` uses up rounds and medkits. It's a method on `InventoryTree`, not an op, so no client request can
+  ever ask for it, and it changes the node in place because it runs on every shot.
+- Every change returns updates: for each player who can see a changed container, its new contents. Send
+  whole containers to clients rather than item diffs; they're small, and clients just replace their view.
+- The catalog must have `character` and `ground` definitions. Loot containers (such as `crate_wooden`) are
+  ordinary definitions with a grid; their contents need fresh `Uuid7` IDs, which they keep into the stash.
+
 **Shared code**
 - `shared/Game.Shared` targets netstandard2.1 with C# 9 and nullable off, because Unity compiles it too.
   The compiler enforces the language version; avoid .NET APIs newer than netstandard2.1
@@ -172,12 +191,14 @@ Unity project at `unity/RaidZero`, add this to `unity/RaidZero/Packages/manifest
 
 ```json
 "com.raidzero.shared": "file:../../../shared/Game.Shared",
-"com.raidzero.backendclient": "file:../../../shared/Game.BackendClient"
+"com.raidzero.backendclient": "file:../../../shared/Game.BackendClient",
+"com.raidzero.raid": "file:../../../shared/Game.Raid"
 ```
 
-The backend client pulls in Unity's `com.unity.nuget.newtonsoft-json` package by itself. Its assembly isn't
-auto-referenced: add `RaidZero.BackendClient` to the references of `Game.Server.asmdef` only, so client code can't
-reach it. Unity writes `.meta` files into both folders the first time it imports them. Commit them.
+The backend client pulls in Unity's `com.unity.nuget.newtonsoft-json` package by itself. Neither it nor the raid
+rules are auto-referenced: add `RaidZero.BackendClient` and `RaidZero.Raid` to the references of
+`Game.Server.asmdef` only, so client code can't reach them. The packages' `.meta` files are already committed;
+commit any Unity adds for new files.
 
 ## CI and deployment
 
@@ -191,6 +212,6 @@ To build the image yourself, from the repo root: `docker build -f backend/Docker
 
 The Milestone 1 backend is complete: every endpoint in the API doc exists and is covered by tests, including
 `RaidApiTests`, which plays whole raids over HTTP the way the game server will. The game server's side of that
-conversation exists too, as `shared/Game.BackendClient`. Next is the thin Unity layer over it (the Fish-Net
-authenticator and passing the server's settings in), then Steam login in place of dev login, and a matchmaker
-that spreads raids across several servers.
+conversation exists too, as `shared/Game.BackendClient`, and so do the raid's inventory rules, in
+`shared/Game.Raid`. Next are the thin Unity layers over them (the Fish-Net authenticator, and the inventory
+RPCs), then Steam login in place of dev login, and a matchmaker that spreads raids across several servers.

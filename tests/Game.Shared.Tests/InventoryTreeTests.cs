@@ -427,5 +427,98 @@ public class InventoryTreeTests
         Assert.Throws<ArgumentException>(() => new InventoryTree(_catalog, [_stash, _character]));
     }
 
+    // ---- roots coming and going, and consumption (what a raid server needs) ----
+
+    [Fact]
+    public void RootOf_FindsTheTopContainer()
+    {
+        Assert.Same(_character, _tree.RootOf(_rounds.Id));
+        Assert.Same(_stash, _tree.RootOf(_packFuse.Id));
+        Assert.Same(_stash, _tree.RootOf(_stash.Id));
+        Assert.Null(_tree.RootOf("nope"));
+    }
+
+    [Fact]
+    public void AddRoot_MakesItsItemsReachable()
+    {
+        var crateGpu = Node("gpu", "grid", 0, 0);
+        var crate = Node("stash", children: [crateGpu]);
+
+        _tree.AddRoot(crate);
+
+        Assert.Same(crate, _tree.RootOf(crateGpu.Id));
+        AssertOk(_tree.Apply(InventoryOp.Move(crateGpu.Id, InventoryTarget.AnyGridSpot(_backpack.Id))));
+
+        // Applying replaces the node objects, so compare IDs from here on.
+        Assert.Equal(_stash.Id, _tree.RootOf(crateGpu.Id).Id);
+        Assert.Contains(_tree.Roots, r => r.Id == crate.Id);
+    }
+
+    [Fact]
+    public void AddRoot_RefusesInvalidRootsAndReusedIds()
+    {
+        var twin = Node("fuse", "grid", 0, 0);
+        twin.Id = _fuse.Id;
+
+        Assert.Throws<ArgumentException>(() => _tree.AddRoot(Node("stash", children: [twin])));
+        Assert.Throws<ArgumentException>(() => _tree.AddRoot(Node("stash", children: [Node("gpu", "primary")])));
+        Assert.Equal(2, _tree.Roots.Count);
+        Assert.Same(_stash, _tree.RootOf(_fuse.Id));
+    }
+
+    [Fact]
+    public void RemoveRoot_TakesEverythingInIt()
+    {
+        var removed = _tree.RemoveRoot(_character.Id);
+
+        Assert.Same(_character, removed);
+        Assert.False(_tree.TryGet(_rounds.Id, out _));
+        Assert.Single(_tree.Roots);
+        Assert.Null(_tree.RemoveRoot(_character.Id));
+        Assert.Null(_tree.RemoveRoot(_gpu.Id));
+        AssertFails(_tree.Apply(InventoryOp.Move(_rifle.Id, InventoryTarget.Grid(_stash.Id, 5, 5))), InventoryErrorCodes.ItemNotFound);
+    }
+
+    [Fact]
+    public void Consume_PartOfAStack_ShrinksIt()
+    {
+        var result = _tree.Consume(_rounds.Id, 3);
+
+        AssertOk(result);
+        Assert.Equal(17, Get(_rounds.Id).Quantity);
+        Assert.Equal(new[] { _rounds.Id }, result.Changes.Updated);
+    }
+
+    [Fact]
+    public void Consume_AllOfIt_RemovesItAndWhatsInside()
+    {
+        var mag = _rifle.Children[0];
+
+        var result = _tree.Consume(mag.Id, 1);
+
+        AssertOk(result);
+        Assert.False(_tree.TryGet(_rounds.Id, out _));
+        Assert.Empty(Get(_rifle.Id).Children);
+        Assert.Equal(RemovalReason.Consumed, result.Changes.Removed[mag.Id]);
+        Assert.Equal(RemovalReason.Consumed, result.Changes.Removed[_rounds.Id]);
+        AssertOk(_tree.Apply(InventoryOp.Move(_emptyMag.Id, InventoryTarget.NamedSlot(_rifle.Id, "magazine"))));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(21)]
+    public void Consume_RefusesQuantitiesTheStackDoesntHave(int quantity)
+    {
+        AssertFails(_tree.Consume(_rounds.Id, quantity), InventoryErrorCodes.InvalidQuantity);
+        Assert.Equal(20, Get(_rounds.Id).Quantity);
+    }
+
+    [Fact]
+    public void Consume_RefusesRootsAndUnknownItems()
+    {
+        AssertFails(_tree.Consume(_character.Id, 1), InventoryErrorCodes.RootItem);
+        AssertFails(_tree.Consume("nope", 1), InventoryErrorCodes.ItemNotFound);
+    }
+
     private static string Uuid() => RaidZero.Shared.Ids.Uuid7.NewId();
 }
