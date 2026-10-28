@@ -56,6 +56,8 @@ public class PlayerController : NetworkBehaviour
 
     public float walkSpeed = 5f;
     public float runSpeed = 10f;
+
+    public float airSpeedMinLimit = 2.5f; // Player will always be allowed to accelerate to at least this speed in the air, even if they left the ground at a lower speed.
     public float jumpHeight = 1.5f;
     public float airControl = 0.05f; // Control factor when in the air (0 = no control, 1 = full control)
     public float gravity = -9.81f;
@@ -77,7 +79,7 @@ public class PlayerController : NetworkBehaviour
     private bool isRunning = false;
     private float currentMoveSpeed = 0f;
     private bool wasGroundedLastFrame = true;
-    private Vector3 horizontalFallVelocity = Vector3.zero;
+    private float horizontalFallVelocity = 0f;
     private PlayerReplicatedData lastReplicatedData = default;
     public override void OnStartClient()
     {
@@ -235,10 +237,10 @@ public class PlayerController : NetworkBehaviour
 
         // Check horizontal velocity and limit air speed to the character's horizontal velocity when they left the ground.
         Vector3 horizontalVelocity = new Vector3(currentVelocity.x, 0f, currentVelocity.z);
-        if(!_characterController.isGrounded && horizontalVelocity.magnitude > horizontalFallVelocity.magnitude)
+        if(!_characterController.isGrounded && horizontalVelocity.magnitude > horizontalFallVelocity)
         {
             // Limit horizontal velocity in the air to the maximum speed when leaving the ground.
-            horizontalVelocity = horizontalVelocity.normalized * horizontalFallVelocity.magnitude;
+            horizontalVelocity = horizontalVelocity.normalized * horizontalFallVelocity;
             currentVelocity.x = horizontalVelocity.x;
             currentVelocity.z = horizontalVelocity.z;
         }
@@ -289,7 +291,11 @@ public class PlayerController : NetworkBehaviour
     private void OnLeftGround()
     {
         // Store the horizontal velocity so we know the max speed the player should be allowed to reach while in the air.
-        horizontalFallVelocity = new Vector3(currentVelocity.x, 0f, currentVelocity.z);
+        horizontalFallVelocity = new Vector3(currentVelocity.x, 0f, currentVelocity.z).magnitude;
+        if (horizontalFallVelocity < airSpeedMinLimit)
+        {
+            horizontalFallVelocity = airSpeedMinLimit;
+        }
 
     }
     
