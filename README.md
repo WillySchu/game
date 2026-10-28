@@ -19,7 +19,8 @@ tests/Game.Raid.Tests/     Raid inventory rules, plus a raid with looting played
 unity/RaidZero/            The Unity project; unity/TESTING-INSTRUCTIONS.md covers playing it against the backend
                            Everything we make lives in Assets/_Project; the rest of Assets is third-party or tooling
 unity/server.Dockerfile    The dedicated game server's image, around a Unity Linux Dedicated Server build
-deploy/                    Running the backend and a game server on a VPS: Compose, Caddy, backups (see deploy/README.md)
+deploy/                    Running the backend and a game server on a VPS (deploy/README.md) or on your own
+                           machine over Tailscale (deploy/LOCAL.md)
 .github/workflows/ci.yml   Tests every push and pull request; pushes the backend image to GHCR from main
 .github/workflows/server.yml  Builds the game server with Unity, smoke tests it, pushes its image to GHCR from main
 ```

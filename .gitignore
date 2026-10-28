@@ -35,3 +35,4 @@ Thumbs.db
 
 # Deployment secrets
 deploy/.env
+deploy/.env.local

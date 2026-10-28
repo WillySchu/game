@@ -11,6 +11,8 @@ players ──UDP 7770──▶ game server ──HTTP──▶ backend :8080 (C
 
 The game server runs one raid at a time. When a raid closes, it exits and Docker starts a fresh one.
 
+For playtests on a machine you already have, over Tailscale and with no VPS, see [LOCAL.md](LOCAL.md) instead.
+
 ## What you need
 
 - A small Linux VPS (1 vCPU, 1 GB RAM is plenty), x86 or ARM, with Docker and the Compose plugin installed.

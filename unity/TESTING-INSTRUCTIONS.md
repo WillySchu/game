@@ -64,8 +64,8 @@ or died for missing in action.
 When the client isn't connected, the F1 overlay has a **Deploy** button. It goes the way the Hideout will: a
 dev login, a ticket for `map_id` from `UserSettings/RaidZeroDev.json`, then a connection to whatever server the
 ticket names. Against the local backend that's this editor's server (start it first with the `Server` button);
-with `backend_url` pointing at the VPS, it's the dedicated server there (dev login must be on; see
-`deploy/README.md`).
+with `backend_url` pointing at a machine running `deploy/compose.local.yaml` (see `deploy/LOCAL.md`) or the VPS,
+it's the dedicated server there.
 
 ## A dedicated server build
 

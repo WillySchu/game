@@ -1,0 +1,44 @@
+# The backend and one game server on a machine of your own, for playtests with friends over Tailscale or
+# for trying the dedicated server on one machine. No Caddy or HTTPS: Tailscale already encrypts traffic between
+# devices. Dev login is on, so anyone who can reach the backend can log in as anyone; keep it off the internet.
+# LOCAL.md in this folder walks through it.
+#
+#   copy .env.local.example .env.local      # then fill it in
+#   docker compose -f compose.local.yaml --env-file .env.local up -d
+name: raidzero-local
+
+services:
+  backend:
+    image: ${BACKEND_IMAGE:?Set BACKEND_IMAGE in .env.local}
+    restart: unless-stopped
+    environment:
+      Backend__TokenSigningKey: ${TOKEN_SIGNING_KEY:?Set TOKEN_SIGNING_KEY in .env.local}
+      Backend__AdminToken: ${ADMIN_TOKEN:?Set ADMIN_TOKEN in .env.local}
+      Backend__DevLoginEnabled: "true"
+      Backend__Servers__0__Id: local-1
+      Backend__Servers__0__Token: ${GAME_SERVER_TOKEN:?Set GAME_SERVER_TOKEN in .env.local}
+      Backend__Servers__0__Host: ${GAME_SERVER_HOST:?Set GAME_SERVER_HOST in .env.local (this machine's Tailscale IP, or 127.0.0.1)}
+      Backend__Servers__0__Port: ${GAME_SERVER_PORT:-7770}
+    volumes:
+      - backend-data:/data
+    ports:
+      - "${BACKEND_PORT:-5080}:8080"
+
+  # One raid at a time. When a raid closes the server exits and Docker starts a fresh one.
+  gameserver:
+    image: ${GAMESERVER_IMAGE:?Set GAMESERVER_IMAGE in .env.local}
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      RAIDZERO_BACKEND_URL: http://backend:8080
+      RAIDZERO_SERVER_TOKEN: ${GAME_SERVER_TOKEN:?Set GAME_SERVER_TOKEN in .env.local}
+    command: ["--raid-minutes", "${RAID_MINUTES:-25}"]
+    volumes:
+      - gameserver-data:/data
+    ports:
+      - "${GAME_SERVER_PORT:-7770}:7770/udp"
+
+volumes:
+  backend-data:
+  gameserver-data:
