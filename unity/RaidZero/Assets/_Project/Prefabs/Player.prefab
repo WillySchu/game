@@ -526,7 +526,7 @@ MonoBehaviour:
   _useLevelOfDetail: 0
   _useRootLevelOfDetail: 1
   NetworkObserver: {fileID: 0}
-  _enablePrediction: 0
+  _enablePrediction: 1
   _predictionType: 0
   _localReconcileCorrectionType: 2
   _graphicalObject: {fileID: 0}
