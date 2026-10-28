@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Dapper;
 using RaidZero.Backend.Data;
+using RaidZero.Backend.Raids;
 using RaidZero.Shared.Catalog;
 using RaidZero.Shared.Ids;
 using RaidZero.Shared.Inventory;
@@ -8,7 +9,13 @@ using RaidZero.Shared.Inventory;
 namespace RaidZero.Backend.Players;
 
 /// <summary>A player's stash and equipped gear, as GET /v1/me/profile returns it.</summary>
-public sealed record Profile(string PlayerId, string DisplayName, long ProfileVersion, ItemNode Stash, ItemNode Character);
+/// <summary>
+/// A player's whole profile. <paramref name="ActiveRaidId"/> is set while they hold a ticket or are in a raid, which is
+/// also when their stash is locked. <paramref name="LastRaidId"/> is the most recent raid they actually joined, finished
+/// or not, so a client that restarts can show where things stand.
+/// </summary>
+public sealed record Profile(
+    string PlayerId, string DisplayName, long ProfileVersion, ItemNode Stash, ItemNode Character, string? ActiveRaidId, string? LastRaidId);
 
 /// <summary>The result of a login: who it was, and whether this call created them.</summary>
 public sealed record LoginResult(string PlayerId, string DisplayName, bool Created);
@@ -97,7 +104,12 @@ public sealed class PlayerStore
                 throw new InvalidOperationException($"Player {playerId} is missing a root container.");
             }
 
-            return new Profile(player.Id, player.DisplayName, player.ProfileVersion, stash, character);
+            var activeRaidId = await RaidService.LiveRaidIdAsync(c, null, playerId, Timestamps.Format(_time.GetUtcNow()));
+            var lastRaidId = (await c.QueryAsync<string>(
+                "SELECT raid_id FROM raid_participants WHERE player_id = @playerId AND joined_at IS NOT NULL ORDER BY joined_at DESC LIMIT 1",
+                new { playerId })).FirstOrDefault();
+
+            return new Profile(player.Id, player.DisplayName, player.ProfileVersion, stash, character, activeRaidId, lastRaidId);
         }, ct);
 
     private sealed class PlayerRow

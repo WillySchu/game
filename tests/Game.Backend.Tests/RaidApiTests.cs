@@ -106,6 +106,37 @@ public class RaidApiTests
     }
 
     [Fact]
+    public async Task TheProfile_SaysWhichRaidThePlayerIsIn_AndWhichOneTheyLastPlayed()
+    {
+        await using var api = await ApiHost.StartAsync();
+        var (playerId, token) = await api.LoginAsync();
+        var catalog = await CatalogVersionAsync(api);
+        async Task<JsonElement> ProfileAsync() => await (await api.GetAsync("/v1/me/profile", token)).Content.ReadFromJsonAsync<JsonElement>();
+
+        var fresh = await ProfileAsync();
+        Assert.False(fresh.TryGetProperty("active_raid_id", out _));
+        Assert.False(fresh.TryGetProperty("last_raid_id", out _));
+
+        // A ticket locks the stash, but nothing has been played yet.
+        var (raidId, joinToken) = await TicketAsync(api, token);
+        var ticketed = await ProfileAsync();
+        Assert.Equal(raidId, ticketed.GetProperty("active_raid_id").GetString());
+        Assert.False(ticketed.TryGetProperty("last_raid_id", out _));
+
+        await SendAsync(api, Request(HttpMethod.Post, $"/v1/server/raids/{raidId}/join", ApiHost.ServerToken,
+            new { join_token = joinToken }, idempotencyKey: "join", catalogVersion: catalog));
+        var inRaid = await ProfileAsync();
+        Assert.Equal(raidId, inRaid.GetProperty("active_raid_id").GetString());
+        Assert.Equal(raidId, inRaid.GetProperty("last_raid_id").GetString());
+
+        await SendAsync(api, Request(HttpMethod.Post, $"/v1/server/raids/{raidId}/outcomes", ApiHost.ServerToken,
+            new { player_id = playerId, outcome = "died" }, idempotencyKey: "died", catalogVersion: catalog));
+        var after = await ProfileAsync();
+        Assert.False(after.TryGetProperty("active_raid_id", out _));
+        Assert.Equal(raidId, after.GetProperty("last_raid_id").GetString());
+    }
+
+    [Fact]
     public async Task ServerEndpoints_RefusePlayerTokensAndUnknownServers()
     {
         await using var api = await ApiHost.StartAsync();

@@ -48,6 +48,10 @@ created), 409 `version_conflict` with the current version when the client's view
 profile, then retry), or 422 `invalid_op` with the failing `op_index` and a `reason` such as `slot_occupied`.
 Nothing is written unless the whole batch succeeds.
 
+The profile also carries `active_raid_id`, set while the player holds a ticket or is in a raid (their stash and
+gear are locked until it clears), and `last_raid_id`, the most recent raid they joined, so the Hideout can show
+"in raid" or the last raid's result after a restart.
+
 Open http://localhost:5080/admin for the admin tool and paste the `AdminToken` from
 `appsettings.Development.json`. It looks up players (their gear and full ledger), traces any item's history,
 grants items, lists and aborts live raids (refunding everyone inside), and takes database backups.
@@ -235,6 +239,16 @@ rules are auto-referenced: add `RaidZero.BackendClient` and `RaidZero.Raid` to t
 `Game.Server.asmdef` only, so client code can't reach them. The packages' `.meta` files are already committed;
 commit any Unity adds for new files.
 
+The Hideout talks to the backend through `PlayerSession` (in the backend client package; `Hideout.Session` in
+`_Project/Scripts/Net` creates one). It keeps the player's profile and raises `ProfileChanged` whenever it
+changes. `ApplyAsync(ops)` checks a stash edit with the same `InventoryTree` rules the backend uses, so the UI
+can refuse a bad drop instantly without a round trip; sends it; and on success applies it locally, using the
+IDs the backend gave any new stacks. If the stash changed elsewhere in the meantime (`version_conflict`), it
+refreshes and sends the edit once more if it still fits. It never resends after a lost connection, since the
+edit may already have landed: it refreshes instead. A 401 raises `LoggedOut`. `RequestTicketAsync(mapId)` and
+`WaitForRaidResultAsync(raidId, timeout)` cover deploying and the post-raid screen; `Hideout.DeployAsync`
+requests the ticket and connects to the server it names. Every call stays on Unity's main thread.
+
 ## CI and deployment
 
 GitHub Actions builds and tests everything on every push and pull request, with warnings as errors. Every push
@@ -248,7 +262,7 @@ To build the image yourself, from the repo root: `docker build -f backend/Docker
 The Milestone 1 backend is complete: every endpoint in the API doc exists and is covered by tests, including
 `RaidApiTests`, which plays whole raids over HTTP the way the game server will. The game server's side of that
 conversation exists too, as `shared/Game.BackendClient`, and so do the raid's inventory rules, in
-`shared/Game.Raid`, along with the inventory's network protocol. Next are the thin Unity layers over them
-(the Fish-Net authenticator, and two broadcasts carrying the protocol's bytes), drafted in
-`unity/RaidZero/Assets/_Project/Scripts/Net`, then Steam login in place of dev login, and a matchmaker that
-spreads raids across several servers.
+`shared/Game.Raid`, along with the inventory's network protocol, and the Hideout's side, as `PlayerSession`.
+The thin Unity layers over them live in `unity/RaidZero/Assets/_Project/Scripts/Net`. Next are the raid's
+lifecycle on the game server, dedicated server builds and deployment, then Steam login in place of dev login,
+and a matchmaker that spreads raids across several servers.
