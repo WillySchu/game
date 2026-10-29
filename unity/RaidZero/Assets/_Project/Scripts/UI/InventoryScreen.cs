@@ -16,7 +16,8 @@ namespace RaidZero.UI
     /// Drag items between grids, slots and containers; R turns the item you're dragging; let go over another
     /// item to stack, load or put it inside; let go outside the window to drop it on the ground. Ctrl+click
     /// (Cmd+click on a Mac) quick-moves an item; Shift+drag splits a stack, asking how many; double-click opens a
-    /// container that's inside another. F opens the nearest crate (a stand-in until interaction exists).
+    /// container that's inside another. Resting the pointer on an item shows its tooltip. F opens the nearest
+    /// crate (a stand-in until interaction exists).
     ///
     /// The rules all live in shared code (InventoryModel over the raid's RaidInventorySource), so this only
     /// builds elements and forwards input. Put it on any GameObject in the raid scene. It makes its own
@@ -41,6 +42,7 @@ namespace RaidZero.UI
         private InventoryPanels _panels;
         private InventoryDrag _drag;
         private InventorySplitDialog _split;
+        private InventoryTooltip _tooltip;
 
         private ItemCatalog _catalog;
         private RaidInventorySource _source;
@@ -81,6 +83,7 @@ namespace RaidZero.UI
 
             _drag.Cancel();
             _split.Hide();
+            _tooltip.Hide();
             _open = false;
             _root.style.display = DisplayStyle.None;
             Cursor.lockState = _cursorBefore;
@@ -160,6 +163,7 @@ namespace RaidZero.UI
             _split = new InventorySplitDialog(_root);
             _split.Message += ShowMessage;
             _drag.SplitRequested += (itemId, rotated, target) => _split.Show(_model, itemId, rotated, target);
+            _tooltip = new InventoryTooltip(_root, _panels, _drag);
 
             _root.style.display = DisplayStyle.None;
             _document.rootVisualElement.Add(_root);
@@ -278,6 +282,7 @@ namespace RaidZero.UI
             _model.Changed += OnModelChanged;
             _model.Refused += ShowMessage;
             _drag.SetModel(_model);
+            _tooltip.SetModel(_model);
             _dirty = true;
         }
 

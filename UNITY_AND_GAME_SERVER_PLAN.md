@@ -10,7 +10,7 @@ Will & John · first written Oct 26, 2026 · last updated Oct 29, 2026
 | Predicted player controller | In progress | John |
 | Raid inventory on the server, join and auth, raid lifecycle, extraction, outbox | Done | Will |
 | Loot tables and crates | Done | Will |
-| Inventory screen (raid), with the Hideout's data source | Done | Will |
+| Inventory screen (raid), with the Hideout's data source, tooltips and rendered icons | Done | Will |
 | Greybox map, NavMesh | Not started | John |
 | Weapons, hit registration, damage, health and death | Not started | John |
 | AI | Not started | John |
@@ -346,12 +346,12 @@ client, the game server and the backend. The client only previews; the server an
 | Item catalog export (editor script) | Will | Done: exports on save |
 | `RaidInventoryService`, `RaidInventoryHost` and `BackendClient` (server) | Will | Done |
 | The network seam (`RaidProtocol` over Fish-Net broadcasts, `RaidInventoryClient`) | Will | Done; replaced the planned `PlayerInventoryNetwork` RPCs |
-| Inventory screen logic (`Game.Shared/InventoryUi`) | Will | Done: drop rules, quick move, splitting, opening containers |
+| Inventory screen logic (`Game.Shared/InventoryUi`) | Will | Done: drop rules, quick move, splitting, opening containers, tooltips |
 | Inventory screen in a raid (`Game.UI`) | Will (handed over from John) | Done |
 | Hideout inventory source (`HideoutInventorySource`) | Will | Done |
 | Hideout screens and scene flow | To agree | Not started |
 | World containers, pickups, bodies, interaction | To agree | Crates done; the rest not started |
-| Item `ScriptableObject` authoring | Both | Ongoing: icons, sizes, stack limits, slots |
+| Item `ScriptableObject` authoring | Both | Ongoing: sizes, stack limits, slots, models; icons render from models (Render Icons) |
 
 ### In a raid
 
@@ -364,7 +364,8 @@ client, the game server and the backend. The client only previews; the server an
   confirms it.
 - Controls: Tab opens the screen; drag to move; R rotates while dragging; Shift+drag splits a stack;
   Ctrl+click (Cmd+click) quick-moves; double-click opens a container inside another; dragging out of the
-  window drops. F opens the nearest crate until interaction exists.
+  window drops; resting the pointer on an item shows its tooltip. F opens the nearest crate until interaction
+  exists.
 - At 100 ms latency inventory still feels fine without prediction; revisit only if playtests say otherwise.
 
 ### In the Hideout

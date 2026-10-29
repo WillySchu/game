@@ -60,12 +60,21 @@ namespace RaidZero.Items
         private List<Slot> _slots = new List<Slot>();
 
         [Header("Presentation (not part of the rules)")]
+        [Tooltip("A hand-made icon. Leave it empty to use the one rendered from the world model (Raid Zero > Items > Render Icons); set it for the odd item whose render doesn't read well.")]
         [SerializeField]
         private Sprite _icon = null;
 
-        [Tooltip("What it looks like in the world: on the ground, in hands, on a body.")]
+        [Tooltip("What it looks like in the world: on the ground, in hands, on a body. Render Icons also draws the icon from it.")]
         [SerializeField]
         private GameObject _worldPrefab = null;
+
+        [Tooltip("How Render Icons turns the world model before drawing it, in degrees. The icon looks at the model's side (along +Z, with +X to the right and +Y up), so a rifle modelled lengthwise along X needs nothing.")]
+        [SerializeField]
+        private Vector3 _iconAngles = Vector3.zero;
+
+        [Tooltip("Made by Render Icons from the world model. Don't set it by hand: use Icon for a hand-made one.")]
+        [SerializeField]
+        private Sprite _renderedIcon = null;
 
         [Header("Server (not part of the rules)")]
         [Tooltip("For a container such as a crate: what it holds at the start of a raid, unless the crate in the scene names its own table.")]
@@ -89,7 +98,13 @@ namespace RaidZero.Items
 
         public string Description => _description;
 
-        public Sprite Icon => _icon;
+        /// <summary>What the inventory screen draws: the hand-made icon if there is one, else the rendered one. Null for neither.</summary>
+        public Sprite Icon => _icon != null ? _icon : _renderedIcon;
+
+        public Vector3 IconAngles => _iconAngles;
+
+        /// <summary>Footprint in grid cells, unrotated: the icon's shape.</summary>
+        public Vector2Int Size => new Vector2Int(_width, _height);
 
         public GameObject WorldPrefab => _worldPrefab;
 

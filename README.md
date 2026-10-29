@@ -111,6 +111,9 @@ The key in `appsettings.Development.json` is for local runs only. Real deploymen
 - Items are defined in Unity: one `ItemDefinitionAsset` per item in `unity/RaidZero/Assets/_Project/Data/Items`,
   holding the rules (size, stacking, tags, slots, grids) and the presentation (display name, description, icon,
   world prefab).
+- Icons: an item's hand-drawn **Icon** wins; otherwise the one Raid Zero > Items > Render Icons renders from its
+  world prefab (`ItemIconRenderer`: a side view at 64 px per cell, transparent, into `Data/ItemIcons`), turned
+  by the item's **Icon Angles** if the model faces another way. Items with neither get the plain look.
 - Containers hold items in one or more named grids. A backpack, crate or the stash has one, named `grid`; a rig
   can have one per pocket. Each grid is separate, so an item can't straddle two pockets. An item in a grid stores
   the grid's name as its slot, plus x and y within it. A target of `"slot": "grid"` with no x and y means the
@@ -264,13 +267,16 @@ The key in `appsettings.Development.json` is for local runs only. Real deploymen
   `in_raid` comes back as a sentence; nothing can be dropped there.
 - `PocketLayout` places a container's grids on screen: where the item asset's grid says (Place On Screen,
   Position), or flowing left to right in fill order. `ItemBadges` gives an item its colour family (from its tags)
-  and its corner number (stack size, or rounds in a magazine or a weapon's magazine).
+  and its corner number (stack size, or rounds in a magazine or a weapon's magazine). `ItemTooltip` says what an
+  item's tooltip shows: its name and category, then only the facts that apply (condition, stack, the magazine
+  and rounds loaded, how full a container is) and the asset's description.
 
 **Inventory screen** (`unity/RaidZero/Assets/_Project/Scripts/UI`, assembly `Game.UI`)
 - `InventoryScreen` is the raid's inventory in UI Toolkit: Tab toggles it, F opens the nearest crate for now.
   `InventoryPanels` builds the elements from the model (gear and its rig and backpack on the left, open
   containers on the right); `InventoryDrag` turns pointer movement into `DropTarget`s and asks the model for a
-  plan. All the look is in `Assets/_Project/UI/Resources/InventoryScreen.uss`; cell size is
+  plan. `InventoryItemLook` draws an item (its icon, or the plain look) for the panels and the drag ghost alike;
+  `InventoryTooltip` shows the tooltip when the pointer rests on one. All the look is in `Assets/_Project/UI/Resources/InventoryScreen.uss`; cell size is
   `InventoryPanels.Cell`, at a 1920x1080 reference resolution set on `InventoryPanelSettings`.
 
 **Unity networking** (`unity/RaidZero/Assets/_Project/Scripts/Net`, assembly `Game.Net`)

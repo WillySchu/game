@@ -16,7 +16,7 @@ namespace RaidZero.Net.Editor
 
         public void OnPreprocessBuild(BuildReport report)
         {
-            var source = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "..", "..", "shared", "catalog", "item_catalog.json"));
+            var source = RaidZero.Items.RepoPaths.CatalogFile;
             if (!File.Exists(source))
             {
                 throw new BuildFailedException("The item catalog isn't at " + source + ".");

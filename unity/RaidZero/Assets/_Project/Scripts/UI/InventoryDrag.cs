@@ -21,8 +21,6 @@ namespace RaidZero.UI
         private readonly VisualElement _window;
         private readonly InventoryPanels _panels;
         private readonly VisualElement _ghost;
-        private readonly Label _ghostName;
-        private readonly Label _ghostCount;
         private readonly VisualElement _cellHighlight;
 
         private InventoryModel _model;
@@ -45,10 +43,6 @@ namespace RaidZero.UI
             _panels = panels;
 
             _ghost = new VisualElement { pickingMode = PickingMode.Ignore }.WithClass("inv-ghost");
-            _ghostName = new Label { pickingMode = PickingMode.Ignore }.WithClass("inv-item__name");
-            _ghost.Add(_ghostName);
-            _ghostCount = new Label { pickingMode = PickingMode.Ignore }.WithClass("inv-item__count");
-            _ghost.Add(_ghostCount);
             _ghost.style.position = Position.Absolute;
             _ghost.style.display = DisplayStyle.None;
             _root.Add(_ghost);
@@ -172,12 +166,11 @@ namespace RaidZero.UI
             _grabX = Mathf.Clamp01(size.width > 0 ? local.x / size.width : 0) * _width * InventoryPanels.Cell;
             _grabY = Mathf.Clamp01(size.height > 0 ? local.y / size.height : 0) * _height * InventoryPanels.Cell;
 
-            _ghostName.text = def.DisplayName ?? def.DefId;
-            _ghost.ClearClassList();
+            // Drawn like the item itself (InventoryItemLook), then marked as the ghost.
+            var count = _splitting ? "split" : ItemBadges.Count(_model.Catalog, node);
+            InventoryItemLook.Fill(_ghost, _model.Catalog, node, def, _rotated, _width * InventoryPanels.Cell, _height * InventoryPanels.Cell, count);
             _ghost.AddToClassList("inv-ghost");
-            _ghost.AddToClassList("inv-item--" + ItemBadges.Category(def));
             _ghost.EnableInClassList("inv-ghost--split", _splitting);
-            _ghostCount.text = _splitting ? "split" : ItemBadges.Count(_model.Catalog, node);
             SizeGhost();
             _ghost.style.display = DisplayStyle.Flex;
             _ghost.BringToFront();
@@ -311,6 +304,7 @@ namespace RaidZero.UI
         {
             _ghost.style.width = _width * InventoryPanels.Cell;
             _ghost.style.height = _height * InventoryPanels.Cell;
+            InventoryItemLook.LayoutIcon(_ghost, _rotated, _width * InventoryPanels.Cell, _height * InventoryPanels.Cell);
         }
 
         private void End(bool drop)

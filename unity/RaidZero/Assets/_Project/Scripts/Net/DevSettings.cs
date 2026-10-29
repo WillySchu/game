@@ -128,7 +128,7 @@ namespace RaidZero.Net
         public static ItemCatalog LoadCatalog()
         {
             var path = Application.isEditor
-                ? Path.Combine(Application.dataPath, "..", "..", "..", "shared", "catalog", "item_catalog.json")
+                ? RaidZero.Items.RepoPaths.CatalogFile
                 : Path.Combine(Application.streamingAssetsPath, "item_catalog.json");
             return CatalogJson.LoadFile(path);
         }

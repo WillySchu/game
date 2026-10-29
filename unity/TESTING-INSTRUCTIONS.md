@@ -75,10 +75,36 @@ What to check:
 10. Put a backpack in the crate and double-click it: it opens on the right with its own ×, and items can be
     dragged in and out of it. Ctrl+click on your own gear sends it there first. Equipping that backpack, or
     closing the crate, closes its panel; so does closing the screen.
+11. Rest the pointer on an item: after a moment a tooltip shows its name and category, then only the lines
+    that apply: Condition (the rifle, armor), Stack (`37 / 60`), Magazine and Rounds (a rifle: which magazine,
+    and `24 / 30 (5.45x39 PS)`; a magazine: its rounds), Contents (the backpack: `3 items, 7 / 20 cells`), and
+    the asset's Description if it has one. It follows the pointer, flips near the screen edges, disappears while
+    you drag, and updates if the item changes under it.
+12. Items without an icon have the plain look: their category in small capitals over the name, on their
+    category's colour. See Icons below for testing the rendered look.
 
 Positions of a container's pockets: each grid on an item asset has **Place On Screen** and **Position** (in
 cells). Grids with it ticked go there; the rest flow left to right in their fill order, wrapping, below the
 placed ones. It's presentation only, so it isn't in the catalog and changing it needs no export.
+
+## Icons
+
+An item's icon is its asset's **Icon** if you've drawn one, else the one **Raid Zero > Items > Render Icons**
+made from its **World Prefab**, else the plain look. Nothing has a model yet, so to try it:
+
+1. Make a stand-in model: a ProBuilder shape works (export it as an asset, as with the tree), or a free CC0
+   model (Kenney, Quaternius). Lay it lengthwise along X: the icon looks at the side, along +Z, with +X to the
+   right and +Y up.
+2. Make a prefab of it and set it as an item's **World Prefab** (under Presentation), say the rifle's.
+3. **Raid Zero > Items > Render Icons** renders every item with a world model; **Render Icon** in an item
+   asset's ⋮ menu renders just that one. The PNGs go in `Assets/_Project/Data/ItemIcons`, at 64 pixels per cell
+   (the rifle is 256x128), with a transparent background, and each item's **Rendered Icon** points at its own.
+4. On the inventory screen the item shows the picture, with a small name in the top-right corner and the count
+   in the bottom-right. Rotate it (R while dragging): the picture turns with it, in the grid and on the ghost.
+5. If a model faces the wrong way, set **Icon Angles** on the item (degrees) and render again. If a render
+   doesn't read well, draw one and set it as **Icon**: a hand-made icon always wins.
+
+Check the PNGs went into LFS before pushing (`git lfs ls-files`); `.png` files do by the repo's rules.
 
 ## Loot tables
 

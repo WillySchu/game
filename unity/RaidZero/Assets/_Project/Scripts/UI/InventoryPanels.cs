@@ -72,6 +72,12 @@ namespace RaidZero.UI
         /// <summary>Pointer pressed on an item. The drag code decides what that means.</summary>
         public event Action<PointerDownEvent, VisualElement> ItemPressed;
 
+        /// <summary>The pointer moved onto an item. The tooltip decides what that means.</summary>
+        public event Action<VisualElement> ItemHovered;
+
+        /// <summary>The pointer left an item.</summary>
+        public event Action<VisualElement> ItemUnhovered;
+
         /// <summary>A panel's close button was clicked: a root's ID, or an opened item's (InventoryModel.IsOpenedItem).</summary>
         public event Action<string> CloseClicked;
 
@@ -157,7 +163,8 @@ namespace RaidZero.UI
                 var occupant = Occupant(root, spec.Name);
                 if (occupant != null)
                 {
-                    box.Add(ItemElement(model, occupant).WithClass("inv-item--in-slot"));
+                    // Unturned, filling the box: an item in a slot is never rotated.
+                    box.Add(ItemElement(model, occupant, size.x * Cell, size.y * Cell).WithClass("inv-item--in-slot"));
                 }
             }
 
@@ -227,7 +234,7 @@ namespace RaidZero.UI
                     }
 
                     GridPlacement.GetSize(childDef, child.Rotated, out int w, out int h);
-                    var item = ItemElement(model, child);
+                    var item = ItemElement(model, child, w * Cell, h * Cell);
                     Place(item, child.X.Value, child.Y.Value, w, h);
                     grid.Add(item);
                 }
@@ -250,24 +257,20 @@ namespace RaidZero.UI
             return panel;
         }
 
-        private VisualElement ItemElement(InventoryModel model, ItemNode node)
+        // An item, drawn by InventoryItemLook at the size it will have on screen: its footprint in a grid, or the
+        // slot box it sits in.
+        private VisualElement ItemElement(InventoryModel model, ItemNode node, float width, float height)
         {
             model.Catalog.TryGet(node.DefId, out var def);
-            var element = new VisualElement { userData = new ItemRef { ItemId = node.Id }, tooltip = def != null ? NameOf(def) : node.DefId }
-                .WithClass("inv-item")
-                .WithClass("inv-item--" + ItemBadges.Category(def));
+            var element = new VisualElement { userData = new ItemRef { ItemId = node.Id } };
+            InventoryItemLook.Fill(element, model.Catalog, node, def, node.Rotated, width, height, ItemBadges.Count(model.Catalog, node));
             element.EnableInClassList("inv-item--pending", model.IsPending(node.Id));
             element.EnableInClassList("inv-item--rotated", node.Rotated);
             element.EnableInClassList("inv-item--opened", model.IsOpenedItem(node.Id));
-            element.Add(new Label(def != null ? NameOf(def) : node.DefId).WithClass("inv-item__name"));
-
-            var count = ItemBadges.Count(model.Catalog, node);
-            if (count.Length > 0)
-            {
-                element.Add(new Label(count).WithClass("inv-item__count"));
-            }
 
             element.RegisterCallback<PointerDownEvent>(evt => ItemPressed?.Invoke(evt, element));
+            element.RegisterCallback<PointerEnterEvent>(evt => ItemHovered?.Invoke(element));
+            element.RegisterCallback<PointerLeaveEvent>(evt => ItemUnhovered?.Invoke(element));
             _items[node.Id] = element;
             return element;
         }
