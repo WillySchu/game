@@ -66,6 +66,21 @@ namespace RaidZero.Net
             }
         }
 
+        /// <summary>A whole number given on the command line as "--name 12345", or null if it isn't there.</summary>
+        public static int? IntArgument(string name)
+        {
+            var args = System.Environment.GetCommandLineArgs();
+            for (int i = 0; i < args.Length - 1; i++)
+            {
+                if (args[i] == name && int.TryParse(args[i + 1], System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var value))
+                {
+                    return value;
+                }
+            }
+
+            return null;
+        }
+
         /// <summary>A number given on the command line as "--name 12.5", or null if it isn't there.</summary>
         public static float? FloatArgument(string name)
         {

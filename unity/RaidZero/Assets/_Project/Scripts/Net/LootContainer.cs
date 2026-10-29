@@ -4,7 +4,9 @@ using System.Security.Cryptography;
 using System.Text;
 using RaidZero.Shared.Catalog;
 using RaidZero.Shared.Ids;
+using RaidZero.Items;
 using RaidZero.Shared.Inventory;
+using RaidZero.Shared.Loot;
 using UnityEngine;
 
 namespace RaidZero.Net
@@ -57,8 +59,9 @@ namespace RaidZero.Net
     /// the same ID without sending it: a client's interaction code reads <see cref="ContainerId"/> and passes
     /// it to RaidInventoryClient.Open. Keep sibling crates' names unique.
     ///
-    /// The fixed contents are a placeholder for loot tables: a weighted table rolled from the raid's seed
-    /// replaces the list later, behind the same <see cref="BuildContents"/>.
+    /// What's in it comes from a loot table rolled with the raid's seed: this crate's own table if it names one,
+    /// otherwise the default table on its container type's item asset. For testing, a list of fixed contents
+    /// overrides both.
     /// </summary>
     public sealed class LootContainer : MonoBehaviour
     {
@@ -66,14 +69,66 @@ namespace RaidZero.Net
         [SerializeField]
         private string _defId = "crate_wooden";
 
-        [Tooltip("What the server puts in it at the start of each raid.")]
+        [Tooltip("This crate's own loot table. Leave empty to use the default table on the container type's item asset.")]
+        [SerializeField]
+        private LootTableAsset _lootTable = null;
+
+        [Tooltip("For testing: exactly these items every raid, instead of any loot table. Leave empty to use the tables.")]
         [SerializeField]
         private List<LootEntry> _contents = new List<LootEntry>();
 
         public string ContainerId { get; private set; }
 
-        /// <summary>The container and fresh items for one raid. Items that don't fit are left out, with a warning.</summary>
-        public ItemNode BuildContents(ItemCatalog catalog)
+        /// <summary>The loot table this crate rolls: its own, or its container type's default. Null if neither is set.</summary>
+        public LootTableAsset LootTable
+        {
+            get
+            {
+                if (_lootTable != null)
+                {
+                    return _lootTable;
+                }
+
+                var type = ItemLibrary.Instance != null ? ItemLibrary.Instance.Find(_defId) : null;
+                return type != null ? type.DefaultLoot : null;
+            }
+        }
+
+        /// <summary>
+        /// The container and fresh items for one raid: the fixed contents if any are listed, otherwise the loot
+        /// table rolled with <paramref name="raidSeed"/>. Items that don't fit are left out, with a warning.
+        /// </summary>
+        public ItemNode BuildContents(ItemCatalog catalog, int raidSeed)
+        {
+            if (_contents.Count > 0)
+            {
+                return BuildFixedContents(catalog);
+            }
+
+            var asset = LootTable;
+            if (asset == null)
+            {
+                Debug.LogWarning(name + " has no loot table, and its container type (" + _defId + ") has no default one, so it starts empty.", this);
+                return new ItemNode { Id = ContainerId, DefId = _defId };
+            }
+
+            var table = asset.ToTable();
+            foreach (var problem in LootRoller.Validate(catalog, table))
+            {
+                Debug.LogWarning("[loot] " + problem, asset);
+            }
+
+            var leftOut = new List<ItemNode>();
+            var root = LootRoller.RollContainer(catalog, ContainerId, _defId, table, raidSeed, Uuid7.NewId, leftOut);
+            if (leftOut.Count > 0)
+            {
+                Debug.LogWarning(name + " rolled " + leftOut.Count + " item(s) from " + asset.name + " that didn't fit, so they were left out. The table may be too generous for a " + _defId + ".", this);
+            }
+
+            return root;
+        }
+
+        private ItemNode BuildFixedContents(ItemCatalog catalog)
         {
             var root = new ItemNode { Id = ContainerId, DefId = _defId };
             foreach (var entry in _contents)

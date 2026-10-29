@@ -49,6 +49,10 @@ namespace RaidZero.Net
         [SerializeField]
         private float _raidMinutes = 25f;
 
+        [Tooltip("The seed for this raid's loot. 0 picks a new one each raid; the log names it, so setting it here (or --loot-seed on the command line) rolls that raid's loot again.")]
+        [SerializeField]
+        private int _lootSeed = 0;
+
         [Tooltip("A raid nobody inside is connected to ends after this many seconds.")]
         [SerializeField]
         private float _emptyRaidSeconds = 180f;
@@ -340,10 +344,13 @@ namespace RaidZero.Net
                 _backend.ReportRejected += rejection => Debug.LogError("[raid] The backend refused a report: " + rejection);
                 _backend.Start();
 
+                // One seed for the raid's loot, in the log so a raid's crates can be rolled again exactly.
+                var lootSeed = ServerConfig.IntArgument("--loot-seed") ?? (_lootSeed != 0 ? _lootSeed : new System.Random().Next(1, int.MaxValue));
+                Debug.Log("[raid] Loot seed " + lootSeed + " (--loot-seed " + lootSeed + ", or Loot Seed on RaidServer, rolls the same loot again)");
                 var inventory = new RaidInventoryService(catalog);
                 foreach (var container in FindObjectsByType<LootContainer>(FindObjectsSortMode.None))
                 {
-                    inventory.AddContainer(container.BuildContents(catalog));
+                    inventory.AddContainer(container.BuildContents(catalog, lootSeed));
                 }
 
                 _lifecycle = new RaidLifecycle(new RaidLifecycleOptions

@@ -29,5 +29,6 @@ MonoBehaviour:
   _slots: []
   _icon: {fileID: 0}
   _worldPrefab: {fileID: 0}
+  _defaultLoot: {fileID: 11400000, guid: 8cc97410ccbb401e8ac398f606b889b7, type: 2}
   _hasGrid: 0
   _gridSize: {x: 1, y: 1}

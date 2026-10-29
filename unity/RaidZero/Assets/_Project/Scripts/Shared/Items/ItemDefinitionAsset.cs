@@ -67,6 +67,11 @@ namespace RaidZero.Items
         [SerializeField]
         private GameObject _worldPrefab = null;
 
+        [Header("Server (not part of the rules)")]
+        [Tooltip("For a container such as a crate: what it holds at the start of a raid, unless the crate in the scene names its own table.")]
+        [SerializeField]
+        private LootTableAsset _defaultLoot = null;
+
         // The single grid, before items could have several. Assets saved that way are converted when they load
         // (OnAfterDeserialize), so a container never silently loses its grid. Safe to delete once every item
         // asset has been saved since named grids arrived.
@@ -87,6 +92,9 @@ namespace RaidZero.Items
         public Sprite Icon => _icon;
 
         public GameObject WorldPrefab => _worldPrefab;
+
+        /// <summary>For a container, the loot table crates of this type use unless they name their own. May be null.</summary>
+        public LootTableAsset DefaultLoot => _defaultLoot;
 
         /// <summary>
         /// Where the inventory screen should draw one of this item's grids, if the asset says. Presentation only:

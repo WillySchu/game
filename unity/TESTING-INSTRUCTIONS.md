@@ -77,6 +77,28 @@ Positions of a container's pockets: each grid on an item asset has **Place On Sc
 cells). Grids with it ticked go there; the rest flow left to right in their fill order, wrapping, below the
 placed ones. It's presentation only, so it isn't in the catalog and changing it needs no export.
 
+## Loot tables
+
+Crates roll their contents from loot tables at the start of each raid. A crate with anything in its
+**Contents** list uses that list instead, for testing, so to see the tables, select the crate in the scene and
+empty its Contents (or remove the entries one by one).
+
+- The tables are in `Assets/_Project/Data/Loot`. `loot_wooden_crate` is the wooden crate's default (set on the
+  `crate_wooden` item asset, under Server); it picks one to four times from the ammo, valuables, medical,
+  weapons and gear tables, with some chance of nothing.
+- Select a table: the inspector lists any problems under the entries, and **Roll it 1,000 times** shows what
+  a container gets. Try raising Max Rolls on `loot_wooden_crate` to 10 and simulating: it warns that items
+  didn't fit.
+- The server's console shows `[raid] Loot seed N` when the raid starts. Put N in **Loot Seed** on `RaidServer`
+  (on the NetworkManager in the scene; a dedicated server takes `--loot-seed N`) and the crates come out the same next time; set it back to 0 for new loot each raid.
+
+What to check:
+
+1. Opening the crate in two raids in a row shows different loot (and sometimes none).
+2. With a fixed Loot Seed, it's the same both times.
+3. Weapons sometimes come with a magazine and rounds, and their condition varies; ammo comes in varied stacks.
+4. A crate with its own table (the **Loot Table** field on its `LootContainer`) uses that instead of the default.
+
 ## Raid lifecycle
 
 The raid waits until someone joins, then runs its clock. It ends when the clock runs out, when everyone who

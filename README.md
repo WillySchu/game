@@ -185,6 +185,19 @@ The key in `appsettings.Development.json` is for local runs only. Real deploymen
 - Same rules as `Game.Shared` (Unity compiles it), plus one dependency: Newtonsoft.Json. JSON is built by hand
   with `JObject`, never by reflection, so IL2CPP code stripping can't break it.
 
+**Loot tables** (`shared/Game.Shared/Runtime/Loot`, assets in `unity/RaidZero/Assets/_Project/Data/Loot`)
+- A loot table (Create > Raid Zero > Loot Table) rolls a number of picks, each a weighted choice among its entries
+  or nothing. An entry is an item, with a quantity range for stacks, a condition range, and a chance of coming
+  loaded (a weapon with a magazine, a magazine with rounds, filled within a range); or another table.
+- A container type's item asset names its default table (`crate_wooden` uses `loot_wooden_crate`); a crate in a
+  scene can name its own instead. A crate's fixed Contents list, if it has one, overrides both, for testing.
+- `LootRoller` is plain C# with tests: it rolls with `LootRandom` (SplitMix64, the same numbers under Unity and
+  .NET), packs the biggest items first, and checks tables (`Validate`). Each raid picks a loot seed and logs it
+  (`[raid] Loot seed ...`); each crate rolls from that seed and its own ID, so `--loot-seed` (or Loot Seed on
+  `RaidServer`) gives a raid's crates again exactly.
+- The table inspector lists every problem and has a Simulate button: a thousand rolls into a chosen container,
+  with how often each item turns up, how many items a container gets, and whether any didn't fit.
+
 **Raid inventory** (`shared/Game.Raid`, `RaidInventoryService`)
 - One `InventoryTree` per raid. Its roots are every player's character, every loot container, every body
   and every pile on the ground, so looting, picking up and dropping are moves between roots and an item can't

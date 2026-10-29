@@ -179,7 +179,7 @@ namespace RaidZero.Items.Editor
                 .OrderBy(a => a.DefId, StringComparer.Ordinal)
                 .ToList();
 
-        private static ItemCatalog TryLoadCurrent()
+        internal static ItemCatalog TryLoadCurrent()
         {
             try
             {

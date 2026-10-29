@@ -29,5 +29,6 @@ MonoBehaviour:
     MaxQuantity: 0
   _icon: {fileID: 0}
   _worldPrefab: {fileID: 0}
+  _defaultLoot: {fileID: 0}
   _hasGrid: 0
   _gridSize: {x: 1, y: 1}

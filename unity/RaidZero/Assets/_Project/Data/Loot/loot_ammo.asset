@@ -1,0 +1,58 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 25755cf4efec452895d7720b836702e8, type: 3}
+  m_Name: loot_ammo
+  m_EditorClassIdentifier: Game.Items::RaidZero.Items.LootTableAsset
+  _minRolls: 1
+  _maxRolls: 1
+  _nothingWeight: 0
+  _entries:
+  - Weight: 3
+    Item: {fileID: 11400000, guid: a2635f19d8866432d8c0f611fc67c981, type: 2}
+    Table: {fileID: 0}
+    MinQuantity: 20
+    MaxQuantity: 60
+    MinCondition: 1
+    MaxCondition: 1
+    LoadedChance: 0
+    MinFill: 1
+    MaxFill: 1
+  - Weight: 2
+    Item: {fileID: 11400000, guid: 0cc37c0a81a5749c9bfeb31c6b89b201, type: 2}
+    Table: {fileID: 0}
+    MinQuantity: 16
+    MaxQuantity: 50
+    MinCondition: 1
+    MaxCondition: 1
+    LoadedChance: 0
+    MinFill: 1
+    MaxFill: 1
+  - Weight: 1
+    Item: {fileID: 11400000, guid: cffd9f88331f543608ec007708e1eef9, type: 2}
+    Table: {fileID: 0}
+    MinQuantity: 1
+    MaxQuantity: 1
+    MinCondition: 1
+    MaxCondition: 1
+    LoadedChance: 0.3
+    MinFill: 0.2
+    MaxFill: 1
+  - Weight: 1
+    Item: {fileID: 11400000, guid: 51067b117bcd74dcc931af91e6d927dc, type: 2}
+    Table: {fileID: 0}
+    MinQuantity: 1
+    MaxQuantity: 1
+    MinCondition: 1
+    MaxCondition: 1
+    LoadedChance: 0.3
+    MinFill: 0.2
+    MaxFill: 1
