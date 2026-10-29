@@ -256,8 +256,11 @@ The key in `appsettings.Development.json` is for local runs only. Real deploymen
   screen shows green or red while dragging and never sends what it knows will be refused. Refusals carry a
   sentence for the player (`InventoryUiErrors`).
 - `InventoryModel` is what the screen talks to. It sits on an `IInventorySource`: `RaidInventorySource` in a raid
-  (made by `RaidInventoryClient.CreateSource()`), and later a Hideout source over `PlayerSession`, so the same
-  screen serves both. Nothing changes on screen until the source reports the server's answer.
+  (made by `RaidInventoryClient.CreateSource()`), and `HideoutInventorySource` (in `Game.BackendClient`) over
+  `PlayerSession` between raids, with the character and the stash as its roots, so the same screen serves both.
+  Nothing changes on screen until the source reports the server's answer. In the Hideout an edit is checked
+  locally, sent with the profile version (retried once after a refresh on a conflict), and a refusal such as
+  `in_raid` comes back as a sentence; nothing can be dropped there.
 - `PocketLayout` places a container's grids on screen: where the item asset's grid says (Place On Screen,
   Position), or flowing left to right in fill order. `ItemBadges` gives an item its colour family (from its tags)
   and its corner number (stack size, or rounds in a magazine or a weapon's magazine).

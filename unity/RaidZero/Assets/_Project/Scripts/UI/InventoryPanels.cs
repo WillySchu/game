@@ -118,7 +118,8 @@ namespace RaidZero.UI
                 }
                 else
                 {
-                    var panel = Panel(_loot, TitleOf(model.Catalog, other), other.Root.Id, closable: true);
+                    // The stash (in the Hideout) stays open; crates, piles and the like can be closed.
+                    var panel = Panel(_loot, TitleOf(model.Catalog, other), other.Root.Id, closable: other.Kind != InventoryRootKind.Stash);
                     BuildGrids(panel, model, other.Root, LootColumnCells);
                 }
             }

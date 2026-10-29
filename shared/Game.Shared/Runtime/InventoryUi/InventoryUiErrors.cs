@@ -58,6 +58,16 @@ namespace RaidZero.Shared.InventoryUi
                     return "You're not in the raid any more.";
                 case RaidInventoryErrorCodes.NotAllowed:
                     return "You can't do that here.";
+                // From the backend, for Hideout edits (PlayerSession).
+                case "in_raid":
+                    return "Your stash is locked while you're in a raid.";
+                case "version_conflict":
+                    return "Your stash changed somewhere else. Take another look.";
+                case "backend_unreachable":
+                    return "Can't reach the server. Try again in a moment.";
+                case "logged_out":
+                case "not_logged_in":
+                    return "You're not logged in.";
                 case CantCombine:
                     return "Those don't go together.";
                 case Pending:
