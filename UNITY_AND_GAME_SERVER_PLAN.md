@@ -53,7 +53,8 @@ doc; where the two meet (joining a raid, reporting outcomes, item IDs), that doc
   waits for the server.
 - **Data lives in ScriptableObjects.** Weapons, items, AI types and loot tables are assets, not hardcoded
   numbers, so tuning never needs a code change.
-- **Test on a bad connection.** Latency and packet-loss simulation is on in the editor (see Network simulation).
+- **Test on a bad connection.** Latency and packet-loss simulation stays on in the editor during normal
+  development (see Network simulation).
 
 ## Architecture
 
@@ -151,10 +152,11 @@ they are, each of us adds them locally to test.
 ### Network simulation
 
 Fish-Net's latency simulator on the NetworkManager's Transport Manager is set to 100 ms and 2% packet loss.
-`NetworkConditions` turns it on at startup in the editor (unless `simulate_lag` is `false` in
-`UserSettings/RaidZeroDev.json`) and leaves it off in builds, where `--simulate-lag` turns it on. Each side
-delays what it sends, so between two editor instances a round trip is about 200 ms. Turn it off only when
-profiling something unrelated.
+Tick its Enabled box and leave it on in the editor; turn it off only when profiling something unrelated. (It
+was never saved ticked, so until someone does, it's off.) Builds turn it off whatever the box says
+(`NetworkConditions`), so playtest clients and dedicated servers never add fake lag, unless started with
+`--simulate-lag`. Each side delays what it sends, so between two editor instances a round trip is about
+200 ms.
 
 ## Player controller (John, in progress)
 
@@ -388,7 +390,7 @@ These must match exactly across Unity and the backend. Change them in one pull r
 
 Two tracks ran in parallel until step 8, when they joined. Each step ends with something you can check.
 
-1. **Skeleton (both). Done,** except the Boot scene. Repo, packages, assembly definitions, host mode, Linux
+1. **Skeleton (both). Done,** except the Boot scene and saving the latency simulator switched on. Repo, packages, assembly definitions, host mode, Linux
    server build in CI (and now client builds).
    - Check: a host and a second client connect in an empty scene, with the latency simulator on.
 2. **Predicted movement (John). In progress.**

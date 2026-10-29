@@ -4,28 +4,29 @@ using UnityEngine;
 namespace RaidZero.Net
 {
     /// <summary>
-    /// Whether Fish-Net's latency simulator runs, decided at startup rather than in the NetworkManager prefab,
-    /// so it's on while developing and off in builds people play: the editor follows simulate_lag in
-    /// UserSettings/RaidZeroDev.json (on unless set to false), and a build simulates only with --simulate-lag.
-    /// How much latency and loss comes from the prefab's Transport Manager (100 ms each way, 2% loss).
+    /// Keeps Fish-Net's latency simulator out of builds people play. In the editor, the Latency Simulator's
+    /// Enabled box on the NetworkManager's Transport Manager decides, as usual. A build (a client, or the
+    /// dedicated server) turns it off, whatever the box says, unless it's started with --simulate-lag.
+    /// How much latency and loss comes from the Transport Manager either way (100 ms each way, 2% loss).
     /// </summary>
     public static class NetworkConditions
     {
-        public static bool ShouldSimulate => Application.isEditor ? DevSettings.SimulateLag : HasArgument("--simulate-lag");
-
         public static void Apply(NetworkManager networkManager)
         {
             var simulator = networkManager.TransportManager.LatencySimulator;
-            var simulate = ShouldSimulate;
-            if (simulator.GetEnabled() != simulate)
+            if (!Application.isEditor)
             {
-                simulator.SetEnabled(simulate);
+                var simulate = HasArgument("--simulate-lag");
+                if (simulator.GetEnabled() != simulate)
+                {
+                    simulator.SetEnabled(simulate);
+                }
             }
 
-            if (simulate)
+            if (simulator.GetEnabled())
             {
                 Debug.Log("[net] Simulating " + simulator.GetLatency() + " ms latency and " + (simulator.GetPacketLost() * 100).ToString("0.#")
-                    + "% packet loss (simulate_lag in UserSettings/RaidZeroDev.json turns it off).");
+                    + "% packet loss (the Latency Simulator on the NetworkManager's Transport Manager).");
             }
         }
 

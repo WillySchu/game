@@ -23,9 +23,9 @@ dotnet run --project backend/Game.Backend
   first run with settings for the local backend, and it isn't committed, so each of you can point yours
   elsewhere. Outside the editor, use `--backend-url` and `--server-token`, or the `RAIDZERO_BACKEND_URL` and
   `RAIDZERO_SERVER_TOKEN` environment variables.
-- The editor simulates a bad connection, 100 ms of latency and 2% packet loss each way, as the plan asks: the
-  console says so at startup. Set `"simulate_lag": false` in `UserSettings/RaidZeroDev.json` to turn it off,
-  for profiling, say. Builds don't simulate unless started with `--simulate-lag`.
+- To test on a bad connection, as the plan asks, tick Enabled under Latency Simulator on the NetworkManager's
+  Transport Manager (it's set to 100 ms of latency and 2% packet loss each way). The console says so at
+  startup. Builds never simulate, whatever the box says, unless started with `--simulate-lag`.
 - Every client logs in as a new dev player (`dev-12345`) with the starter kit, and they all join the same
   raid. The console shows `[raid] Server ready`, then a `joined raid` line for each player.
 - Press F1 in play mode for the debug inventory: your gear, anything you have open, a button that opens
