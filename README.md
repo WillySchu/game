@@ -276,6 +276,8 @@ The key in `appsettings.Development.json` is for local runs only. Real deploymen
 - The thin Fish-Net layer over everything above. `RaidAuthenticator` lets a client in only with a raid ticket
   the backend accepts; `RaidServer` owns the backend client and the raid's inventory on the server;
   `RaidInventoryClient` is the client's end, with the `View` the inventory screen draws from.
+- `NetworkConditions` turns Fish-Net's latency simulator (100 ms, 2% loss, set on the NetworkManager) on in the
+  editor and off in builds; `simulate_lag` in `UserSettings/RaidZeroDev.json` and `--simulate-lag` change that.
 - Gameplay calls `RaidServer.PlayerDied`, `Consume` and `InterruptExtraction` (on damage). Levels place
   `ExtractionZone`s, and crates carry a `LootContainer`; bodies and ground piles register in
   `ContainerRegistry` so the server can check reach. A dead player's body must be its own object: their

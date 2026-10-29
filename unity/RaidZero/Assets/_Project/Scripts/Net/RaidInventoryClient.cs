@@ -43,6 +43,7 @@ namespace RaidZero.Net
         private void Start()
         {
             _networkManager = GetComponent<NetworkManager>();
+            NetworkConditions.Apply(_networkManager); // this sits on every NetworkManager, client and server alike
             _networkManager.ClientManager.RegisterBroadcast<InventoryToClientBroadcast>(OnMessage);
             _networkManager.ClientManager.OnClientConnectionState += OnClientConnectionState;
         }

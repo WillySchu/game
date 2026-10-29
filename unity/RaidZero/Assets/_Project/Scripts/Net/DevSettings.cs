@@ -28,6 +28,16 @@ namespace RaidZero.Net
         /// <summary>The map tickets ask for. Raids only group players asking for the same map.</summary>
         public static string MapId => Read()["map_id"]?.ToString() ?? "greybox_01";
 
+        /// <summary>Whether to run Fish-Net's latency simulator in the editor (NetworkConditions). On unless the file says false.</summary>
+        public static bool SimulateLag
+        {
+            get
+            {
+                var value = Read()["simulate_lag"];
+                return value == null || value.Type != JTokenType.Boolean || (bool)value;
+            }
+        }
+
         private static JObject Read()
         {
             if (!Application.isEditor)
@@ -44,6 +54,7 @@ namespace RaidZero.Net
                     ["backend_url"] = "http://localhost:5080",
                     ["server_token"] = LocalDevServerToken,
                     ["map_id"] = "greybox_01",
+                    ["simulate_lag"] = true,
                 };
                 File.WriteAllText(path, defaults.ToString());
                 Debug.Log("Created " + path + " with settings for the local dev backend. Edit it to use another.");

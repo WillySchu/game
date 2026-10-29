@@ -1,93 +1,162 @@
 # Raid Zero: Unity Client & Game Server Plan
 
-Oct 26, 2026 · @user
+Will & John · first written Oct 26, 2026 · last updated Oct 28, 2026
+
+## Status
+
+| Area | State | Who |
+| --- | --- | --- |
+| Project skeleton, Fish-Net, both CI builds (Linux server image; Windows and macOS clients) | Done | Will |
+| Predicted player controller | In progress | John |
+| Raid inventory on the server, join and auth, raid lifecycle, extraction, outbox | Done | Will |
+| Loot tables and crates | Done | Will |
+| Inventory screen (raid), with the Hideout's data source | Done | Will |
+| Greybox map, NavMesh | Not started | John |
+| Weapons, hit registration, damage, health and death | Not started | John |
+| AI | Not started | John |
+| Interaction, pickups, bodies and ground items in the world | Not started | To agree |
+| Hideout scene and screens, scene flow | Not started | To agree |
+
+Who owns what below is **proposed**: several of John's items moved to Will along the way, and the rest of the
+split is for the two of you to agree. The README has the detail on everything that's built.
 
 ## Overview
 
-The Unity side owns everything that happens inside a raid: how the game feels, what the server decides, and what each client sees. Milestone 1 ends when one player can load in with gear, fight AI, loot, and either die or extract, with the result showing up in their stash. It is the companion to the backend API and data model doc; where the two meet (joining a raid, reporting outcomes, item IDs), that doc is the source of truth.
+The Unity side owns everything that happens inside a raid: how the game feels, what the server decides, and
+what each client sees. Milestone 1 ends when one player can load in with gear, fight AI, loot, and either die
+or extract, with the result showing up in their stash. It is the companion to the backend API and data model
+doc; where the two meet (joining a raid, reporting outcomes, item IDs), that doc is the source of truth.
 
-**What this side owns in Milestone 1**
+**Unity 6000.6.7f1 with URP, Fish-Net 4.7.4.**
 
-- Player controller and camera, with client-side prediction
-- Weapons, hit registration and damage
-- AI enemies
-- The greybox map, loot containers, extraction points and raid timer
-- Raid inventory on the server, and the inventory UI on the client
-- The dedicated server build
+**What this side owns in Milestone 1** (proposed split)
+
+| Piece | Who |
+| --- | --- |
+| Player controller and camera, with client-side prediction | John |
+| Weapons, hit registration, damage and death | John |
+| AI enemies | John |
+| The greybox map and its extraction points and crates | John |
+| Raid timer, extraction rules, loot tables and rolling | Will (done) |
+| Raid inventory on the server, and the inventory screen on the client | Will (done; the screen was John's, handed over) |
+| Interaction, pickups, and bodies and ground items in the world | To agree |
+| Hideout screens and the scene flow around a raid | To agree (the data side is done) |
+| The dedicated server and client builds | Will (done) |
 
 **Rules every system follows**
 
-- **The server decides.** Damage, loot rolls, pickups, deaths and extraction run on the server. Clients send inputs and requests, never results.
-- **Always networked.** Daily play uses Fish-Net host mode, so every feature runs through the network path from day one. There is no offline mode to keep in sync.
-- **Predict only what the player controls.** Local movement and weapon feedback are predicted; everything else waits for the server.
-- **Data lives in ScriptableObjects.** Weapons, items, AI types and loot tables are assets, not hardcoded numbers, so tuning never needs a code change.
-- **Test on a bad connection.** Latency and packet-loss simulation stays on during normal development.
+- **The server decides.** Damage, loot rolls, pickups, deaths and extraction run on the server. Clients send
+  inputs and requests, never results.
+- **Always networked.** Daily play uses Fish-Net's host mode or a dedicated server, so every feature runs
+  through the network path from day one. There is no offline mode to keep in sync.
+- **Predict only what the player controls.** Local movement and weapon feedback are predicted; everything else
+  waits for the server.
+- **Data lives in ScriptableObjects.** Weapons, items, AI types and loot tables are assets, not hardcoded
+  numbers, so tuning never needs a code change.
+- **Test on a bad connection.** Latency and packet-loss simulation is on in the editor (see Network simulation).
 
 ## Architecture
 
-The client talks to the game server over Fish-Net and to the backend only from the Hideout; the game server is the only thing that reports raid results.
+The client talks to the game server over Fish-Net and to the backend only from the Hideout; the game server is
+the only thing that reports raid results.
 
-&#91;embedded content: client, game server and backend · Milestone 1\]
+```mermaid
+flowchart LR
+    C["Client<br/>(Unity player)"]
+    S["Game server<br/>(Unity, Linux dedicated)"]
+    B["Backend<br/>(ASP.NET Core, SQLite)"]
+    C -- "Fish-Net (UDP 7770):<br/>inputs, inventory requests" --> S
+    S -- "views, state" --> C
+    C -- "HTTP from the Hideout:<br/>login, stash edits, tickets, results" --> B
+    S -- "HTTP: join, heartbeat,<br/>outcomes (via the outbox), close" --> B
+```
 
-The client and server builds share `Game.Shared` for item data, fit checks and damage math, so the client's previews and the server's decisions can't drift apart.
+The client and server builds share the code in `shared/` for item data, fit checks and inventory rules, so the
+client's previews and the server's decisions can't drift apart. The backend runs the same rules.
 
 ## Project setup
 
-Use the current Unity 6 LTS release with URP, one Git repo shared with the backend, and assembly definitions that keep server-only code out of the client build.
+One Git repo shared with the backend, with LFS for binaries.
 
 ### Packages
 
-| Package | Why |
-| --- | --- |
-| Fish-Net | Networking, prediction, lag compensation. Default Tugboat transport |
-| Input System | Rebindable input; feeds the predicted controller cleanly |
-| AI Navigation | NavMesh surfaces and agents for AI |
-| ProBuilder | Greybox the map inside Unity |
-| Cinemachine | Optional; first-person camera is simple enough without it |
-| Newtonsoft JSON | Backend payloads and the item catalog export |
-| Unity Test Framework | Edit-mode tests for inventory and damage logic |
+| Package | Why | Installed |
+| --- | --- | --- |
+| Fish-Net | Networking, prediction, lag compensation. Default Tugboat transport | Yes (4.7.4, in `Assets/FishNet`) |
+| Input System | Rebindable input; feeds the predicted controller cleanly | Yes |
+| ProBuilder | Greybox the map inside Unity | Yes |
+| Multiplayer Play Mode | Extra editor players for two-client checks | Yes |
+| Newtonsoft JSON | Backend payloads and the item catalog | Yes |
+| AI Navigation | NavMesh surfaces and agents for AI | Not yet |
+| Cinemachine | Optional; first-person camera is simple enough without it | No |
 
-### Folder and assembly layout
+### Code layout
+
+The plan's `Game.Shared` / `Game.Server` / `Game.Client` / `Game.Gameplay` split became this:
 
 ```
-Assets/_Project/
-  Scripts/
-    Shared/      Game.Shared.asmdef   item defs, data types, inventory logic, damage math
-    Server/      Game.Server.asmdef   raid inventory service, AI brains, loot spawning, BackendClient
-    Client/      Game.Client.asmdef   UI, camera, audio, VFX, input
-    Gameplay/    Game.Gameplay.asmdef NetworkBehaviours that glue the three together
-  Data/          Items, Weapons, AI, LootTables (ScriptableObjects)
-  Prefabs/
-  Scenes/        Boot, Hideout, Raid_Greybox01
-  UI/
-Tests/           Game.Tests.asmdef
+shared/                       Plain C# packages, also built and tested as .NET projects
+  Game.Shared/                RaidZero.Shared: catalog, inventory rules, raid protocol, inventory screen logic, loot tables
+  Game.Raid/                  RaidZero.Raid: the server's raid inventory, lifecycle, extraction
+  Game.BackendClient/         RaidZero.BackendClient: BackendClient (server), PlayerSession (Hideout), outbox
+  catalog/item_catalog.json   Exported from the item assets
+tests/                        xUnit tests for all of the above and the backend
+unity/RaidZero/Assets/_Project/
+  Scripts/Net/                Game.Net: Fish-Net glue (RaidServer, RaidAuthenticator, RaidInventoryClient, LootContainer, Hideout)
+  Scripts/Shared/Items/       Game.Items: ItemDefinitionAsset, LootTableAsset, ItemLibrary, catalog export
+  Scripts/UI/                 Game.UI: the inventory screen
+  Scripts/Shared/             PlayerController (default assembly for now)
+  Data/                       Items, Loot (ScriptableObjects), Resources
+  Prefabs/, Scenes/, UI/
 ```
 
-`Game.Shared` references nothing game-specific, so it is easy to test. `Game.Client` must never reference `Game.Server`. Wrap server-only code paths in `UNITY_SERVER` or Fish-Net's `IsServerInitialized` checks so client builds can't call them.
+Server-only paths stay behind Fish-Net's server checks; the shared packages reference nothing from Unity, so
+they're tested without the editor. Worth doing soon: give `PlayerController` and the gameplay code to come an
+assembly of their own (`Game.Gameplay`), so they can reference `Game.Net` cleanly.
 
 ### Scenes
+
+The plan, still the goal:
 
 - **Boot:** the `NetworkManager` and long-lived services. Loads first, never unloads.
 - **Hideout:** stash and equipment screens backed by the client API. No networking.
 - **Raid\_Greybox01:** the map. Loaded by the server through Fish-Net's scene manager.
 
+Today there's one scene, `SampleScene`: the NetworkManager prefab, ProBuilder test geometry and one crate. The F1
+debug overlay's Deploy button stands in for the Hideout. Not yet committed to it: an `ExtractionZone`,
+`RaidSessionClient` on the NetworkManager (the raid clock and how you left), and the `InventoryScreen`; until
+they are, each of us adds them locally to test.
+
 ### Builds
 
-- **Client:** Windows 64-bit.
-- **Server:** Linux Dedicated Server build target (headless, no rendering). Build it in CI from week one so server-only breakages show up immediately.
-- **Daily play:** host mode in the editor or a client build. A second editor instance (Unity's Multiplayer Play Mode) acts as a second client for sanity checks.
+- **Client:** Windows 64-bit and macOS, as Development builds, from the `Game client` workflow on every push to
+  `main` (artifacts kept 14 days).
+- **Server:** Linux Dedicated Server build in CI (`Game server` workflow), smoke tested against a real backend
+  and pushed as `ghcr.io/<owner>/<repo>/gameserver`. Unity is sometimes killed at startup on GitHub's runners,
+  so the build retries once.
+- **Daily play:** Multiplayer Play Mode in the editor (Server and Client buttons) against a local backend, or
+  Deploy from the F1 overlay to a dedicated server. Playtests run the backend and game server on one PC over
+  Tailscale (`deploy/LOCAL.md`).
 
 ### Version control
 
 - Git with LFS for textures, models, audio and other binaries.
-- Editor settings: Force Text serialization, Visible Meta Files. Configure Unity's Smart Merge (UnityYAMLMerge) as the merge tool.
-- Only one person edits a given scene at a time. Put most content in prefabs so scene conflicts stay rare.
+- Editor settings: Force Text serialization, Visible Meta Files. Configure Unity's Smart Merge (UnityYAMLMerge)
+  as the merge tool.
+- Only one person edits a given scene or prefab at a time. Put most content in prefabs so scene conflicts stay
+  rare.
+- A prefab with a missing script can't be saved, so commit scripts with the prefabs that use them. (The
+  NetworkManager prefab has a stray `ServerCharacterController` component that needs removing.)
 
 ### Network simulation
 
-Turn on Fish-Net's latency simulator on the transport with about 100 ms latency and 2% packet loss, and leave it on. Turn it off only when profiling something unrelated.
+Fish-Net's latency simulator on the NetworkManager's Transport Manager is set to 100 ms and 2% packet loss.
+`NetworkConditions` turns it on at startup in the editor (unless `simulate_lag` is `false` in
+`UserSettings/RaidZeroDev.json`) and leaves it off in builds, where `--simulate-lag` turns it on. Each side
+delays what it sends, so between two editor instances a round trip is about 200 ms. Turn it off only when
+profiling something unrelated.
 
-## Player controller
+## Player controller (John, in progress)
 
 Build a kinematic `CharacterController`-based controller driven by Fish-Net's prediction system: the owning client simulates its own inputs immediately, and the server's result corrects it when they disagree. Getting this right first matters more than anything else in the milestone, because every other system sits on top of it.
 
@@ -101,9 +170,17 @@ Build a kinematic `CharacterController`-based controller driven by Fish-Net's pr
 ### Scope for Milestone 1
 
 - Walk, sprint, crouch, jump. No lean, slide or stamina yet.
-- A fixed tick rate (start at 30 or 60 Hz and keep it constant once chosen; it affects everything downstream).
+- A fixed tick rate of 60 Hz (decided; it affects everything downstream, so keep it).
 - First-person camera on the owner; other players see a simple capsule or placeholder model, interpolated smoothly.
 - Look direction travels with each input tick, so the server knows exactly where the player was aiming.
+
+### Known issues
+
+- Mouse look reads only the latest frame's movement each tick, so look sensitivity drops as the frame rate rises
+  above the tick rate (very low on a fast Mac). The fix is to add up the movement every frame and send the total
+  each tick, without multiplying it by the tick time. Client and server change together.
+- A sprint held while the inventory opens can stay on after it closes (buttons don't send a release when the
+  input map switches).
 
 ### Done when
 
@@ -111,7 +188,7 @@ Build a kinematic `CharacterController`-based controller driven by Fish-Net's pr
 - Corrections only happen when something genuinely blocks you, and they're small.
 - A second client sees your movement smoothly, without jitter.
 
-## Weapons and hit registration
+## Weapons and hit registration (John, not started)
 
 The shooter sees and hears their shot instantly, but only the server decides whether it hit. The server rewinds other players' hitboxes to where the shooter saw them, so a shot that looked right on screen counts.
 
@@ -132,7 +209,7 @@ Hit markers are server-confirmed in Milestone 1. They arrive one round trip late
 
 ### Ammo and reloads
 
-Ammo is real inventory: the round count lives in the ammo stack inside the magazine item inside the weapon. A reload swaps the weapon's magazine for a loaded one from the rig. That ties gunplay to the economy from day one, and the extraction report already carries the result.
+Ammo is real inventory: the round count lives in the ammo stack inside the magazine item inside the weapon. A reload swaps the weapon's magazine for a loaded one from the rig. That ties gunplay to the economy from day one, and the extraction report already carries the result. `RaidServer.Consume` uses up rounds (or a medkit) from the player's raid inventory on the server.
 
 ### AI shooting
 
@@ -144,7 +221,7 @@ AI fires through the same server damage path, without rewind since it runs on th
 - Firing faster than the weapon allows, or with an empty magazine, does nothing on the server.
 - Ammo count after a raid matches what was fired.
 
-## AI enemies
+## AI enemies (John, not started)
 
 AI runs only on the server, perceives the world the same way a player would, and acts through the same movement and damage code as players. Clients just see a networked character.
 
@@ -163,7 +240,19 @@ This split is what makes player-like bots possible later: the same brain can dri
 
 ### States
 
-&#91;embedded content: AI state machine · 4 states\]
+```mermaid
+stateDiagram-v2
+    [*] --> Patrol
+    Patrol --> Attack: sees a player
+    Patrol --> Investigate: hears a gunshot
+    Investigate --> Attack: sees a player
+    Investigate --> Patrol: finds nothing
+    Attack --> Search: loses sight
+    Search --> Attack: sees them again
+    Search --> Patrol: gives up
+```
+
+(Redrawn from the text when the original diagram was lost; John to confirm the states.)
 
 From any state, health reaching zero ends the brain and turns the body into a loot container.
 
@@ -183,107 +272,146 @@ Server-side `NavMeshAgent` on a baked NavMesh. Clients receive position through 
 
 ## Raid flow and level
 
-One small greybox map, one server-run raid timer, and two ways out: extract or die. Run one raid per server process, then exit; a fresh process per raid means no state leaks between raids, and it is exactly how container hosting will want to run it later.
+One small greybox map, one server-run raid timer, and two ways out: extract or die. One raid per server
+process, then exit; a fresh process per raid means no state leaks between raids, and it's how container
+hosting runs it (Docker restarts the server for the next raid).
 
-### Greybox map
+### Greybox map (John, not started)
 
 - Roughly 200 by 200 m, built in ProBuilder.
 - 3 or 4 distinct points of interest, so routes and risk differ.
-- 8 to 12 loot containers, weighted toward the riskier areas.
-- 2 extraction points, far from the main spawn.
+- 8 to 12 loot containers (`LootContainer`), weighted toward the riskier areas.
+- 2 extraction points (`ExtractionZone`), far from the main spawn.
 - AI spawn zones and 2 or 3 player spawn points.
 - Bake the NavMesh from the greybox; rebake when geometry changes.
 
-### Raid states on the server
+### Raid states on the server (done)
+
+`RaidLifecycle` in `Game.Raid`, driven by `RaidServer`:
 
 | State | What happens | Leaves when |
 | --- | --- | --- |
-| Waiting | Scene loaded, loot rolled, AI spawned; players join with tokens | First player spawns, or a join timeout |
-| In progress | Timer runs (start with 25 minutes); heartbeats every 10 s | Every player has extracted or died, or the timer hits zero |
-| Ending | Anyone still inside dies (missing in action); outcome reports flush from the outbox | All reports acknowledged |
+| Waiting | Scene loaded, loot rolled, AI spawned; players join with tickets | The first player joins (that starts the clock) |
+| In progress | The clock runs (25 minutes; `--raid-minutes` on a dedicated server); heartbeats every 10 s | Time runs out, everyone who joined has extracted or died, or nobody inside has been connected for 3 minutes |
+| Ending | Anyone still inside is missing in action (dies); reports flush from the outbox | All reports acknowledged, or the close timeout |
 | Closed | Close report sent, process exits | n/a |
 
-### Extraction
+A disconnected player's gear stays in the raid, and Deploy with the same ticket brings them back while it runs.
 
-A player extracts by staying inside an extraction zone for about 8 seconds. The server tracks the countdown; leaving the zone or taking damage resets it. On completion the server freezes that player's raid inventory, writes the outcome report to the outbox, despawns the character, and tells the client to return to the Hideout, which then fetches the raid result.
+### Extraction (done)
 
-### Death
+A player extracts by staying inside an extraction zone for 8 seconds. The server tracks the countdown; leaving
+the zone or taking damage (`RaidServer.InterruptExtraction`, for gameplay to call) resets it. On completion the
+server freezes that player's raid inventory, writes the outcome report to the outbox, tells the client how they
+left, and disconnects them a moment later. The Hideout then fetches the raid result.
 
-On death the body becomes a loot container holding the player's raid inventory, the server sends a `died` outcome, and the client shows a death screen before returning to the Hideout.
+### Death (server side done; world side to agree)
 
-### Loot
+Gameplay calls `RaidServer.PlayerDied`. The player's raid inventory becomes a body container holding their
+gear, the server sends a `died` outcome, and the client is told how they left. The body must be its own object
+in the world, since Fish-Net despawns whatever the dead player's connection owns; spawning it, and showing
+ground piles from drops, is the world side that's still to do.
 
-- `LootTable` ScriptableObject: weighted entries, each with an item def and a quantity range.
-- Containers roll on the server at raid start from a per-raid seed, which makes bug reports reproducible.
+### Loot (done)
+
+- `LootTableAsset` (Create > Raid Zero > Loot Table): a number of picks, each a weighted choice among items or
+  other tables, or nothing. An item entry has a quantity range for stacks, a condition range, and a chance of
+  coming loaded (a weapon with a magazine, a magazine with rounds) with a fill range.
+- A container type's item asset names its default table; a crate can name its own. A crate's fixed Contents
+  list overrides both, for testing.
+- Containers roll on the server at raid start from a per-raid seed the server logs; `--loot-seed` (or Loot
+  Seed on `RaidServer`) repeats a raid's loot exactly.
 - Every spawned item gets a UUIDv7 at spawn time, so its ID is stable from container to stash.
+- The table inspector lists problems and simulates a thousand rolls.
 
 ### Done when
 
-- A full raid runs start to finish in host mode and as a dedicated server.
-- Extract and death both land the right result in the stash.
-- The timer running out kills anyone still inside.
+- [x] A full raid runs start to finish in host mode and as a dedicated server.
+- [x] Extract lands the right result in the stash. Death does too on the server side; it needs health and
+  damage to happen in play.
+- [x] The timer running out kills anyone still inside.
 
 ## Inventory on the Unity side
 
-Inventory is where the two halves of the project meet, so the rules live in one shared C# library used by the client, the game server and, by mirror image, the backend. The client only previews; the server and backend decide.
+Inventory is where the two halves of the project meet, so the rules live in one shared C# library used by the
+client, the game server and the backend. The client only previews; the server and backend decide.
 
 ### Who builds what
 
-| Piece | Owner | Notes |
+| Piece | Who | State |
 | --- | --- | --- |
-| Shared inventory model (`Game.Shared`) | Backend developer | Item tree, grid fit checks, slot rules, catalog loading |
-| Item catalog export (editor script) | Backend developer | ScriptableObjects to `item_catalog.json` |
-| `RaidInventoryService` and `BackendClient` (server) | Backend developer | Server-side truth during a raid, outbox, join and outcome calls |
-| `PlayerInventoryNetwork` (RPCs and views) | Both, pair on it | The seam; agree on message shapes first |
-| Inventory UI (raid and Hideout) | Unity developer | Drag and drop, grid display, tooltips |
-| World containers, pickups, bodies | Unity developer | Interaction, open and loot flow |
-| Item `ScriptableObject` authoring | Unity developer | Icons, sizes, stack limits, slots |
+| Shared inventory model (`Game.Shared`) | Will | Done: item tree, grid fit checks with named grids, slot rules, catalog loading |
+| Item catalog export (editor script) | Will | Done: exports on save |
+| `RaidInventoryService`, `RaidInventoryHost` and `BackendClient` (server) | Will | Done |
+| The network seam (`RaidProtocol` over Fish-Net broadcasts, `RaidInventoryClient`) | Will | Done; replaced the planned `PlayerInventoryNetwork` RPCs |
+| Inventory screen logic (`Game.Shared/InventoryUi`) | Will | Done: drop rules, quick move, splitting, opening containers |
+| Inventory screen in a raid (`Game.UI`) | Will (handed over from John) | Done |
+| Hideout inventory source (`HideoutInventorySource`) | Will | Done |
+| Hideout screens and scene flow | To agree | Not started |
+| World containers, pickups, bodies, interaction | To agree | Crates done; the rest not started |
+| Item `ScriptableObject` authoring | Both | Ongoing: icons, sizes, stack limits, slots |
 
 ### In a raid
 
-- The UI sends a request (move, split, merge, pick up, drop, loot from container) through a `[ServerRpc]` and greys the item out until the answer arrives.
-- The server validates with `RaidInventoryService` and sends the owner the result plus a diff of their tree.
-- The client uses the shared fit checks to show where an item can drop while dragging, but never applies a change until the server confirms it.
+- The screen sends a request (move, split, merge, pick up, drop, open, close) through `RaidInventoryClient` and
+  dims the items involved until the answer arrives.
+- The server checks reach and rate limits, applies it with `RaidInventoryService`, and sends the owner fresh
+  views of the containers that changed.
+- While dragging, the screen checks the drop with exactly the server's rules (`InventoryModel.Plan`), so it
+  shows green or red and never sends what it knows will be refused. It never applies a change until the server
+  confirms it.
+- Controls: Tab opens the screen; drag to move; R rotates while dragging; Shift+drag splits a stack;
+  Ctrl+click (Cmd+click) quick-moves; double-click opens a container inside another; dragging out of the
+  window drops. F opens the nearest crate until interaction exists.
 - At 100 ms latency inventory still feels fine without prediction; revisit only if playtests say otherwise.
 
 ### In the Hideout
 
-The Hideout calls the client API directly over HTTP: fetch the profile, send inventory ops with the profile version, refetch on a version conflict. The same UI components work in both places; only the transport behind them differs.
+The Hideout calls the client API directly over HTTP through `PlayerSession`: fetch the profile, send inventory
+ops with the profile version, refetch on a version conflict. `HideoutInventorySource` puts that behind the same
+`IInventorySource` the raid uses, so the same screen works in both places; only the source behind it differs.
 
 ### The contract
 
 These must match exactly across Unity and the backend. Change them in one pull request that touches both sides.
 
-- **Item tree shape:** `id`, `def_id`, `slot`, optional `x`, `y`, `rotated`, `quantity`, `durability`, `children`. The same shape as the backend's join and outcome payloads.
+- **Item tree shape:** `id`, `def_id`, `slot`, optional `x`, `y`, `rotated`, `quantity`, `durability`,
+  `children`. The same shape as the backend's join and outcome payloads.
 - **IDs:** UUIDv7 strings. The server mints them for raid loot; the backend mints them for everything else.
-- **Slot names:** one shared constants file (`primary`, `secondary`, `armor`, `rig`, `backpack`, `magazine`, `rounds`, `grid`).
-- **`defId` values:** stable forever once an item has existed in anyone's stash. Rename the display name, never the ID.
+  (Crates and other raid-only roots get name-derived IDs, the same on every machine, and never leave the raid.)
+- **Slot names:** one shared constants file (`SlotNames`: `primary`, `secondary`, `armor`, `rig`, `backpack`,
+  `magazine`, `rounds`). An item in a grid has the grid's name as its slot; a container's only grid is `grid`.
+- **`defId` values:** stable forever once an item has existed in anyone's stash. Rename the display name, never
+  the ID.
 
 ## Build order
 
-Two tracks run in parallel until step 8, when they join: the Unity developer builds the game you can play, and the backend developer builds the inventory and persistence it plugs into. Each step ends with something you can check.
+Two tracks ran in parallel until step 8, when they joined. Each step ends with something you can check.
 
-1. **Skeleton (both).** Repo, packages, assembly definitions, Boot scene, host mode, Linux server build in CI.
+1. **Skeleton (both). Done,** except the Boot scene. Repo, packages, assembly definitions, host mode, Linux
+   server build in CI (and now client builds).
    - Check: a host and a second client connect in an empty scene, with the latency simulator on.
-2. **Predicted movement (Unity).**
+2. **Predicted movement (John). In progress.**
    - Check: the controller's done list above.
-3. **Greybox map v0 and NavMesh (Unity).**
+3. **Greybox map v0 and NavMesh (John). Not started.**
    - Check: you can walk every route; AI agents can path between points of interest.
-4. **Hitscan weapon (Unity).** First against a static dummy, then against the second client.
+4. **Hitscan weapon (John). Not started.** First against a static dummy, then against the second client.
    - Check: the weapons done list above.
-5. **AI v1 (Unity).** Patrol and attack first, then investigate and search.
+5. **AI v1 (John). Not started.** Patrol and attack first, then investigate and search.
    - Check: the AI done list above.
-6. **Shared inventory model and catalog export (backend), in parallel with 2 to 5.**
+6. **Shared inventory model and catalog export (Will). Done.**
    - Check: unit tests cover fit, stacking, nesting and slot rules; the catalog exports from real ScriptableObjects.
-7. **Raid inventory and loot (both).** `RaidInventoryService`, loot containers, pickup, and the in-raid inventory UI.
+7. **Raid inventory and loot (both). Done,** except reloading from inventory, which comes with weapons
+   (`RaidServer.Consume` is ready for it).
    - Check: loot a crate, equip a magazine, reload from it, and drop items, all at simulated latency.
-8. **Join from the backend (pair).** Fish-Net authenticator, `/join`, spawn from the returned loadout.
+8. **Join from the backend (pair). Done.** Fish-Net authenticator, `/join`, spawn from the returned loadout.
    - Check: gear set up in the stash appears on the character in the raid.
-9. **Extract, die, timer and outbox (pair).**
+9. **Extract, die, timer and outbox (pair). Done** on the server side; death in play waits on step 4.
    - Check: the raid flow done list above, including killing the server mid-raid and confirming the refund.
-10. **Hideout screens (Unity).** Stash and equipment UI over the client API.
+10. **Hideout screens (to agree). Data side done.** Stash and equipment UI over the client API.
     - Check: rearrange gear, start a raid, come back, and see the result.
-11. **End-to-end playtest (both).** Several full raids at 100 ms and 2% loss, then once as a dedicated server on a cheap VPS.
+11. **End-to-end playtest (both). Partly done:** Tailscale playtests against a dedicated server on a home PC; not
+    yet on a VPS, or with AI and weapons.
     - Check: Milestone 1 is done.
 
 ## Testing and open questions
@@ -292,17 +420,24 @@ Automate what can be expressed as rules, and playtest what can only be felt.
 
 ### Testing
 
-- **Edit-mode unit tests** for everything in `Game.Shared`: inventory fit and stacking, damage math, loot table rolls with a fixed seed.
-- **A headless smoke test in CI:** start the server build, connect one scripted client, run a 60-second raid with an instant extraction, and assert the outcome report was written.
-- **Network conditions:** test at 0 ms, 100 ms with 2% loss, and 200 ms with 5% loss before calling any gameplay feature done.
+- **Unit tests** (xUnit, under `tests/`) for everything in `shared/`: inventory fit and stacking, the raid
+  protocol, the inventory screen's drop rules, loot table rolls with a fixed seed, the raid lifecycle. Damage
+  math joins them when it exists.
+- **A headless smoke test in CI:** the server build starts against a real backend and must report ready and
+  listen on UDP 7770. A scripted client running a short raid to an extraction is still to do.
+- **Network conditions:** test at 0 ms, 100 ms with 2% loss, and 200 ms with 5% loss before calling any
+  gameplay feature done.
 - **Two-client checks:** use Multiplayer Play Mode or two builds for anything another player can see.
+- **Checklists:** `unity/TESTING-INSTRUCTIONS.md` has what to check for each feature.
 - **Weekly playtest:** play several full raids together and write down what felt wrong, before fixing anything.
 
 ### Open questions
 
-- [ ] Tick rate: 30 or 60 Hz? Higher feels better but costs bandwidth and server CPU per player.
-- [ ] Grid inventory or slot-based? This decides how much UI work step 7 is.
-- [ ] Disconnects: does the character stay in the world and allow reconnect, or count as death after a timeout?
 - [ ] Hit markers: keep server-confirmed, or predict them once playtests show the delay matters?
-- [ ] Third-person body for remote players: buy an animated asset pack now, or stay on capsules until the loop is fun?
-
+- [ ] Third-person body for remote players: buy an animated asset pack now, or stay on capsules until the loop
+  is fun?
+- [ ] Who takes the Hideout screens, and interaction, pickups and bodies in the world?
+- [x] Tick rate: 60 Hz.
+- [x] Grid inventory or slot-based: grids (Tarkov-style), plus named slots and pockets.
+- [x] Disconnects: the gear stays in the raid and the player can rejoin with the same ticket until it ends;
+  still out at the end means missing in action.
