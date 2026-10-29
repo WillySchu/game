@@ -140,6 +140,35 @@ The editor stays logged in as the same dev player between Play sessions, so Depl
 raid they dropped out of, or with whatever they extracted with. A dev player who died or went missing in action
 has no gear left, so Deploy starts a fresh one with the starter kit instead.
 
+## A client build from CI
+
+The **Game client** workflow builds Windows and macOS clients on every push to `main` that touches the Unity
+project (or by hand: Actions > Game client > Run workflow). Open the run on GitHub and download
+`RaidZero-Windows-<commit>` or `RaidZero-macOS-<commit>` from the Artifacts list at the bottom; they're kept
+for 14 days. They're Development builds, so they show "Development Build" in the corner and the F1 overlay
+works.
+
+- **Windows:** unzip and run `RaidZero.exe`. SmartScreen warns about an unrecognised app: More info > Run anyway.
+- **macOS:** unzip, then in Terminal, in the folder with `RaidZero-macOS.tar.gz`:
+
+  ```sh
+  tar -xzf RaidZero-macOS.tar.gz
+  xattr -dr com.apple.quarantine RaidZero.app   # downloaded from the internet: let it open
+  codesign --force --deep -s - RaidZero.app      # Apple silicon only runs signed code: sign it for this Mac
+  open RaidZero.app
+  ```
+
+Then press F1. There's no RaidZeroDev.json in a build, so type the backend's address (the server PC's
+Tailscale address, `http://100.x.y.z:5080`) in the field above Deploy, press **Use this backend** (it's
+remembered next time), and press **Deploy**. `--backend-url <address>` on the command line works too.
+
+What to check:
+
+1. Both builds start, and F1 shows the backend you set and the same network code as the server's log.
+2. Deploy joins the PC's dedicated server; the inventory screen (Tab), looting and extraction work as in the
+   editor.
+3. Restarting the client keeps the backend address.
+
 ## A dedicated server build
 
 CI builds the dedicated server on every change to the Unity project (`.github/workflows/server.yml`). To build

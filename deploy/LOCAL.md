@@ -57,9 +57,10 @@ any machine on the tailnet, `curl http://<tailscale address>:5080/healthz` shoul
 On every machine that plays, including the server PC if you play there:
 
 1. In the Unity project, set `backend_url` in `unity/RaidZero/UserSettings/RaidZeroDev.json` to
-   `http://<the server PC's tailscale address>:5080`.
-2. Press Play, open the debug overlay with F1, and press **Deploy**. Don't use the Server or Client buttons:
-   the dedicated server is the server.
+   `http://<the server PC's tailscale address>:5080`. With a client build from CI instead of the editor, open
+   the F1 overlay, type that address in the field above Deploy and press **Use this backend** (it's remembered).
+2. Press Play (or start the client build), open the debug overlay with F1, and press **Deploy**. Don't use the
+   Server or Client buttons: the dedicated server is the server.
 
 Everyone who deploys within two minutes of the first player lands in the same raid (up to four players). When
 the raid ends, the server restarts for the next one, which takes a few seconds.

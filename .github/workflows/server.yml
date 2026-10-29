@@ -89,26 +89,18 @@ jobs:
           restore-keys: |
             library-linux-server-
 
-      # Unity is sometimes killed (exit code 137) seconds after it starts, with memory to spare and no
-      # out-of-memory message from the kernel, so something in userspace is likely doing it. On the Ubuntu
-      # 26.04 runners the prime suspect is systemd-oomd, which kills whole cgroups under memory pressure
-      # (the runner starts with gigabytes of page cache from the Unity image and the Library restore).
-      # This stops it, drops that cache, and adds swap as headroom for real spikes.
+      # Swap as headroom for real memory spikes. (Unity's occasional exit code 137 at startup isn't one: it
+      # happens with memory to spare, with nothing from the kernel's out-of-memory killer, systemd-oomd or
+      # Docker, so it comes from inside the Unity container. Possibly a cousin of Unity issue UUM-149014.
+      # The build step below retries once for it.)
       - name: Prepare the runner
         run: |
           . /etc/os-release; echo "Runner: $PRETTY_NAME, kernel $(uname -r)"
-          if systemctl is-active --quiet systemd-oomd 2>/dev/null; then
-            echo "systemd-oomd is running; stopping it for this build."
-            sudo systemctl mask --now systemd-oomd.socket systemd-oomd.service || true
-          else
-            echo "systemd-oomd isn't running."
-          fi
           dir=/mnt; [ -d "$dir" ] || dir=/
           sudo fallocate -l 8G "$dir/extra-swapfile"
           sudo chmod 600 "$dir/extra-swapfile"
           sudo mkswap "$dir/extra-swapfile"
           sudo swapon "$dir/extra-swapfile"
-          sync; echo 3 | sudo tee /proc/sys/vm/drop_caches > /dev/null
           swapon --show
           free -h
 

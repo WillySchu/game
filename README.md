@@ -23,6 +23,7 @@ deploy/                    Running the backend and a game server on a VPS (deplo
                            machine over Tailscale (deploy/LOCAL.md)
 .github/workflows/ci.yml   Tests every push and pull request; pushes the backend image to GHCR from main
 .github/workflows/server.yml  Builds the game server with Unity, smoke tests it, pushes its image to GHCR from main
+.github/workflows/client.yml  Builds the game client for Windows and macOS from main, as downloadable artifacts
 ```
 
 Build output goes to `artifacts/` at the repo root, never next to the projects (see `Directory.Build.props`).
@@ -334,6 +335,11 @@ the backend and the server together and checks the server comes up ready, then o
 `ghcr.io/<owner>/<repo>/gameserver`. It needs a Unity license as repository secrets (`deploy/README.md` says
 how); without them it skips the build. The game server tells the backend which map it has loaded on every join
 (`RaidServer`'s Map Id), and the backend refuses a raid on another map (`wrong_map`) before anyone's gear moves.
+
+A third builds the client for Windows and macOS on every push to `main` that touches the Unity project or shared
+code (or by hand, from the Actions tab), as Development builds so the F1 overlay works, and attaches them to the
+run as artifacts for 14 days. `unity/TESTING-INSTRUCTIONS.md` says how to run them; `deploy/LOCAL.md` how to
+point them at a playtest server.
 
 ## What's next (backend)
 

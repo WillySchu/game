@@ -1,0 +1,157 @@
+# Builds the game client for Windows and macOS (Development builds, so the F1 overlay and its Deploy button
+# work) and attaches each to the run as a downloadable artifact, RaidZero-Windows-<commit> and
+# RaidZero-macOS-<commit>, kept for 14 days.
+# Runs on pushes to main that touch the Unity project or the shared code, and by hand from the Actions tab.
+#
+# Both build on Linux runners through GameCI, which can cross-build Windows and macOS players with the Mono
+# scripting backend (the project's default). The macOS app is unsigned: unity/TESTING-INSTRUCTIONS.md says how
+# to open it. Needs the same UNITY_LICENSE, UNITY_EMAIL and UNITY_PASSWORD secrets as the game server build.
+name: Game client
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - unity/**
+      - shared/**
+      - .github/workflows/client.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  license:
+    name: Unity license available
+    runs-on: ubuntu-latest
+    outputs:
+      present: ${{ steps.check.outputs.present }}
+    steps:
+      - id: check
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+        run: |
+          if [ -n "$UNITY_LICENSE" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::No UNITY_LICENSE secret, so the client isn't built. See deploy/README.md."
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    name: Build for ${{ matrix.name }}
+    needs: license
+    if: needs.license.outputs.present == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows
+            targetPlatform: StandaloneWindows64
+          - name: macOS
+            targetPlatform: StandaloneOSX
+    steps:
+      # The Unity editor image is large; the runner's preinstalled Android SDK and the like are not needed.
+      - uses: jlumbroso/free-disk-space@v1.3.1
+        with:
+          tool-cache: false
+          dotnet: false
+          large-packages: false
+
+      - uses: actions/checkout@v5
+        with:
+          lfs: false
+
+      # LFS objects come from a cache keyed by the list of them, as in the game server build.
+      - name: List LFS objects
+        run: |
+          git lfs ls-files -l | cut -d' ' -f1 | sort > .lfs-assets-id
+          echo ".lfs-assets-id" >> .git/info/exclude
+
+      - uses: actions/cache@v5
+        with:
+          path: .git/lfs
+          key: lfs-${{ hashFiles('.lfs-assets-id') }}
+
+      - name: Fetch LFS objects
+        run: git lfs pull
+
+      # A Library per platform: imported assets differ between targets.
+      - uses: actions/cache@v5
+        with:
+          path: unity/RaidZero/Library
+          key: library-client-${{ matrix.targetPlatform }}-${{ hashFiles('unity/RaidZero/Assets/**', 'unity/RaidZero/Packages/**', 'unity/RaidZero/ProjectSettings/**', 'shared/**/*.cs') }}
+          restore-keys: |
+            library-client-${{ matrix.targetPlatform }}-
+
+      - name: Add swap
+        run: |
+          dir=/mnt; [ -d "$dir" ] || dir=/
+          sudo fallocate -l 8G "$dir/extra-swapfile"
+          sudo chmod 600 "$dir/extra-swapfile"
+          sudo mkswap "$dir/extra-swapfile"
+          sudo swapon "$dir/extra-swapfile"
+
+      # Unity is sometimes killed (exit code 137) a few seconds after it starts, on these runners, for reasons
+      # still unknown (see server.yml). Once more if so; the image is pulled by then, so it costs seconds.
+      - id: build
+        uses: game-ci/unity-builder@v5
+        continue-on-error: true
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          projectPath: unity/RaidZero
+          targetPlatform: ${{ matrix.targetPlatform }}
+          buildName: RaidZero
+          customParameters: -Development
+          versioning: None
+
+      - name: Note the first attempt failed
+        if: steps.build.outcome == 'failure'
+        run: |
+          echo "::warning::The first Unity build attempt failed; trying again."
+          sudo rm -rf unity/RaidZero/Temp
+
+      - if: steps.build.outcome == 'failure'
+        uses: game-ci/unity-builder@v5
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          projectPath: unity/RaidZero
+          targetPlatform: ${{ matrix.targetPlatform }}
+          buildName: RaidZero
+          customParameters: -Development
+          versioning: None
+
+      # Leave out what Unity says not to ship (debug symbols for Burst and IL2CPP). The artifact is a zip, which
+      # drops file permissions: fine for Windows, but the macOS app needs its executable bit, so it goes in a
+      # .tar.gz inside the zip.
+      - name: Package
+        run: |
+          out="build/${{ matrix.targetPlatform }}"
+          sudo rm -rf "$out"/*_DoNotShip "$out"/*_ButDontShipItInYourBuild
+          sudo chown -R "$(id -u):$(id -g)" "$out"
+          mkdir -p package
+          if [ "${{ matrix.name }}" = macOS ]; then
+            tar -czf package/RaidZero-macOS.tar.gz -C "$out" .
+          else
+            cp -r "$out" package/RaidZero
+          fi
+          du -sh package/*
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: RaidZero-${{ matrix.name }}-${{ github.sha }}
+          path: package/
+          retention-days: 14
+          if-no-files-found: error

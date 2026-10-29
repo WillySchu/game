@@ -10,6 +10,8 @@ namespace RaidZero.Net
     /// Settings for playing in the editor, from UserSettings/RaidZeroDev.json. Unity's own .gitignore keeps
     /// UserSettings/ out of the repo, so each of you can point at a different backend. The file is created
     /// on first use with values for the local dev backend (dotnet run --project backend/Game.Backend).
+    /// Outside the editor there's no such file and the defaults apply: a player build never writes one next to
+    /// itself (with the dev server token in it).
     /// </summary>
     public static class DevSettings
     {
@@ -28,6 +30,11 @@ namespace RaidZero.Net
 
         private static JObject Read()
         {
+            if (!Application.isEditor)
+            {
+                return new JObject();
+            }
+
             var path = FilePath;
             if (!File.Exists(path))
             {
