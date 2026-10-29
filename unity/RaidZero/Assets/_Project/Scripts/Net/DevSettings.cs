@@ -73,6 +73,24 @@ namespace RaidZero.Net
             }
         }
 
+        /// <summary>Whether the command line has the switch "--name".</summary>
+        public static bool HasFlag(string name) => System.Array.IndexOf(System.Environment.GetCommandLineArgs(), name) >= 0;
+
+        /// <summary>The word given on the command line as "--name value", or null if it isn't there.</summary>
+        public static string StringArgument(string name)
+        {
+            var args = System.Environment.GetCommandLineArgs();
+            for (int i = 0; i < args.Length - 1; i++)
+            {
+                if (args[i] == name)
+                {
+                    return args[i + 1];
+                }
+            }
+
+            return null;
+        }
+
         /// <summary>A whole number given on the command line as "--name 12345", or null if it isn't there.</summary>
         public static int? IntArgument(string name)
         {

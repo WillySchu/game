@@ -22,7 +22,8 @@ unity/server.Dockerfile    The dedicated game server's image, around a Unity Lin
 deploy/                    Running the backend and a game server on a VPS (deploy/README.md) or on your own
                            machine over Tailscale (deploy/LOCAL.md)
 .github/workflows/ci.yml   Tests every push and pull request; pushes the backend image to GHCR from main
-.github/workflows/server.yml  Builds the game server with Unity, smoke tests it, pushes its image to GHCR from main
+.github/workflows/server.yml  Builds the game server with Unity, smoke tests it, plays two scripted raids on it,
+                              pushes its image to GHCR from main
 .github/workflows/client.yml  Builds the game client for Windows and macOS from main, as downloadable artifacts
 ```
 
@@ -336,8 +337,12 @@ To build the image yourself, from the repo root: `docker build -f backend/Docker
 
 A second workflow builds the dedicated game server whenever the Unity project or shared code changes: a Unity
 Linux Dedicated Server build through [GameCI](https://game.ci), wrapped in `unity/server.Dockerfile`. It starts
-the backend and the server together and checks the server comes up ready, then on `main` pushes
-`ghcr.io/<owner>/<repo>/gameserver`. It needs a Unity license as repository secrets (`deploy/README.md` says
+the backend and the server together and checks the server comes up ready, then plays two short raids against
+them with the same image as a scripted player (`--ci-client`, `Scripts/Net/CiClient.cs`): one where the player
+extracts at a zone the server puts where they spawn (`--test-extract-at-spawn`), and one where they stand still
+until the clock runs out and they're missing in action. Each time the scripted player checks the backend's result
+and where its gear ended up (`RaidResultCheck`), and the server must close the raid and exit by itself. Then, on
+`main`, it pushes `ghcr.io/<owner>/<repo>/gameserver`. It needs a Unity license as repository secrets (`deploy/README.md` says
 how); without them it skips the build. The game server tells the backend which map it has loaded on every join
 (`RaidServer`'s Map Id), and the backend refuses a raid on another map (`wrong_map`) before anyone's gear moves.
 

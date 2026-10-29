@@ -1,6 +1,6 @@
 # Raid Zero: Unity Client & Game Server Plan
 
-Will & John · first written Oct 26, 2026 · last updated Oct 28, 2026
+Will & John · first written Oct 26, 2026 · last updated Oct 29, 2026
 
 ## Status
 
@@ -425,8 +425,10 @@ Automate what can be expressed as rules, and playtest what can only be felt.
 - **Unit tests** (xUnit, under `tests/`) for everything in `shared/`: inventory fit and stacking, the raid
   protocol, the inventory screen's drop rules, loot table rolls with a fixed seed, the raid lifecycle. Damage
   math joins them when it exists.
-- **A headless smoke test in CI:** the server build starts against a real backend and must report ready and
-  listen on UDP 7770. A scripted client running a short raid to an extraction is still to do.
+- **Headless tests in CI:** the server build starts against a real backend and must report ready and listen on
+  UDP 7770. Then the same image, as a scripted player (`--ci-client`), plays two short raids: one extracting at a
+  zone the server puts at its spawn (`--test-extract-at-spawn`), one missing in action when the clock runs out. It
+  checks the backend's result and its gear each time. It joins and stands still, so it needs no map features.
 - **Network conditions:** test at 0 ms, 100 ms with 2% loss, and 200 ms with 5% loss before calling any
   gameplay feature done.
 - **Two-client checks:** use Multiplayer Play Mode or two builds for anything another player can see.

@@ -70,6 +70,7 @@ namespace RaidZero.Net
         private readonly Dictionary<NetworkConnection, HostOutput> _welcome = new Dictionary<NetworkConnection, HostOutput>();
         private readonly Dictionary<string, int> _violations = new Dictionary<string, int>(StringComparer.Ordinal);
         private readonly Dictionary<NetworkConnection, double> _disconnectAt = new Dictionary<NetworkConnection, double>();
+        private readonly Dictionary<string, ExtractionZone> _testZones = new Dictionary<string, ExtractionZone>(StringComparer.Ordinal);
 
         private NetworkManager _networkManager;
         private BackendClient _backend;
@@ -78,6 +79,7 @@ namespace RaidZero.Net
         private ExtractionTracker _extraction;
         private Task _closing;
         private double _closingSince;
+        private bool _testExtractAtSpawn;
 
         /// <summary>A pile appeared on the ground: (pile ID, the dropping player's connection). Spawn a pickup at their feet.</summary>
         public event Action<string, NetworkConnection> PileCreated;
@@ -338,6 +340,7 @@ namespace RaidZero.Net
                 var catalog = ServerConfig.LoadCatalog();
                 var settings = ServerConfig.ResolveBackend();
                 var minutes = ServerConfig.FloatArgument("--raid-minutes") ?? _raidMinutes;
+                _testExtractAtSpawn = ServerConfig.HasFlag("--test-extract-at-spawn");
 
                 _backend = new BackendClient(settings, catalog.Version, new BackendClientOptions { MapId = _mapId }, log: new UnityBackendLog());
                 _backend.RaidAborted += OnRaidAborted;
@@ -367,7 +370,12 @@ namespace RaidZero.Net
                 Debug.Log("[raid] Server ready: build " + (string.IsNullOrEmpty(build) ? "local" : build) + ", network code " + NetworkFingerprint.Current
                     + ", " + settings + ", map " + _mapId + ", catalog " + catalog.Version + ", " + minutes + "-minute raids, "
                     + ExtractionZone.All.Count + " extraction zone(s).");
-                if (ExtractionZone.All.Count == 0)
+                if (_testExtractAtSpawn)
+                {
+                    // For CI's raid test: players extract without moving, whatever the level has.
+                    Debug.LogWarning("[raid] --test-extract-at-spawn: every player gets an extraction zone where they spawn. For tests only.");
+                }
+                else if (ExtractionZone.All.Count == 0)
                 {
                     Debug.LogWarning("[raid] This level has no ExtractionZone, so the only way out is the clock running out.");
                 }
@@ -412,6 +420,15 @@ namespace RaidZero.Net
             _lifecycle = null;
             _extraction = null;
             _closing = null;
+            foreach (var zone in _testZones.Values)
+            {
+                if (zone != null)
+                {
+                    Destroy(zone.gameObject);
+                }
+            }
+
+            _testZones.Clear();
             _playerOf.Clear();
             _connectionOf.Clear();
             _welcome.Clear();
@@ -429,6 +446,12 @@ namespace RaidZero.Net
                 if (!_lifecycle.IsInside(playerId) || !connection.IsActive || connection.FirstObject == null)
                 {
                     continue;
+                }
+
+                if (_testExtractAtSpawn && !_testZones.ContainsKey(playerId))
+                {
+                    // Tall, so a player spawned above the ground is still inside after they land.
+                    _testZones[playerId] = ExtractionZone.Create("test_spawn", connection.FirstObject.transform.position, new Vector3(6, 40, 6), 8f);
                 }
 
                 var zone = ExtractionZone.At(connection.FirstObject.transform.position);

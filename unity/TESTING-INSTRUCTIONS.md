@@ -188,3 +188,16 @@ docker run --rm -p 7770:7770/udp -e RAIDZERO_BACKEND_URL=http://host.docker.inte
 The build is x86-64, so on an Apple Silicon Mac Docker runs it under emulation (add `--platform linux/amd64` to
 both commands); it's slow but fine for a check. Wait for `[raid] Server ready`, then use **Deploy** in the
 editor's overlay against the local backend.
+
+CI's raid test runs the same way, with the same image as the player. To run it yourself against the server
+above, start that server with `--test-extract-at-spawn` (an extraction zone wherever each player spawns), then:
+
+```sh
+docker run --rm -e RAIDZERO_BACKEND_URL=http://host.docker.internal:5080 raidzero-gameserver \
+  --ci-client --ci-expect extracted
+```
+
+It logs in as a new dev player, deploys, stands still, and ends with `[ci] PASS` or `[ci] FAIL` and why. For the
+other test, start the server with `--raid-minutes 0.5` instead and pass `--ci-expect missing_in_action`. (The
+ticket names the server as 127.0.0.1 from the dev backend's settings, so this only works where that address
+reaches the server: on Linux, add `--network host` to both containers, as CI does.)
