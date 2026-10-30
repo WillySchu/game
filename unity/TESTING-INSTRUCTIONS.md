@@ -35,8 +35,8 @@ dotnet run --project backend/Game.Backend
 
 ## Inventory screen
 
-Add `InventoryScreen` (assembly `Game.UI`) to any GameObject in the raid scene, next to `DevInventoryOverlay`
-is fine. It makes its own UIDocument from `Assets/_Project/UI/Resources/InventoryPanelSettings` and styles
+`SampleScene` already has one (the `InventoryScreen` object); in another scene, add `InventoryScreen` (assembly
+`Game.UI`) to any GameObject. It makes its own UIDocument from `Assets/_Project/UI/Resources/InventoryPanelSettings` and styles
 itself with `InventoryScreen.uss` beside it, so there's nothing else to wire up. Join a raid as above, then:
 
 - **Tab** opens and closes the screen. The mouse is freed and the player's input switches to the `UI` action
@@ -86,6 +86,30 @@ What to check:
 Positions of a container's pockets: each grid on an item asset has **Place On Screen** and **Position** (in
 cells). Grids with it ticked go there; the rest flow left to right in their fill order, wrapping, below the
 placed ones. It's presentation only, so it isn't in the catalog and changing it needs no export.
+
+## Hideout
+
+Add `HideoutScreen` (assembly `Game.UI`) to any GameObject in `SampleScene`, on its own object like
+`InventoryScreen` (not inside the NetworkManager prefab). With the local backend running, press Play: the Hideout
+fills the screen whenever you're not in a raid.
+
+1. **Log in:** type a name and press Log in. Dev login only knows names, so the same name is the same player
+   (a new name starts with the starter kit). The name is remembered, and next time it logs straight back in.
+2. **Gear and stash:** your gear on the left, the stash (10x30) on the right. Everything works as in a raid
+   (drag, R, Shift+drag, Ctrl+click, double-click, tooltips) except dropping, as there's no ground. Moved items
+   dim until the backend answers. Refresh reloads; Log out goes back to the name.
+3. **Deploy:** gets a ticket for `greybox_01` (Map Id on the component) and connects to the server the ticket
+   names, as the F1 overlay does. The Hideout hides once the connection starts. Start a server first (Multiplayer
+   Play Mode's Server button in another player, or a dedicated server), or you'll get "No raid server is free" or
+   a connection that comes straight back.
+4. **Back from the raid:** extract (or wait out the clock). The Hideout comes back, says it's waiting for the
+   result, then shows it: Extracted / Lost in the zone / Raid called off, what came home and what was lost.
+   OK dismisses it for good; a result you never dismissed shows again at the next login.
+5. **Still in a raid:** if you leave a raid by quitting, the player bar says your gear is in a raid and the button
+   says Rejoin (it works while that raid runs and this game remembers the ticket).
+
+Scene flow can take over Deploy: anything listening to `HideoutScreen.DeployRequested` gets the map ID and the
+screen doesn't connect by itself. Untick **Show When Not In A Raid** to show and hide it from code instead.
 
 ## Icons
 

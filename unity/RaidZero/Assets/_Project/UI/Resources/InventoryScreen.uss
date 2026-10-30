@@ -362,3 +362,101 @@
     justify-content: flex-end;
     margin-top: 10px;
 }
+
+/* Above the columns and below the status line: empty in a raid, the Hideout's rows (HideoutScreen). */
+.inv-header {
+    margin-bottom: 8px;
+}
+
+.inv-footer {
+    margin-top: 6px;
+}
+
+/* The Hideout: the player bar or the login row on top, Deploy at the bottom. */
+.hideout-row {
+    flex-direction: row;
+    align-items: center;
+    padding: 4px 0;
+}
+
+.hideout-row--deploy {
+    justify-content: flex-end;
+}
+
+.hideout-label {
+    font-size: 13px;
+    color: rgb(190, 192, 178);
+    margin-right: 6px;
+}
+
+.hideout-name-field {
+    width: 220px;
+    margin-right: 6px;
+}
+
+.hideout-player {
+    font-size: 16px;
+    -unity-font-style: bold;
+    color: rgb(240, 236, 220);
+    margin-right: 12px;
+}
+
+.hideout-state {
+    flex-grow: 1;
+    font-size: 12px;
+    color: rgb(214, 180, 110);
+    white-space: normal;
+}
+
+.hideout-quiet {
+    flex-grow: 1;
+    font-size: 11px;
+    color: rgb(150, 154, 140);
+    margin-left: 6px;
+}
+
+.hideout-button {
+    margin-left: 6px;
+    padding: 4px 12px;
+}
+
+.hideout-deploy {
+    min-width: 140px;
+    padding: 8px 20px;
+    font-size: 15px;
+    -unity-font-style: bold;
+    color: rgb(240, 236, 220);
+    background-color: rgb(70, 92, 62);
+    border-color: rgb(120, 150, 104);
+}
+
+/* The result of the last raid, shown once when you're back. */
+.hideout-result {
+    width: 440px;
+}
+
+.hideout-result__title {
+    font-size: 20px;
+    -unity-font-style: bold;
+    color: rgb(240, 236, 220);
+}
+
+.hideout-result__sentence {
+    font-size: 13px;
+    color: rgb(200, 202, 188);
+    white-space: normal;
+    margin: 4px 0 10px 0;
+}
+
+.hideout-result__heading {
+    font-size: 11px;
+    -unity-font-style: bold;
+    letter-spacing: 1px;
+    color: rgb(150, 154, 140);
+    margin-top: 6px;
+}
+
+.hideout-result__line {
+    font-size: 13px;
+    color: rgb(232, 228, 214);
+}

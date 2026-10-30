@@ -5,6 +5,8 @@
         "Game.Net",
         "Game.Items",
         "RaidZero.Shared",
+        "RaidZero.BackendClient",
+        "FishNet.Runtime",
         "Unity.InputSystem"
     ],
     "includePlatforms": [],

@@ -276,7 +276,12 @@ The key in `appsettings.Development.json` is for local runs only. Real deploymen
   `InventoryPanels` builds the elements from the model (gear and its rig and backpack on the left, open
   containers on the right); `InventoryDrag` turns pointer movement into `DropTarget`s and asks the model for a
   plan. `InventoryItemLook` draws an item (its icon, or the plain look) for the panels and the drag ghost alike;
-  `InventoryTooltip` shows the tooltip when the pointer rests on one. All the look is in `Assets/_Project/UI/Resources/InventoryScreen.uss`; cell size is
+  `InventoryTooltip` shows the tooltip when the pointer rests on one. `InventoryView` holds the parts both screens
+  share (the window, columns, status line, dragging, splitting, tooltips).
+- `HideoutScreen` is the Hideout: dev login by name, gear and stash over `HideoutInventorySource`, Deploy (or
+  `DeployRequested` for scene flow to handle), and a result panel after each raid (`RaidResultSummary`, in
+  `Game.BackendClient`: what came home and what was lost, grouped by name). It shows whenever the scene's
+  NetworkManager isn't running a client or server. All the look is in `Assets/_Project/UI/Resources/InventoryScreen.uss`; cell size is
   `InventoryPanels.Cell`, at a 1920x1080 reference resolution set on `InventoryPanelSettings`.
 
 **Unity networking** (`unity/RaidZero/Assets/_Project/Scripts/Net`, assembly `Game.Net`)
