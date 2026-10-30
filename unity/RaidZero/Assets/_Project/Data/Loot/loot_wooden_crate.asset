@@ -1,0 +1,68 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 25755cf4efec452895d7720b836702e8, type: 3}
+  m_Name: loot_wooden_crate
+  m_EditorClassIdentifier: Game.Items::RaidZero.Items.LootTableAsset
+  _minRolls: 1
+  _maxRolls: 4
+  _nothingWeight: 2
+  _entries:
+  - Weight: 4
+    Item: {fileID: 0}
+    Table: {fileID: 11400000, guid: 5b4af6feb4ce478299b0779d3a7ac62a, type: 2}
+    MinQuantity: 1
+    MaxQuantity: 1
+    MinCondition: 1
+    MaxCondition: 1
+    LoadedChance: 0
+    MinFill: 1
+    MaxFill: 1
+  - Weight: 3
+    Item: {fileID: 0}
+    Table: {fileID: 11400000, guid: f27dec817a0a4d438a6951d5e61d7320, type: 2}
+    MinQuantity: 1
+    MaxQuantity: 1
+    MinCondition: 1
+    MaxCondition: 1
+    LoadedChance: 0
+    MinFill: 1
+    MaxFill: 1
+  - Weight: 2
+    Item: {fileID: 0}
+    Table: {fileID: 11400000, guid: 659a3bab08004ef89d0f104fc3328ae5, type: 2}
+    MinQuantity: 1
+    MaxQuantity: 1
+    MinCondition: 1
+    MaxCondition: 1
+    LoadedChance: 0
+    MinFill: 1
+    MaxFill: 1
+  - Weight: 1
+    Item: {fileID: 0}
+    Table: {fileID: 11400000, guid: b32b83bd2e324634b3bf4fcc989c04cc, type: 2}
+    MinQuantity: 1
+    MaxQuantity: 1
+    MinCondition: 1
+    MaxCondition: 1
+    LoadedChance: 0
+    MinFill: 1
+    MaxFill: 1
+  - Weight: 1
+    Item: {fileID: 0}
+    Table: {fileID: 11400000, guid: 33863509945f4102b99860ab86fba2b7, type: 2}
+    MinQuantity: 1
+    MaxQuantity: 1
+    MinCondition: 1
+    MaxCondition: 1
+    LoadedChance: 0
+    MinFill: 1
+    MaxFill: 1

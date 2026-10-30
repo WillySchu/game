@@ -27,6 +27,7 @@ namespace RaidZero.Net
 
         private bool _visible;
         private bool _deploying;
+        private string _backendUrlDraft;
         private string _lastResult = "";
         private Vector2 _scroll;
 
@@ -125,6 +126,21 @@ namespace RaidZero.Net
             }
 
             GUILayout.Label("Backend: " + Hideout.BackendUrl + "   map: " + DevSettings.MapId + "   network code: " + NetworkFingerprint.Current);
+
+            // A player build has no RaidZeroDev.json: type the backend's address here (it's remembered).
+            if (!Application.isEditor)
+            {
+                _backendUrlDraft = _backendUrlDraft ?? Hideout.BackendUrl;
+                GUILayout.BeginHorizontal();
+                _backendUrlDraft = GUILayout.TextField(_backendUrlDraft);
+                if (GUILayout.Button("Use this backend", GUILayout.Width(140)))
+                {
+                    Hideout.SaveBackendUrl(_backendUrlDraft);
+                }
+
+                GUILayout.EndHorizontal();
+            }
+
             GUI.enabled = !_deploying;
             if (GUILayout.Button(_deploying ? "Deploying..." : "Deploy (dev login, ticket, connect to the ticket's server)"))
             {

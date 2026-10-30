@@ -26,8 +26,7 @@ namespace RaidZero.Items.Editor
 
         private static readonly string[] RequiredDefIds = { WellKnownDefs.Stash, WellKnownDefs.Character, WellKnownDefs.Ground };
 
-        public static string CatalogPath =>
-            Path.GetFullPath(Path.Combine(Application.dataPath, "..", "..", "..", "shared", "catalog", "item_catalog.json"));
+        public static string CatalogPath => RepoPaths.CatalogFile;
 
         [MenuItem("Raid Zero/Items/Export Catalog")]
         private static void ExportFromMenu() => Export(interactive: true);
@@ -171,7 +170,7 @@ namespace RaidZero.Items.Editor
         internal static bool IsItemAsset(string path) =>
             path.EndsWith(".asset", StringComparison.Ordinal) && AssetDatabase.GetMainAssetTypeAtPath(path) == typeof(ItemDefinitionAsset);
 
-        private static List<ItemDefinitionAsset> FindAll() =>
+        internal static List<ItemDefinitionAsset> FindAll() =>
             AssetDatabase.FindAssets("t:" + nameof(ItemDefinitionAsset))
                 .Select(AssetDatabase.GUIDToAssetPath)
                 .Select(AssetDatabase.LoadAssetAtPath<ItemDefinitionAsset>)
@@ -179,7 +178,7 @@ namespace RaidZero.Items.Editor
                 .OrderBy(a => a.DefId, StringComparer.Ordinal)
                 .ToList();
 
-        private static ItemCatalog TryLoadCurrent()
+        internal static ItemCatalog TryLoadCurrent()
         {
             try
             {
@@ -210,7 +209,7 @@ namespace RaidZero.Items.Editor
             }
         }
 
-        private static void EnsureFolder(string folder)
+        internal static void EnsureFolder(string folder)
         {
             var parts = folder.Split('/');
             var path = parts[0];

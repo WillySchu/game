@@ -1,0 +1,48 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 25755cf4efec452895d7720b836702e8, type: 3}
+  m_Name: loot_valuables
+  m_EditorClassIdentifier: Game.Items::RaidZero.Items.LootTableAsset
+  _minRolls: 1
+  _maxRolls: 1
+  _nothingWeight: 0
+  _entries:
+  - Weight: 1
+    Item: {fileID: 11400000, guid: 0bb21e46f19c5444382f0608d8f27ebb, type: 2}
+    Table: {fileID: 0}
+    MinQuantity: 1
+    MaxQuantity: 1
+    MinCondition: 1
+    MaxCondition: 1
+    LoadedChance: 0
+    MinFill: 1
+    MaxFill: 1
+  - Weight: 4
+    Item: {fileID: 11400000, guid: 7a86b494ce64c4e6b8e76bd3ba5b053c, type: 2}
+    Table: {fileID: 0}
+    MinQuantity: 1
+    MaxQuantity: 1
+    MinCondition: 1
+    MaxCondition: 1
+    LoadedChance: 0
+    MinFill: 1
+    MaxFill: 1
+  - Weight: 2
+    Item: {fileID: 11400000, guid: bda8cb146996a4a4c84b0d7322c93c5e, type: 2}
+    Table: {fileID: 0}
+    MinQuantity: 500
+    MaxQuantity: 5000
+    MinCondition: 1
+    MaxCondition: 1
+    LoadedChance: 0
+    MinFill: 1
+    MaxFill: 1

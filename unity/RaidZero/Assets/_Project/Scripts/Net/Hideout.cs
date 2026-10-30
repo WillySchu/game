@@ -77,9 +77,12 @@ namespace RaidZero.Net
         /// </summary>
         public static RaidTicketInfo LastTicket { get; private set; }
 
+        private const string BackendUrlPref = "raidzero.backend_url";
+
         /// <summary>
         /// Where players' clients find the backend: --backend-url or RAIDZERO_BACKEND_URL, else, in the editor,
-        /// UserSettings/RaidZeroDev.json. Release builds will carry the real address once there is one.
+        /// UserSettings/RaidZeroDev.json, and in a player build the address saved with <see cref="SaveBackendUrl"/>
+        /// (the F1 overlay's field), else localhost. Release builds will carry the real address once there is one.
         /// </summary>
         public static string BackendUrl
         {
@@ -100,8 +103,23 @@ namespace RaidZero.Net
                     return fromEnvironment;
                 }
 
-                return Application.isEditor ? DevSettings.BackendUrl : "http://localhost:5080";
+                return Application.isEditor ? DevSettings.BackendUrl : PlayerPrefs.GetString(BackendUrlPref, "http://localhost:5080");
             }
+        }
+
+        /// <summary>
+        /// In a player build, remembers the backend address for next time (a playtest machine's Tailscale address,
+        /// say). The editor reads UserSettings/RaidZeroDev.json instead, so this does nothing there.
+        /// </summary>
+        public static void SaveBackendUrl(string url)
+        {
+            if (Application.isEditor || string.IsNullOrWhiteSpace(url))
+            {
+                return;
+            }
+
+            PlayerPrefs.SetString(BackendUrlPref, url.Trim());
+            PlayerPrefs.Save();
         }
 
         /// <summary>Forgets the last ticket, as when a different player logs in on this client.</summary>

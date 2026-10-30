@@ -72,7 +72,13 @@ namespace RaidZero.UI
         /// <summary>Pointer pressed on an item. The drag code decides what that means.</summary>
         public event Action<PointerDownEvent, VisualElement> ItemPressed;
 
-        /// <summary>A container's close button was clicked.</summary>
+        /// <summary>The pointer moved onto an item. The tooltip decides what that means.</summary>
+        public event Action<VisualElement> ItemHovered;
+
+        /// <summary>The pointer left an item.</summary>
+        public event Action<VisualElement> ItemUnhovered;
+
+        /// <summary>A panel's close button was clicked: a root's ID, or an opened item's (InventoryModel.IsOpenedItem).</summary>
         public event Action<string> CloseClicked;
 
         public VisualElement FindItem(string itemId) => itemId != null && _items.TryGetValue(itemId, out var e) ? e : null;
@@ -98,6 +104,18 @@ namespace RaidZero.UI
             }
 
             BuildLoadout(_gear, model, character.Root, "Gear", closable: false);
+
+            // Containers opened from inside others (double-click) first: the one you just opened is on top.
+            foreach (var openedId in model.OpenedItems)
+            {
+                if (model.Tree.TryGet(openedId, out var opened) && model.Catalog.TryGet(opened.DefId, out var openedDef))
+                {
+                    var panel = Panel(_loot, NameOf(openedDef), opened.Id, closable: true);
+                    panel.AddToClassList("inv-panel--opened");
+                    BuildGrids(panel, model, opened, LootColumnCells);
+                }
+            }
+
             foreach (var other in model.Others)
             {
                 if (other.Kind == InventoryRootKind.Body)
@@ -106,7 +124,8 @@ namespace RaidZero.UI
                 }
                 else
                 {
-                    var panel = Panel(_loot, TitleOf(model.Catalog, other), other.Root.Id, closable: true);
+                    // The stash (in the Hideout) stays open; crates, piles and the like can be closed.
+                    var panel = Panel(_loot, TitleOf(model.Catalog, other), other.Root.Id, closable: other.Kind != InventoryRootKind.Stash);
                     BuildGrids(panel, model, other.Root, LootColumnCells);
                 }
             }
@@ -144,7 +163,8 @@ namespace RaidZero.UI
                 var occupant = Occupant(root, spec.Name);
                 if (occupant != null)
                 {
-                    box.Add(ItemElement(model, occupant).WithClass("inv-item--in-slot"));
+                    // Unturned, filling the box: an item in a slot is never rotated.
+                    box.Add(ItemElement(model, occupant, size.x * Cell, size.y * Cell).WithClass("inv-item--in-slot"));
                 }
             }
 
@@ -214,7 +234,7 @@ namespace RaidZero.UI
                     }
 
                     GridPlacement.GetSize(childDef, child.Rotated, out int w, out int h);
-                    var item = ItemElement(model, child);
+                    var item = ItemElement(model, child, w * Cell, h * Cell);
                     Place(item, child.X.Value, child.Y.Value, w, h);
                     grid.Add(item);
                 }
@@ -237,23 +257,20 @@ namespace RaidZero.UI
             return panel;
         }
 
-        private VisualElement ItemElement(InventoryModel model, ItemNode node)
+        // An item, drawn by InventoryItemLook at the size it will have on screen: its footprint in a grid, or the
+        // slot box it sits in.
+        private VisualElement ItemElement(InventoryModel model, ItemNode node, float width, float height)
         {
             model.Catalog.TryGet(node.DefId, out var def);
-            var element = new VisualElement { userData = new ItemRef { ItemId = node.Id }, tooltip = def != null ? NameOf(def) : node.DefId }
-                .WithClass("inv-item")
-                .WithClass("inv-item--" + ItemBadges.Category(def));
+            var element = new VisualElement { userData = new ItemRef { ItemId = node.Id } };
+            InventoryItemLook.Fill(element, model.Catalog, node, def, node.Rotated, width, height, ItemBadges.Count(model.Catalog, node));
             element.EnableInClassList("inv-item--pending", model.IsPending(node.Id));
             element.EnableInClassList("inv-item--rotated", node.Rotated);
-            element.Add(new Label(def != null ? NameOf(def) : node.DefId).WithClass("inv-item__name"));
-
-            var count = ItemBadges.Count(model.Catalog, node);
-            if (count.Length > 0)
-            {
-                element.Add(new Label(count).WithClass("inv-item__count"));
-            }
+            element.EnableInClassList("inv-item--opened", model.IsOpenedItem(node.Id));
 
             element.RegisterCallback<PointerDownEvent>(evt => ItemPressed?.Invoke(evt, element));
+            element.RegisterCallback<PointerEnterEvent>(evt => ItemHovered?.Invoke(element));
+            element.RegisterCallback<PointerLeaveEvent>(evt => ItemUnhovered?.Invoke(element));
             _items[node.Id] = element;
             return element;
         }

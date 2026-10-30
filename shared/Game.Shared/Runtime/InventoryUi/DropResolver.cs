@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using RaidZero.Shared.Catalog;
 using RaidZero.Shared.Inventory;
@@ -34,6 +35,51 @@ namespace RaidZero.Shared.InventoryUi
                 default:
                     return DropPlan.Nothing();
             }
+        }
+
+        /// <summary>
+        /// Shift-drag: what dropping only part of a stack on the target would do. The same as
+        /// <see cref="Resolve"/>, taking <paramref name="quantity"/> off the stack instead of moving all of it:
+        /// a move becomes a split, a merge or a load moves only that many. A quantity of 0, or the whole stack,
+        /// is an ordinary drop. Part of a stack can't be dropped on the ground; drop it all, or split it first.
+        /// </summary>
+        public static DropPlan ResolvePart(InventoryTree tree, string itemId, int quantity, bool rotated, DropTarget target)
+        {
+            var whole = Resolve(tree, itemId, rotated, target);
+            if (quantity <= 0 || tree == null || itemId == null || !tree.TryGet(itemId, out var item) || quantity >= item.Quantity)
+            {
+                return whole;
+            }
+
+            if (whole.Action == DropAction.Drop)
+            {
+                return DropPlan.Refused(DropAction.Drop, InventoryUiErrors.CantDropPart, InventoryUiErrors.Describe(InventoryUiErrors.CantDropPart));
+            }
+
+            if (whole.Ops.Count != 1)
+            {
+                return whole; // nothing to do, or refused before it got as far as ops
+            }
+
+            var op = whole.Ops[0];
+            InventoryOp part;
+            switch (op.Op)
+            {
+                case InventoryOpKinds.Move:
+                    part = InventoryOp.Split(op.ItemId, quantity, op.To);
+                    break;
+                case InventoryOpKinds.Split: // into a slot that holds fewer than the stack: the smaller of the two
+                    part = InventoryOp.Split(op.ItemId, Math.Min(op.Quantity, quantity), op.To);
+                    break;
+                case InventoryOpKinds.Merge:
+                    part = InventoryOp.Merge(op.ItemId, op.IntoId, quantity);
+                    break;
+                default:
+                    return whole;
+            }
+
+            var ops = new[] { part };
+            return whole.WithOps(ops, tree.Check(ops));
         }
 
         /// <summary>

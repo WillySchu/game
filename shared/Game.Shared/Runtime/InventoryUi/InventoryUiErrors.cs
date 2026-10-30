@@ -18,6 +18,9 @@ namespace RaidZero.Shared.InventoryUi
         /// <summary>This screen can't drop things (the Hideout stash has no ground).</summary>
         public const string CantDrop = "cant_drop";
 
+        /// <summary>Shift-dragged part of a stack out of the window: only whole items go on the ground.</summary>
+        public const string CantDropPart = "cant_drop_part";
+
         public static string Describe(string code)
         {
             switch (code)
@@ -55,6 +58,16 @@ namespace RaidZero.Shared.InventoryUi
                     return "You're not in the raid any more.";
                 case RaidInventoryErrorCodes.NotAllowed:
                     return "You can't do that here.";
+                // From the backend, for Hideout edits (PlayerSession).
+                case "in_raid":
+                    return "Your stash is locked while you're in a raid.";
+                case "version_conflict":
+                    return "Your stash changed somewhere else. Take another look.";
+                case "backend_unreachable":
+                    return "Can't reach the server. Try again in a moment.";
+                case "logged_out":
+                case "not_logged_in":
+                    return "You're not logged in.";
                 case CantCombine:
                     return "Those don't go together.";
                 case Pending:
@@ -63,6 +76,10 @@ namespace RaidZero.Shared.InventoryUi
                     return "There's nowhere to put it.";
                 case CantDrop:
                     return "You can't drop things here.";
+                case CantDropPart:
+                    return "Drop the whole stack, or split it off first.";
+                case InventoryErrorCodes.InvalidQuantity:
+                    return "You can't split off that many.";
                 default:
                     return "That didn't work (" + code + ").";
             }

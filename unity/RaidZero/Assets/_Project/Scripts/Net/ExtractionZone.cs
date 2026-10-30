@@ -49,6 +49,20 @@ namespace RaidZero.Net
             return null;
         }
 
+        /// <summary>
+        /// Makes a zone in code rather than in the level: a scripted exit, or the one the server's
+        /// --test-extract-at-spawn switch puts where each player spawns.
+        /// </summary>
+        public static ExtractionZone Create(string pointName, Vector3 position, Vector3 size, float seconds)
+        {
+            var zone = new GameObject("Extraction zone (" + pointName + ")").AddComponent<ExtractionZone>();
+            zone.transform.position = position;
+            zone._pointName = pointName;
+            zone._size = size;
+            zone._seconds = seconds;
+            return zone;
+        }
+
         public bool Contains(Vector3 position)
         {
             var local = transform.InverseTransformPoint(position);

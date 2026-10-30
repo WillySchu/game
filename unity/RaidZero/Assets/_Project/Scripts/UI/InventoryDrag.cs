@@ -11,7 +11,9 @@ namespace RaidZero.UI
     /// whatever's under the pointer is turned into a DropTarget and checked with InventoryModel.Plan, the
     /// same rules the server applies, so the ghost and the spot it would land on go green or red as you move.
     /// Letting go sends the plan if it's good. If it isn't, nothing is sent: the item never left, so it simply
-    /// stays put, and the reason goes to the status line. Ctrl+click (Cmd+click on a Mac) quick-moves instead.
+    /// stays put, and the reason goes to the status line. Ctrl+click (Cmd+click on a Mac) quick-moves instead,
+    /// and a double-click opens a container that's inside another. Shift-dragging a stack splits it: the drag
+    /// is checked as if moving half, and letting go somewhere good asks how many (SplitRequested).
     /// </summary>
     internal sealed class InventoryDrag
     {
@@ -19,13 +21,14 @@ namespace RaidZero.UI
         private readonly VisualElement _window;
         private readonly InventoryPanels _panels;
         private readonly VisualElement _ghost;
-        private readonly Label _ghostName;
         private readonly VisualElement _cellHighlight;
 
         private InventoryModel _model;
         private string _itemId;
         private int _pointerId = -1;
         private bool _rotated;
+        private bool _splitting;
+        private int _splitPreview;
         private int _width;
         private int _height;
         private float _grabX;
@@ -40,8 +43,6 @@ namespace RaidZero.UI
             _panels = panels;
 
             _ghost = new VisualElement { pickingMode = PickingMode.Ignore }.WithClass("inv-ghost");
-            _ghostName = new Label { pickingMode = PickingMode.Ignore }.WithClass("inv-item__name");
-            _ghost.Add(_ghostName);
             _ghost.style.position = Position.Absolute;
             _ghost.style.display = DisplayStyle.None;
             _root.Add(_ghost);
@@ -56,6 +57,9 @@ namespace RaidZero.UI
 
         /// <summary>A sentence for the status line: why a drop or quick move was refused.</summary>
         public event Action<string> Message;
+
+        /// <summary>A shift-drag was let go somewhere part of the stack can go: ask how many, then plan with that.</summary>
+        public event Action<string, bool, DropTarget> SplitRequested;
 
         public bool IsDragging => _itemId != null;
 
@@ -117,6 +121,15 @@ namespace RaidZero.UI
             }
 
             evt.StopPropagation();
+
+            // The second click of a double-click: open it, if it's a container inside another. The first click
+            // started and ended a drag that went nowhere.
+            if (evt.clickCount >= 2)
+            {
+                _model.OpenItem(item.ItemId);
+                return;
+            }
+
             if (_model.IsPending(item.ItemId))
             {
                 Message?.Invoke(InventoryUiErrors.Describe(InventoryUiErrors.Pending));
@@ -142,6 +155,8 @@ namespace RaidZero.UI
             _itemId = item.ItemId;
             _pointerId = evt.pointerId;
             _rotated = node.Rotated;
+            _splitting = evt.shiftKey && _model.CanSplit(item.ItemId);
+            _splitPreview = Math.Max(1, node.Quantity / 2);
             GridPlacement.GetSize(def, _rotated, out _width, out _height);
 
             // Where on the item it was grabbed, as a point on its full-size footprint. Items in slot boxes are
@@ -151,10 +166,11 @@ namespace RaidZero.UI
             _grabX = Mathf.Clamp01(size.width > 0 ? local.x / size.width : 0) * _width * InventoryPanels.Cell;
             _grabY = Mathf.Clamp01(size.height > 0 ? local.y / size.height : 0) * _height * InventoryPanels.Cell;
 
-            _ghostName.text = def.DisplayName ?? def.DefId;
-            _ghost.ClearClassList();
+            // Drawn like the item itself (InventoryItemLook), then marked as the ghost.
+            var count = _splitting ? "split" : ItemBadges.Count(_model.Catalog, node);
+            InventoryItemLook.Fill(_ghost, _model.Catalog, node, def, _rotated, _width * InventoryPanels.Cell, _height * InventoryPanels.Cell, count);
             _ghost.AddToClassList("inv-ghost");
-            _ghost.AddToClassList("inv-item--" + ItemBadges.Category(def));
+            _ghost.EnableInClassList("inv-ghost--split", _splitting);
             SizeGhost();
             _ghost.style.display = DisplayStyle.Flex;
             _ghost.BringToFront();
@@ -203,7 +219,7 @@ namespace RaidZero.UI
             }
 
             var target = TargetAt(position);
-            Highlight(_model.Plan(_itemId, _rotated, target), target);
+            Highlight(_model.Plan(_itemId, _rotated, target, _splitting ? _splitPreview : 0), target);
         }
 
         // What's under the pointer, as the drop rules see it. The ghost ignores picking, so this finds what's
@@ -288,6 +304,7 @@ namespace RaidZero.UI
         {
             _ghost.style.width = _width * InventoryPanels.Cell;
             _ghost.style.height = _height * InventoryPanels.Cell;
+            InventoryItemLook.LayoutIcon(_ghost, _rotated, _width * InventoryPanels.Cell, _height * InventoryPanels.Cell);
         }
 
         private void End(bool drop)
@@ -298,8 +315,12 @@ namespace RaidZero.UI
             }
 
             var itemId = _itemId;
-            var plan = drop && _model != null ? _model.Plan(itemId, _rotated, TargetAt(_pointer)) : null;
+            var rotated = _rotated;
+            var splitting = _splitting;
+            var target = drop && _model != null ? TargetAt(_pointer) : null;
+            var plan = target != null ? _model.Plan(itemId, rotated, target, splitting ? _splitPreview : 0) : null;
             _itemId = null; // first, so the capture-out event that releasing raises is ignored
+            _splitting = false;
 
             ClearHighlight();
             _ghost.style.display = DisplayStyle.None;
@@ -310,7 +331,16 @@ namespace RaidZero.UI
             }
 
             _pointerId = -1;
-            if (plan != null && !_model.Execute(itemId, plan) && plan.Message != null)
+            if (plan == null)
+            {
+                return;
+            }
+
+            if (splitting && plan.IsValid)
+            {
+                SplitRequested?.Invoke(itemId, rotated, target);
+            }
+            else if (!_model.Execute(itemId, plan) && plan.Message != null)
             {
                 Message?.Invoke(plan.Message);
             }

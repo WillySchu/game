@@ -15,7 +15,9 @@ namespace RaidZero.UI
     ///
     /// Drag items between grids, slots and containers; R turns the item you're dragging; let go over another
     /// item to stack, load or put it inside; let go outside the window to drop it on the ground. Ctrl+click
-    /// (Cmd+click on a Mac) quick-moves an item. F opens the nearest crate (a stand-in until interaction exists).
+    /// (Cmd+click on a Mac) quick-moves an item; Shift+drag splits a stack, asking how many; double-click opens a
+    /// container that's inside another. Resting the pointer on an item shows its tooltip. F opens the nearest
+    /// crate (a stand-in until interaction exists).
     ///
     /// The rules all live in shared code (InventoryModel over the raid's RaidInventorySource), so this only
     /// builds elements and forwards input. Put it on any GameObject in the raid scene. It makes its own
@@ -39,6 +41,8 @@ namespace RaidZero.UI
         private Label _status;
         private InventoryPanels _panels;
         private InventoryDrag _drag;
+        private InventorySplitDialog _split;
+        private InventoryTooltip _tooltip;
 
         private ItemCatalog _catalog;
         private RaidInventorySource _source;
@@ -78,6 +82,8 @@ namespace RaidZero.UI
             }
 
             _drag.Cancel();
+            _split.Hide();
+            _tooltip.Hide();
             _open = false;
             _root.style.display = DisplayStyle.None;
             Cursor.lockState = _cursorBefore;
@@ -87,6 +93,11 @@ namespace RaidZero.UI
             // Looting ends with the screen, as it does in most games: close whatever was open.
             if (_model != null)
             {
+                foreach (var itemId in new List<string>(_model.OpenedItems))
+                {
+                    _model.CloseItem(itemId);
+                }
+
                 foreach (var other in new List<InventoryRoot>(_model.Others))
                 {
                     _model.Close(other.Root.Id);
@@ -141,14 +152,18 @@ namespace RaidZero.UI
 
             _status = new Label().WithClass("inv-status");
             window.Add(_status);
-            window.Add(new Label("Tab close   ·   drag to move   ·   R rotate while dragging   ·   Ctrl+click quick move   ·   drag out of the window to drop   ·   F open nearest crate")
+            window.Add(new Label("Tab close   ·   drag to move   ·   R rotate while dragging   ·   Shift+drag split   ·   Ctrl+click quick move   ·   double-click open   ·   drag out of the window to drop   ·   F open nearest crate")
                 .WithClass("inv-help"));
             _root.Add(window);
 
             _panels = new InventoryPanels(gear, loot);
-            _panels.CloseClicked += id => _model?.Close(id);
+            _panels.CloseClicked += OnCloseClicked;
             _drag = new InventoryDrag(_root, window, _panels);
             _drag.Message += ShowMessage;
+            _split = new InventorySplitDialog(_root);
+            _split.Message += ShowMessage;
+            _drag.SplitRequested += (itemId, rotated, target) => _split.Show(_model, itemId, rotated, target);
+            _tooltip = new InventoryTooltip(_root, _panels, _drag);
 
             _root.style.display = DisplayStyle.None;
             _document.rootVisualElement.Add(_root);
@@ -178,7 +193,23 @@ namespace RaidZero.UI
             }
 
             var keyboard = Keyboard.current;
-            if (keyboard != null)
+            if (keyboard != null && _split.IsOpen)
+            {
+                // While it's asking how many, only these: typing a number mustn't rotate or open anything.
+                if (keyboard.enterKey.wasPressedThisFrame || keyboard.numpadEnterKey.wasPressedThisFrame)
+                {
+                    _split.Confirm();
+                }
+                else if (keyboard.escapeKey.wasPressedThisFrame)
+                {
+                    _split.Hide();
+                }
+                else if (keyboard.tabKey.wasPressedThisFrame)
+                {
+                    Close();
+                }
+            }
+            else if (keyboard != null)
             {
                 if (keyboard.tabKey.wasPressedThisFrame)
                 {
@@ -251,6 +282,7 @@ namespace RaidZero.UI
             _model.Changed += OnModelChanged;
             _model.Refused += ShowMessage;
             _drag.SetModel(_model);
+            _tooltip.SetModel(_model);
             _dirty = true;
         }
 
@@ -266,6 +298,23 @@ namespace RaidZero.UI
 
             _source?.Dispose();
             _source = null;
+        }
+
+        private void OnCloseClicked(string id)
+        {
+            if (_model == null)
+            {
+                return;
+            }
+
+            if (_model.IsOpenedItem(id))
+            {
+                _model.CloseItem(id);
+            }
+            else
+            {
+                _model.Close(id);
+            }
         }
 
         // Rebuilt on the next frame rather than inside the event, so a burst of updates is drawn once.

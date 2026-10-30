@@ -89,10 +89,13 @@ jobs:
           restore-keys: |
             library-linux-server-
 
-      # Headroom for memory spikes: past the runner's RAM and swap, Unity is killed outright (exit code 137).
-      # With more swap the build slows down for a moment instead.
-      - name: Add swap
+      # Swap as headroom for real memory spikes. (Unity's occasional exit code 137 at startup isn't one: it
+      # happens with memory to spare, with nothing from the kernel's out-of-memory killer, systemd-oomd or
+      # Docker, so it comes from inside the Unity container. Possibly a cousin of Unity issue UUM-149014.
+      # The build step below retries once for it.)
+      - name: Prepare the runner
         run: |
+          . /etc/os-release; echo "Runner: $PRETTY_NAME, kernel $(uname -r)"
           dir=/mnt; [ -d "$dir" ] || dir=/
           sudo fallocate -l 8G "$dir/extra-swapfile"
           sudo chmod 600 "$dir/extra-swapfile"
@@ -103,7 +106,32 @@ jobs:
 
       # Unity defines UNITY_SERVER for the Server subtarget, which is what makes Fish-Net start the server
       # on its own. The output is build/StandaloneLinux64/RaidZeroServer.x86_64 plus its data folder.
-      - uses: game-ci/unity-builder@v5
+      # If Unity is killed at startup, the next step tries once more (the image is pulled by then, so a
+      # failed attempt costs seconds); the Diagnostics step reports either way.
+      - id: build
+        uses: game-ci/unity-builder@v5
+        continue-on-error: true
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          projectPath: unity/RaidZero
+          targetPlatform: StandaloneLinux64
+          buildName: RaidZeroServer
+          customParameters: -standaloneBuildSubtarget Server
+          versioning: None
+
+      # The killed editor leaves its Temp folder (owned by root, from the container) behind; clear it first.
+      - name: Note the first attempt failed
+        if: steps.build.outcome == 'failure'
+        run: |
+          echo "::warning::The first Unity build attempt failed; trying again. Diagnostics at the end of the job say why."
+          sudo rm -rf unity/RaidZero/Temp
+
+      - id: build_retry
+        if: steps.build.outcome == 'failure'
+        uses: game-ci/unity-builder@v5
         env:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
@@ -151,6 +179,54 @@ jobs:
           ss -lun | grep -q ':7770 ' || { echo "::error::Nothing is listening on UDP 7770."; exit 1; }
           docker rm -f gameserver
 
+      # Two short raids against the backend the smoke test started, each with a fresh server and the same image
+      # as a scripted player (--ci-client, Scripts/Net/CiClient.cs). In the first the server puts an extraction
+      # zone where the player spawns, so they extract without moving; in the second they stand still until the
+      # clock runs out and they're missing in action. The client checks the backend's result and its gear, and
+      # exits non-zero if anything's wrong. Each server must then close the raid and exit on its own.
+      - name: Raid test
+        run: |
+          curl -sf http://localhost:5080/healthz > /dev/null || { cat backend.log; echo "::error::The backend isn't running."; exit 1; }
+          failed=0
+
+          raid() {  # $1: how the client expects to leave; the rest: arguments for the server
+            local expect=$1; shift
+            echo "::group::Raid: $expect"
+            docker run -d --name gameserver --network host \
+              -e RAIDZERO_BACKEND_URL=http://localhost:5080 \
+              -e RAIDZERO_SERVER_TOKEN='3ogBGujpU2KY3j673e4CUY3CYXusmi72kOaph+xeRQs=' \
+              raidzero-gameserver "$@" > /dev/null
+            for _ in $(seq 1 60); do
+              docker logs gameserver 2>&1 | grep -q '\[raid\] Server ready' && break
+              sleep 2
+            done
+
+            local code=0
+            timeout 360 docker run --name ciclient --network host \
+              -e RAIDZERO_BACKEND_URL=http://localhost:5080 \
+              raidzero-gameserver --ci-client --ci-expect "$expect" --ci-timeout 300 > client.log 2>&1 || code=$?
+            local server_code
+            server_code=$(timeout 90 docker wait gameserver 2>/dev/null || echo "still running")
+
+            echo "--- client:"; grep -E '\[ci\]|Exception' client.log | head -n 60 || true
+            echo "--- server:"; docker logs gameserver 2>&1 | grep -E '\[(raid|backend)\]|Exception' | tail -n 60 || true
+            echo "::endgroup::"
+
+            if [ "$code" != 0 ] || ! grep -q '\[ci\] PASS' client.log; then
+              echo "::error::Raid test ($expect) failed: $(grep -m1 '\[ci\] FAIL' client.log || echo "the client exited with $code")"
+              echo "::group::Full client log ($expect)"; cat client.log; echo "::endgroup::"
+              failed=1
+            elif [ "$server_code" != 0 ]; then
+              echo "::error::Raid test ($expect): the game server didn't close the raid and exit cleanly (exit: $server_code)."
+              failed=1
+            fi
+            docker rm -f ciclient gameserver > /dev/null 2>&1 || true
+          }
+
+          raid extracted --test-extract-at-spawn
+          raid missing_in_action --raid-minutes 0.5
+          [ "$failed" = 0 ] || { echo "--- backend log:"; tail -n 100 backend.log; exit 1; }
+
       - uses: docker/login-action@v4
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         with:
@@ -178,16 +254,23 @@ jobs:
             docker push "$tag"
           done
 
-      # Only when something failed: what the runner looked like, and whether the kernel killed anything for
-      # running out of memory, so a "Killed" in the log comes with its reason.
+      # When anything failed, including a first Unity attempt the retry made up for: what the runner looked
+      # like, and who might have killed Unity: the kernel's out-of-memory killer, systemd-oomd, or Docker.
       - name: Diagnostics
-        if: failure()
+        if: failure() || steps.build.outcome == 'failure'
         run: |
+          . /etc/os-release; echo "Runner: $PRETTY_NAME, kernel $(uname -r)"
           free -h
           df -h
           swapon --show
           echo "--- kernel out-of-memory messages:"
           oom=$(sudo dmesg -T | grep -iE "out of memory|oom-kill|killed process" | tail -n 20 || true)
           echo "${oom:-(none)}"
-          echo "--- containers:"
+          echo "--- systemd-oomd:"
+          systemctl is-active systemd-oomd 2>&1 || true
+          sudo journalctl -b --no-pager -u systemd-oomd 2>&1 | tail -n 20 || true
+          echo "--- system log lines about killing or memory:"
+          sudo journalctl -b --no-pager 2>&1 | grep -iE "oom|out of memory|killed|kill process|memory pressure|sigkill" | tail -n 40 || true
+          echo "--- docker:"
+          sudo journalctl -b --no-pager -u docker 2>&1 | tail -n 30 || true
           docker ps -a

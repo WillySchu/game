@@ -22,7 +22,9 @@ unity/server.Dockerfile    The dedicated game server's image, around a Unity Lin
 deploy/                    Running the backend and a game server on a VPS (deploy/README.md) or on your own
                            machine over Tailscale (deploy/LOCAL.md)
 .github/workflows/ci.yml   Tests every push and pull request; pushes the backend image to GHCR from main
-.github/workflows/server.yml  Builds the game server with Unity, smoke tests it, pushes its image to GHCR from main
+.github/workflows/server.yml  Builds the game server with Unity, smoke tests it, plays two scripted raids on it,
+                              pushes its image to GHCR from main
+.github/workflows/client.yml  Builds the game client for Windows and macOS from main, as downloadable artifacts
 ```
 
 Build output goes to `artifacts/` at the repo root, never next to the projects (see `Directory.Build.props`).
@@ -109,6 +111,9 @@ The key in `appsettings.Development.json` is for local runs only. Real deploymen
 - Items are defined in Unity: one `ItemDefinitionAsset` per item in `unity/RaidZero/Assets/_Project/Data/Items`,
   holding the rules (size, stacking, tags, slots, grids) and the presentation (display name, description, icon,
   world prefab).
+- Icons: an item's hand-drawn **Icon** wins; otherwise the one Raid Zero > Items > Render Icons renders from its
+  world prefab (`ItemIconRenderer`: a side view at 64 px per cell, transparent, into `Data/ItemIcons`), turned
+  by the item's **Icon Angles** if the model faces another way. Items with neither get the plain look.
 - Containers hold items in one or more named grids. A backpack, crate or the stash has one, named `grid`; a rig
   can have one per pocket. Each grid is separate, so an item can't straddle two pockets. An item in a grid stores
   the grid's name as its slot, plus x and y within it. A target of `"slot": "grid"` with no x and y means the
@@ -185,6 +190,19 @@ The key in `appsettings.Development.json` is for local runs only. Real deploymen
 - Same rules as `Game.Shared` (Unity compiles it), plus one dependency: Newtonsoft.Json. JSON is built by hand
   with `JObject`, never by reflection, so IL2CPP code stripping can't break it.
 
+**Loot tables** (`shared/Game.Shared/Runtime/Loot`, assets in `unity/RaidZero/Assets/_Project/Data/Loot`)
+- A loot table (Create > Raid Zero > Loot Table) rolls a number of picks, each a weighted choice among its entries
+  or nothing. An entry is an item, with a quantity range for stacks, a condition range, and a chance of coming
+  loaded (a weapon with a magazine, a magazine with rounds, filled within a range); or another table.
+- A container type's item asset names its default table (`crate_wooden` uses `loot_wooden_crate`); a crate in a
+  scene can name its own instead. A crate's fixed Contents list, if it has one, overrides both, for testing.
+- `LootRoller` is plain C# with tests: it rolls with `LootRandom` (SplitMix64, the same numbers under Unity and
+  .NET), packs the biggest items first, and checks tables (`Validate`). Each raid picks a loot seed and logs it
+  (`[raid] Loot seed ...`); each crate rolls from that seed and its own ID, so `--loot-seed` (or Loot Seed on
+  `RaidServer`) gives a raid's crates again exactly.
+- The table inspector lists every problem and has a Simulate button: a thousand rolls into a chosen container,
+  with how often each item turns up, how many items a container gets, and whether any didn't fit.
+
 **Raid inventory** (`shared/Game.Raid`, `RaidInventoryService`)
 - One `InventoryTree` per raid. Its roots are every player's character, every loot container, every body
   and every pile on the ground, so looting, picking up and dropping are moves between roots and an item can't
@@ -233,28 +251,40 @@ The key in `appsettings.Development.json` is for local runs only. Real deploymen
   slot equips it, the same stackable item merges, an item with a slot that takes it loads it (more rounds than a
   magazine holds splits off what fits), a container puts it inside, and outside the window drops it. Ctrl+click
   (`QuickMove`) equips into an empty slot, then the rig, then the backpack; from the character, into the open
-  container.
+  container. Shift-drag (`ResolvePart`) does the same with part of a stack: a move becomes a split, a merge or
+  load moves only that many.
+- `InventoryModel.OpenItem` opens a container that's inside another (a backpack in a crate) as its own panel.
+  Its contents are already in the tree, so it's screen-only state; it closes by itself when the item goes or
+  gets equipped, and Ctrl+click from the character prefers it.
 - Every plan is checked with `InventoryTree.Check`, a dry run of exactly the rules the server applies, so the
   screen shows green or red while dragging and never sends what it knows will be refused. Refusals carry a
   sentence for the player (`InventoryUiErrors`).
 - `InventoryModel` is what the screen talks to. It sits on an `IInventorySource`: `RaidInventorySource` in a raid
-  (made by `RaidInventoryClient.CreateSource()`), and later a Hideout source over `PlayerSession`, so the same
-  screen serves both. Nothing changes on screen until the source reports the server's answer.
+  (made by `RaidInventoryClient.CreateSource()`), and `HideoutInventorySource` (in `Game.BackendClient`) over
+  `PlayerSession` between raids, with the character and the stash as its roots, so the same screen serves both.
+  Nothing changes on screen until the source reports the server's answer. In the Hideout an edit is checked
+  locally, sent with the profile version (retried once after a refresh on a conflict), and a refusal such as
+  `in_raid` comes back as a sentence; nothing can be dropped there.
 - `PocketLayout` places a container's grids on screen: where the item asset's grid says (Place On Screen,
   Position), or flowing left to right in fill order. `ItemBadges` gives an item its colour family (from its tags)
-  and its corner number (stack size, or rounds in a magazine or a weapon's magazine).
+  and its corner number (stack size, or rounds in a magazine or a weapon's magazine). `ItemTooltip` says what an
+  item's tooltip shows: its name and category, then only the facts that apply (condition, stack, the magazine
+  and rounds loaded, how full a container is) and the asset's description.
 
 **Inventory screen** (`unity/RaidZero/Assets/_Project/Scripts/UI`, assembly `Game.UI`)
 - `InventoryScreen` is the raid's inventory in UI Toolkit: Tab toggles it, F opens the nearest crate for now.
   `InventoryPanels` builds the elements from the model (gear and its rig and backpack on the left, open
   containers on the right); `InventoryDrag` turns pointer movement into `DropTarget`s and asks the model for a
-  plan. All the look is in `Assets/_Project/UI/Resources/InventoryScreen.uss`; cell size is
+  plan. `InventoryItemLook` draws an item (its icon, or the plain look) for the panels and the drag ghost alike;
+  `InventoryTooltip` shows the tooltip when the pointer rests on one. All the look is in `Assets/_Project/UI/Resources/InventoryScreen.uss`; cell size is
   `InventoryPanels.Cell`, at a 1920x1080 reference resolution set on `InventoryPanelSettings`.
 
 **Unity networking** (`unity/RaidZero/Assets/_Project/Scripts/Net`, assembly `Game.Net`)
 - The thin Fish-Net layer over everything above. `RaidAuthenticator` lets a client in only with a raid ticket
   the backend accepts; `RaidServer` owns the backend client and the raid's inventory on the server;
   `RaidInventoryClient` is the client's end, with the `View` the inventory screen draws from.
+- Fish-Net's latency simulator (100 ms, 2% loss) is on the NetworkManager's Transport Manager. Its Enabled box
+  decides in the editor; `NetworkConditions` turns it off in builds unless they're started with `--simulate-lag`.
 - Gameplay calls `RaidServer.PlayerDied`, `Consume` and `InterruptExtraction` (on damage). Levels place
   `ExtractionZone`s, and crates carry a `LootContainer`; bodies and ground piles register in
   `ContainerRegistry` so the server can check reach. A dead player's body must be its own object: their
@@ -313,10 +343,19 @@ To build the image yourself, from the repo root: `docker build -f backend/Docker
 
 A second workflow builds the dedicated game server whenever the Unity project or shared code changes: a Unity
 Linux Dedicated Server build through [GameCI](https://game.ci), wrapped in `unity/server.Dockerfile`. It starts
-the backend and the server together and checks the server comes up ready, then on `main` pushes
-`ghcr.io/<owner>/<repo>/gameserver`. It needs a Unity license as repository secrets (`deploy/README.md` says
+the backend and the server together and checks the server comes up ready, then plays two short raids against
+them with the same image as a scripted player (`--ci-client`, `Scripts/Net/CiClient.cs`): one where the player
+extracts at a zone the server puts where they spawn (`--test-extract-at-spawn`), and one where they stand still
+until the clock runs out and they're missing in action. Each time the scripted player checks the backend's result
+and where its gear ended up (`RaidResultCheck`), and the server must close the raid and exit by itself. Then, on
+`main`, it pushes `ghcr.io/<owner>/<repo>/gameserver`. It needs a Unity license as repository secrets (`deploy/README.md` says
 how); without them it skips the build. The game server tells the backend which map it has loaded on every join
 (`RaidServer`'s Map Id), and the backend refuses a raid on another map (`wrong_map`) before anyone's gear moves.
+
+A third builds the client for Windows and macOS on every push to `main` that touches the Unity project or shared
+code (or by hand, from the Actions tab), as Development builds so the F1 overlay works, and attaches them to the
+run as artifacts for 14 days. `unity/TESTING-INSTRUCTIONS.md` says how to run them; `deploy/LOCAL.md` how to
+point them at a playtest server.
 
 ## What's next (backend)
 

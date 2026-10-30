@@ -1,7 +1,9 @@
 {
     "name": "Game.Net.Editor",
     "rootNamespace": "RaidZero.Net.Editor",
-    "references": [],
+    "references": [
+        "Game.Items"
+    ],
     "includePlatforms": [
         "Editor"
     ],

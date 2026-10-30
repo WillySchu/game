@@ -114,7 +114,8 @@
     border-color: rgba(255, 255, 255, 0.06);
 }
 
-/* Items. Category classes come from ItemBadges.Category. */
+/* Items, drawn by InventoryItemLook. Category classes come from ItemBadges.Category.
+ * Keep the border at 1px or change InventoryItemLook.ItemBorder with it: rotated icons are sized inside it. */
 .inv-item {
     padding: 2px 3px;
     border-width: 1px;
@@ -146,6 +147,110 @@
     white-space: normal;
     color: rgb(232, 228, 214);
     -unity-text-align: upper-left;
+}
+
+/* The plain look, for items without an icon: the category in small capitals over the name. */
+.inv-item__kind {
+    font-size: 8px;
+    letter-spacing: 1px;
+    color: rgba(232, 228, 214, 0.45);
+    -unity-text-align: upper-left;
+    margin-bottom: 1px;
+}
+
+/* With an icon: the picture fills the item, and the name shrinks to a label in the corner. */
+.inv-item--has-icon {
+    padding: 0;
+}
+
+.inv-item__icon {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position-x: center;
+    background-position-y: center;
+}
+
+.inv-item__icon--rotated {
+    rotate: 90deg;
+}
+
+.inv-item--has-icon > .inv-item__name {
+    position: absolute;
+    top: 1px;
+    right: 3px;
+    max-width: 90%;
+    font-size: 9px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    -unity-text-align: upper-right;
+    color: rgba(240, 236, 220, 0.85);
+    text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.9);
+}
+
+.inv-item--has-icon > .inv-item__count {
+    text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.9);
+}
+
+/* The tooltip that appears when the pointer rests on an item (InventoryTooltip). */
+.inv-tooltip {
+    min-width: 180px;
+    max-width: 320px;
+    padding: 8px 10px;
+    background-color: rgba(16, 18, 16, 0.96);
+    border-width: 1px;
+    border-color: rgb(96, 102, 88);
+    border-radius: 3px;
+}
+
+.inv-tooltip__title {
+    font-size: 14px;
+    -unity-font-style: bold;
+    color: rgb(240, 236, 220);
+    white-space: normal;
+}
+
+.inv-tooltip__category {
+    font-size: 10px;
+    color: rgb(150, 154, 140);
+    margin-bottom: 4px;
+}
+
+.inv-tooltip__lines {
+    border-top-width: 1px;
+    border-color: rgba(255, 255, 255, 0.1);
+    padding-top: 4px;
+}
+
+.inv-tooltip__line {
+    flex-direction: row;
+    justify-content: space-between;
+}
+
+.inv-tooltip__label {
+    font-size: 11px;
+    color: rgb(160, 164, 150);
+    margin-right: 12px;
+}
+
+.inv-tooltip__value {
+    font-size: 11px;
+    color: rgb(232, 228, 214);
+    -unity-text-align: upper-right;
+    flex-shrink: 1;
+    white-space: normal;
+}
+
+.inv-tooltip__description {
+    margin-top: 6px;
+    font-size: 11px;
+    color: rgb(190, 192, 178);
+    white-space: normal;
 }
 
 .inv-item__count {
@@ -212,4 +317,48 @@
     font-size: 13px;
     color: rgb(150, 150, 138);
     margin: 8px 0;
+}
+
+/* A container opened from inside another (double-click), and the item it was opened from. */
+.inv-panel--opened {
+    border-width: 1px;
+    border-color: rgb(110, 120, 90);
+}
+
+.inv-item--opened {
+    border-color: rgb(200, 210, 150);
+}
+
+/* Shift-dragging part of a stack: the corner says "split". The border still shows green or red. */
+.inv-ghost--split {
+    opacity: 0.7;
+}
+
+/* "How many?" after a shift-drag. The dimmed area around the box cancels when clicked. */
+.inv-split {
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(0, 0, 0, 0.4);
+}
+
+.inv-split__box {
+    width: 380px;
+    padding: 14px;
+    background-color: rgb(32, 35, 31);
+    border-width: 1px;
+    border-color: rgb(90, 96, 84);
+    border-radius: 4px;
+}
+
+.inv-split__title {
+    font-size: 14px;
+    color: rgb(214, 210, 196);
+    margin-bottom: 8px;
+    white-space: normal;
+}
+
+.inv-split__buttons {
+    flex-direction: row;
+    justify-content: flex-end;
+    margin-top: 10px;
 }
