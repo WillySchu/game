@@ -55568,6 +55568,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Game.Net::RaidZero.Net.LootContainer
   _defId: crate_wooden
+  _lootTable: {fileID: 0}
   _contents:
   - DefId: loot_gpu
     Quantity: 1
