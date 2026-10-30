@@ -15,7 +15,8 @@ Will & John · first written Oct 26, 2026 · last updated Oct 29, 2026
 | Weapons, hit registration, damage, health and death | Not started | John |
 | AI | Not started | John |
 | Interaction, pickups, bodies and ground items in the world | Not started | To agree |
-| Hideout scene and screens, scene flow | Not started | To agree |
+| Hideout screen: login, gear and stash, deploy, raid results | Done | Will |
+| Scene flow: Boot, Hideout and raid scenes, joining | Not started | John |
 
 Who owns what below is **proposed**: several of John's items moved to Will along the way, and the rest of the
 split is for the two of you to agree. The README has the detail on everything that's built.
@@ -40,7 +41,8 @@ doc; where the two meet (joining a raid, reporting outcomes, item IDs), that doc
 | Raid timer, extraction rules, loot tables and rolling | Will (done) |
 | Raid inventory on the server, and the inventory screen on the client | Will (done; the screen was John's, handed over) |
 | Interaction, pickups, and bodies and ground items in the world | To agree |
-| Hideout screens and the scene flow around a raid | To agree (the data side is done) |
+| Hideout screen | Will (done) |
+| The scene flow around a raid (Boot, Hideout and raid scenes, joining) | John |
 | The dedicated server and client builds | Will (done) |
 
 **Rules every system follows**
@@ -123,10 +125,10 @@ The plan, still the goal:
 - **Hideout:** stash and equipment screens backed by the client API. No networking.
 - **Raid\_Greybox01:** the map. Loaded by the server through Fish-Net's scene manager.
 
-Today there's one scene, `SampleScene`: the NetworkManager prefab, ProBuilder test geometry and one crate. The F1
-debug overlay's Deploy button stands in for the Hideout. Not yet committed to it: an `ExtractionZone`,
-`RaidSessionClient` on the NetworkManager (the raid clock and how you left), and the `InventoryScreen`; until
-they are, each of us adds them locally to test.
+Today `SampleScene` is all three: the NetworkManager prefab, John's greybox geometry, a crate, and the
+`InventoryScreen`. Add a `HideoutScreen` to it and it shows whenever you're not in a raid, so the scene works as
+Hideout and raid at once until the scene flow exists; the F1 overlay's Deploy still works too. Not yet committed
+to it: an `ExtractionZone` (the `ExtractionCube` is only a mesh) and `RaidSessionClient` on the NetworkManager.
 
 ### Builds
 
@@ -374,6 +376,12 @@ The Hideout calls the client API directly over HTTP through `PlayerSession`: fet
 ops with the profile version, refetch on a version conflict. `HideoutInventorySource` puts that behind the same
 `IInventorySource` the raid uses, so the same screen works in both places; only the source behind it differs.
 
+`HideoutScreen` (`Game.UI`) is that screen: log in (dev login by name), sort gear and stash, Deploy, and a result
+panel after each raid (what came home, what was lost). It shares the window, dragging and tooltips with the raid's
+`InventoryScreen` through `InventoryView`. It shows itself whenever the scene's NetworkManager has no client or
+server running; scene flow can turn that off and call `Show`/`Hide`, and can take over deploying by listening to
+`DeployRequested` (map ID), in which case the screen only asks.
+
 ### The contract
 
 These must match exactly across Unity and the backend. Change them in one pull request that touches both sides.
@@ -411,7 +419,7 @@ Two tracks ran in parallel until step 8, when they joined. Each step ends with s
    - Check: gear set up in the stash appears on the character in the raid.
 9. **Extract, die, timer and outbox (pair). Done** on the server side; death in play waits on step 4.
    - Check: the raid flow done list above, including killing the server mid-raid and confirming the refund.
-10. **Hideout screens (to agree). Data side done.** Stash and equipment UI over the client API.
+10. **Hideout screen (Will). Done;** scene flow around it (John) not started. Stash and equipment UI over the client API.
     - Check: rearrange gear, start a raid, come back, and see the result.
 11. **End-to-end playtest (both). Partly done:** Tailscale playtests against a dedicated server on a home PC; not
     yet on a VPS, or with AI and weapons.
@@ -441,7 +449,7 @@ Automate what can be expressed as rules, and playtest what can only be felt.
 - [ ] Hit markers: keep server-confirmed, or predict them once playtests show the delay matters?
 - [ ] Third-person body for remote players: buy an animated asset pack now, or stay on capsules until the loop
   is fun?
-- [ ] Who takes the Hideout screens, and interaction, pickups and bodies in the world?
+- [ ] Who takes interaction, pickups and bodies in the world? (The Hideout screen is Will's, done; scene flow is John's.)
 - [x] Tick rate: 60 Hz.
 - [x] Grid inventory or slot-based: grids (Tarkov-style), plus named slots and pockets.
 - [x] Disconnects: the gear stays in the raid and the player can rejoin with the same ticket until it ends;

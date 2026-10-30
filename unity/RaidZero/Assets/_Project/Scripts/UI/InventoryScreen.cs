@@ -19,16 +19,15 @@ namespace RaidZero.UI
     /// container that's inside another. Resting the pointer on an item shows its tooltip. F opens the nearest
     /// crate (a stand-in until interaction exists).
     ///
-    /// The rules all live in shared code (InventoryModel over the raid's RaidInventorySource), so this only
-    /// builds elements and forwards input. Put it on any GameObject in the raid scene. It makes its own
-    /// UIDocument from Resources/InventoryPanelSettings and styles itself with Resources/InventoryScreen.uss.
+    /// The rules all live in shared code (InventoryModel over the raid's RaidInventorySource), and the window,
+    /// dragging and tooltips in InventoryView, which the Hideout screen shares; this adds the raid's parts: Tab,
+    /// the player's input, crates. Put it on any GameObject in the raid scene. It makes its own UIDocument from
+    /// Resources/InventoryPanelSettings and styles itself with Resources/InventoryScreen.uss.
     /// </summary>
     public sealed class InventoryScreen : MonoBehaviour
     {
-        private const string PanelSettingsResource = "InventoryPanelSettings";
-        private const string StyleSheetResource = "InventoryScreen";
         private const string UiActionMap = "UI";
-        private const float MessageSeconds = 4f;
+        private const string Help = "Tab close   ·   drag to move   ·   R rotate while dragging   ·   Shift+drag split   ·   Ctrl+click quick move   ·   double-click open   ·   drag out of the window to drop   ·   F open nearest crate";
 
         [SerializeField]
         [Tooltip("How close the nearest crate must be for F to open it, in metres.")]
@@ -36,21 +35,13 @@ namespace RaidZero.UI
 
         private readonly List<KeyValuePair<PlayerInput, string>> _switchedInputs = new List<KeyValuePair<PlayerInput, string>>();
 
-        private UIDocument _document;
-        private VisualElement _root;
-        private Label _status;
-        private InventoryPanels _panels;
-        private InventoryDrag _drag;
-        private InventorySplitDialog _split;
-        private InventoryTooltip _tooltip;
-
+        private InventoryView _view;
         private ItemCatalog _catalog;
         private RaidInventorySource _source;
         private InventoryModel _model;
 
         private bool _open;
         private bool _dirty;
-        private float _statusUntil;
         private CursorLockMode _cursorBefore;
         private bool _cursorVisibleBefore;
 
@@ -58,14 +49,14 @@ namespace RaidZero.UI
 
         public void Open()
         {
-            if (_open || _root == null)
+            if (_open || _view == null)
             {
                 return;
             }
 
             EnsureModel();
             _open = true;
-            _root.style.display = DisplayStyle.Flex;
+            _view.Show();
             _cursorBefore = Cursor.lockState;
             _cursorVisibleBefore = Cursor.visible;
             Cursor.lockState = CursorLockMode.None;
@@ -81,11 +72,8 @@ namespace RaidZero.UI
                 return;
             }
 
-            _drag.Cancel();
-            _split.Hide();
-            _tooltip.Hide();
+            _view.Hide();
             _open = false;
-            _root.style.display = DisplayStyle.None;
             Cursor.lockState = _cursorBefore;
             Cursor.visible = _cursorVisibleBefore;
             RestoreInputs();
@@ -107,66 +95,14 @@ namespace RaidZero.UI
 
         private void Awake()
         {
-            var settings = Resources.Load<PanelSettings>(PanelSettingsResource);
-            if (settings == null)
+            _view = InventoryView.Create(transform, "Inventory UI", Help);
+            if (_view == null)
             {
-                Debug.LogError("[inventory] Resources/" + PanelSettingsResource + " is missing, so the inventory screen is off.");
                 enabled = false;
                 return;
             }
 
-            // The document goes on its own inactive child so its panel settings are set before it first enables.
-            var holder = new GameObject("Inventory UI");
-            holder.SetActive(false);
-            holder.transform.SetParent(transform, false);
-            _document = holder.AddComponent<UIDocument>();
-            _document.panelSettings = settings;
-            holder.SetActive(true);
-
-            // Fills the screen even without the stylesheet: the backdrop is what "outside the window" means.
-            _root = new VisualElement { name = "inventory-root" }.WithClass("inv-root");
-            _root.style.position = Position.Absolute;
-            _root.style.left = 0;
-            _root.style.top = 0;
-            _root.style.right = 0;
-            _root.style.bottom = 0;
-            var sheet = Resources.Load<StyleSheet>(StyleSheetResource);
-            if (sheet != null)
-            {
-                _root.styleSheets.Add(sheet);
-            }
-            else
-            {
-                Debug.LogWarning("[inventory] Resources/" + StyleSheetResource + ".uss is missing; the screen will be unstyled.");
-            }
-
-            var window = new VisualElement().WithClass("inv-window");
-            var columns = new VisualElement().WithClass("inv-columns");
-            var gear = new ScrollView(ScrollViewMode.Vertical).WithClass("inv-column").WithClass("inv-column--gear");
-            var loot = new ScrollView(ScrollViewMode.Vertical).WithClass("inv-column").WithClass("inv-column--loot");
-            gear.style.width = (InventoryPanels.GearColumnCells + 1) * InventoryPanels.Cell;
-            loot.style.width = (InventoryPanels.LootColumnCells + 1) * InventoryPanels.Cell;
-            columns.Add(gear);
-            columns.Add(loot);
-            window.Add(columns);
-
-            _status = new Label().WithClass("inv-status");
-            window.Add(_status);
-            window.Add(new Label("Tab close   ·   drag to move   ·   R rotate while dragging   ·   Shift+drag split   ·   Ctrl+click quick move   ·   double-click open   ·   drag out of the window to drop   ·   F open nearest crate")
-                .WithClass("inv-help"));
-            _root.Add(window);
-
-            _panels = new InventoryPanels(gear, loot);
-            _panels.CloseClicked += OnCloseClicked;
-            _drag = new InventoryDrag(_root, window, _panels);
-            _drag.Message += ShowMessage;
-            _split = new InventorySplitDialog(_root);
-            _split.Message += ShowMessage;
-            _drag.SplitRequested += (itemId, rotated, target) => _split.Show(_model, itemId, rotated, target);
-            _tooltip = new InventoryTooltip(_root, _panels, _drag);
-
-            _root.style.display = DisplayStyle.None;
-            _document.rootVisualElement.Add(_root);
+            _view.Panels.CloseClicked += OnCloseClicked;
         }
 
         private void OnDestroy()
@@ -181,7 +117,7 @@ namespace RaidZero.UI
 
         private void Update()
         {
-            if (_root == null)
+            if (_view == null)
             {
                 return;
             }
@@ -193,21 +129,9 @@ namespace RaidZero.UI
             }
 
             var keyboard = Keyboard.current;
-            if (keyboard != null && _split.IsOpen)
+            if (_open && _view.HandleKeys(keyboard))
             {
-                // While it's asking how many, only these: typing a number mustn't rotate or open anything.
-                if (keyboard.enterKey.wasPressedThisFrame || keyboard.numpadEnterKey.wasPressedThisFrame)
-                {
-                    _split.Confirm();
-                }
-                else if (keyboard.escapeKey.wasPressedThisFrame)
-                {
-                    _split.Hide();
-                }
-                else if (keyboard.tabKey.wasPressedThisFrame)
-                {
-                    Close();
-                }
+                // The view used the key (the split dialog, or turning or cancelling a drag).
             }
             else if (keyboard != null)
             {
@@ -217,25 +141,14 @@ namespace RaidZero.UI
                     {
                         Close();
                     }
-                    else
+                    else if (!HideoutShowing())
                     {
                         Open();
                     }
                 }
                 else if (keyboard.escapeKey.wasPressedThisFrame && _open)
                 {
-                    if (_drag.IsDragging)
-                    {
-                        _drag.Cancel();
-                    }
-                    else
-                    {
-                        Close();
-                    }
-                }
-                else if (keyboard.rKey.wasPressedThisFrame && _open)
-                {
-                    _drag.Rotate();
+                    Close();
                 }
                 else if (keyboard.fKey.wasPressedThisFrame)
                 {
@@ -248,11 +161,7 @@ namespace RaidZero.UI
                 Rebuild();
             }
 
-            if (_statusUntil > 0 && Time.unscaledTime > _statusUntil)
-            {
-                _statusUntil = 0;
-                _status.text = "";
-            }
+            _view.Tick();
         }
 
         private void EnsureModel()
@@ -280,9 +189,8 @@ namespace RaidZero.UI
             _source = client.CreateSource();
             _model = new InventoryModel(_catalog, _source);
             _model.Changed += OnModelChanged;
-            _model.Refused += ShowMessage;
-            _drag.SetModel(_model);
-            _tooltip.SetModel(_model);
+            _model.Refused += _view.ShowMessage;
+            _view.SetModel(_model);
             _dirty = true;
         }
 
@@ -291,7 +199,7 @@ namespace RaidZero.UI
             if (_model != null)
             {
                 _model.Changed -= OnModelChanged;
-                _model.Refused -= ShowMessage;
+                _model.Refused -= _view.ShowMessage;
                 _model.Dispose();
                 _model = null;
             }
@@ -317,25 +225,20 @@ namespace RaidZero.UI
             }
         }
 
+        // In the Hideout, Tab (typing in the name box, say) mustn't open the raid's screen over it.
+        private static bool HideoutShowing()
+        {
+            var hideout = FindAnyObjectByType<HideoutScreen>();
+            return hideout != null && hideout.IsShown;
+        }
+
         // Rebuilt on the next frame rather than inside the event, so a burst of updates is drawn once.
         private void OnModelChanged() => _dirty = true;
 
         private void Rebuild()
         {
             _dirty = false;
-            _panels.Build(_model, RaidInventoryClient.Instance == null ? "Not connected to a raid." : "Waiting for your gear: join a raid first.");
-            _drag.Refresh();
-        }
-
-        private void ShowMessage(string sentence)
-        {
-            if (string.IsNullOrEmpty(sentence) || _status == null)
-            {
-                return;
-            }
-
-            _status.text = sentence;
-            _statusUntil = Time.unscaledTime + MessageSeconds;
+            _view.Rebuild(RaidInventoryClient.Instance == null ? "Not connected to a raid." : "Waiting for your gear: join a raid first.");
         }
 
         // Stop the character walking and looking around while the screen is up, and put it back after.
@@ -392,7 +295,7 @@ namespace RaidZero.UI
 
             if (nearest == null)
             {
-                ShowMessage("There's no crate within " + _openRange + " m.");
+                _view.ShowMessage("There's no crate within " + _openRange + " m.");
                 return;
             }
 
