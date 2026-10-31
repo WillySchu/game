@@ -36,3 +36,4 @@ Thumbs.db
 # Deployment secrets
 deploy/.env
 deploy/.env.local
+unity/RaidZero/ProjectSettings/Packages/com.unity.probuilder/Settings.json

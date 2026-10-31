@@ -38,13 +38,17 @@ public class PlayerController : NetworkBehaviour
         public Quaternion rotation;
         public Vector3 velocity;
         public float xRotation;
+        public bool wasGroundedLastFrame;
+        public float horizontalFallVelocity;
 
-        public PlayerReconcileData(Vector3 position, Quaternion rotation, Vector3 velocity, float xRotation) : this()
+        public PlayerReconcileData(Vector3 position, Quaternion rotation, Vector3 velocity, float xRotation, bool wasGroundedLastFrame, float horizontalFallVelocity) : this()
         {
             this.position = position;
             this.rotation = rotation;
             this.velocity = velocity;
             this.xRotation = xRotation;
+            this.wasGroundedLastFrame = wasGroundedLastFrame;
+            this.horizontalFallVelocity = horizontalFallVelocity;
         }
         
         private uint _tick;
@@ -94,18 +98,20 @@ public class PlayerController : NetworkBehaviour
         }
         Cursor.lockState = CursorLockMode.Locked;
         currentMoveSpeed = walkSpeed;
+    }
 
+    public override void OnStartNetwork()
+    {
         base.TimeManager.OnTick += OnTick;
         base.TimeManager.OnPostTick += OnPostTick;
     }
 
-    public override void OnStopClient()
+    public override void OnStopNetwork()
     {
-        if (!IsOwner) return;
         base.TimeManager.OnTick -= OnTick;
         base.TimeManager.OnPostTick -= OnPostTick;
-    }
 
+    }
     public void OnMove(InputValue value)
     {
         currentMoveInput = value.Get<Vector2>();
@@ -131,7 +137,7 @@ public class PlayerController : NetworkBehaviour
     }
     public void OnTick()
     {
-        DoReplicate(GetReplicatedData());
+        DoReplicate( IsOwner ? GetReplicatedData() : default);
     }
 
     
@@ -177,6 +183,7 @@ public class PlayerController : NetworkBehaviour
 
                     // Any inputs that a player is unlikely to repeat should be unset.
                     data.jumpInput = false;
+                    data.lookInput = Vector2.zero;
                 }
             }
         }
@@ -269,7 +276,7 @@ public class PlayerController : NetworkBehaviour
 
     public override void CreateReconcile()
     {
-        PlayerReconcileData data = new PlayerReconcileData(transform.position, transform.rotation, currentVelocity, xRotation);
+        PlayerReconcileData data = new PlayerReconcileData(transform.position, transform.rotation, currentVelocity, xRotation, wasGroundedLastFrame, horizontalFallVelocity);
         DoReconcile(data);
     }
 
@@ -281,6 +288,8 @@ public class PlayerController : NetworkBehaviour
         transform.rotation = data.rotation;
         currentVelocity = data.velocity;
         xRotation = data.xRotation;
+        wasGroundedLastFrame = data.wasGroundedLastFrame;
+        horizontalFallVelocity = data.horizontalFallVelocity;
         _cameraMount.localRotation = Quaternion.Euler(xRotation, 0f, 0f);
         _characterController.enabled = true;
     }

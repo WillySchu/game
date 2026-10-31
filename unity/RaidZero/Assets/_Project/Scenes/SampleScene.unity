@@ -11010,7 +11010,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: cd1340fbd8384774a683bc2eaf6ff117, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Game.Net::RaidZero.Net.ExtractionZone
-  _pointName: 
+  _pointName: SampleScene Extract
   _size: {x: 8, y: 3, z: 8}
   _seconds: 8
 --- !u!4 &379313150
