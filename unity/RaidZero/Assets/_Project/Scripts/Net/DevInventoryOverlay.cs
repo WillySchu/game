@@ -346,7 +346,7 @@ namespace RaidZero.Net
             var from = Camera.main != null ? Camera.main.transform.position : Vector3.zero;
             LootContainer nearest = null;
             float best = _openRange;
-            foreach (var crate in FindObjectsByType<LootContainer>(FindObjectsSortMode.None))
+            foreach (var crate in FindObjectsByType<LootContainer>())
             {
                 var distance = Vector3.Distance(from, crate.transform.position);
                 if (distance <= best)

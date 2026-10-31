@@ -351,7 +351,7 @@ namespace RaidZero.Net
                 var lootSeed = ServerConfig.IntArgument("--loot-seed") ?? (_lootSeed != 0 ? _lootSeed : new System.Random().Next(1, int.MaxValue));
                 Debug.Log("[raid] Loot seed " + lootSeed + " (--loot-seed " + lootSeed + ", or Loot Seed on RaidServer, rolls the same loot again)");
                 var inventory = new RaidInventoryService(catalog);
-                foreach (var container in FindObjectsByType<LootContainer>(FindObjectsSortMode.None))
+                foreach (var container in FindObjectsByType<LootContainer>())
                 {
                     inventory.AddContainer(container.BuildContents(catalog, lootSeed));
                 }
