@@ -197,6 +197,12 @@ The editor stays logged in as the same dev player between Play sessions, so Depl
 raid they dropped out of, or with whatever they extracted with. A dev player who died or went missing in action
 has no gear left, so Deploy starts a fresh one with the starter kit instead.
 
+**Start as server**, above Deploy, makes this game the raid's server, as the `Server` button does in Multiplayer
+Play Mode, but in any game: the editor, or a Development build started with `--server-token` (the editor takes
+the token from `RaidZeroDev.json`). While it runs, the overlay says so and has **Stop server**, which ends the
+raid properly. Press Deploy after starting it to play on that server from the same game (host mode): against
+the local backend, the ticket names this machine.
+
 ## A client build from CI
 
 The **Game client** workflow builds Windows and macOS clients on every push to `main` that touches the Unity

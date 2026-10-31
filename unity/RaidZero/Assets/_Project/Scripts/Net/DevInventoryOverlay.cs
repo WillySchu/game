@@ -15,7 +15,8 @@ namespace RaidZero.Net
     /// A line in the top right always shows the raid's phase, its clock, any extraction countdown, and how
     /// you left. When not connected, the screen has a Deploy button that goes through the Hideout's path:
     /// a dev login, a ticket, and a connection to the server the ticket names (a dedicated server on a VPS,
-    /// say), instead of the Multiplayer Play Mode buttons' local address.
+    /// say), instead of the Multiplayer Play Mode buttons' local address. Start as server makes this game the
+    /// raid's server instead; Deploy after it plays on that server from the same game (host mode).
     /// Everything goes through RaidInventoryClient exactly as the real inventory screen will, so it
     /// exercises the whole path: client, Fish-Net, server, the raid's rules, and back.
     /// Put it on any GameObject in the raid scene. It does nothing in release builds.
@@ -74,6 +75,7 @@ namespace RaidZero.Net
             GUILayout.BeginArea(new Rect(10, 10, 460, Screen.height - 20), GUI.skin.box);
             _scroll = GUILayout.BeginScrollView(_scroll);
             GUILayout.Label("Raid inventory (F1 to close)   last request: " + _lastResult);
+            DrawServer();
             DrawDeploy();
 
             var character = client.View.Character;
@@ -117,10 +119,50 @@ namespace RaidZero.Net
             GUILayout.EndArea();
         }
 
+        // Start or stop this game as the raid's server. Started here, with Deploy below, it's host mode: the
+        // ticket names this machine (the dev backend's dev-local server), so Deploy connects to itself.
+        private void DrawServer()
+        {
+            var networkManager = ClientNetworkManager();
+            if (networkManager == null)
+            {
+                return;
+            }
+
+            if (networkManager.ServerManager.Started)
+            {
+                var raid = networkManager.GetComponent<RaidServer>();
+                GUILayout.BeginHorizontal();
+                GUILayout.Label("Running as the raid server" + (raid != null ? " (raid " + raid.Phase + ")" : "") + ".");
+                if (GUILayout.Button("Stop server", GUILayout.Width(120)))
+                {
+                    networkManager.ServerManager.StopConnection(true);
+                }
+
+                GUILayout.EndHorizontal();
+                return;
+            }
+
+            if (networkManager.ClientManager.Started)
+            {
+                return;
+            }
+
+            if (GUILayout.Button(Application.isEditor
+                ? "Start as server (backend and server token from RaidZeroDev.json)"
+                : "Start as server (needs --server-token or RAIDZERO_SERVER_TOKEN)"))
+            {
+                if (!networkManager.ServerManager.StartConnection())
+                {
+                    _lastResult = "the server couldn't start: see the console";
+                }
+            }
+        }
+
         private void DrawDeploy()
         {
             var networkManager = ClientNetworkManager();
-            if (networkManager == null || networkManager.ClientManager.Started || networkManager.ServerManager.Started)
+            if (networkManager == null || networkManager.ClientManager.Started)
             {
                 return;
             }
