@@ -569,7 +569,7 @@ MonoBehaviour:
   _initializeOrder: 0
   _preventDespawnOnDisconnect: 0
   _defaultDespawnType: 0
-  _initializedTimestamp: -8584084510228490066
+  _initializedTimestamp: -8584082017585514191
 --- !u!114 &-8529257352947904720
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -704,12 +704,13 @@ MonoBehaviour:
   _networkObjectCache: {fileID: 1377584125075562030}
   walkSpeed: 5
   runSpeed: 10
+  airSpeedMinLimit: 2.5
   jumpHeight: 1.5
   airControl: 0.05
   gravity: -9.81
   friction: 0.1
   airFriction: 1
-  lookSensitivity: 5
+  lookSensitivity: 0.5
   invertLook: 0
   _cameraMount: {fileID: 6836104931731487076}
   _characterController: {fileID: -2104167914209987083}

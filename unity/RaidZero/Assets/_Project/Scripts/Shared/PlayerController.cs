@@ -65,7 +65,7 @@ public class PlayerController : NetworkBehaviour
     public float friction = 0.1f; // Friction factor to slow down the player when no input is given. (0= full stop, 1= no friction)
     public float airFriction = 1f; // Friction factor to slow down the player when in the air and no input is given. (0= full stop, 1= no friction)
 
-    public float lookSensitivity = 1f;
+    public float lookSensitivity = 0.5f;
     public bool invertLook = false;
 
     [SerializeField] private Transform _cameraMount;
@@ -113,7 +113,7 @@ public class PlayerController : NetworkBehaviour
 
     public void OnLook(InputValue value)
     {
-        currentLookInput = value.Get<Vector2>();
+        currentLookInput += value.Get<Vector2>();
     }
 
     public void OnJump(InputValue value)
@@ -134,6 +134,7 @@ public class PlayerController : NetworkBehaviour
         DoReplicate(GetReplicatedData());
     }
 
+    
     private PlayerReplicatedData GetReplicatedData()
     {
         if (invertLook)
@@ -141,8 +142,9 @@ public class PlayerController : NetworkBehaviour
             currentLookInput.y = -currentLookInput.y;
         }
         PlayerReplicatedData data = new PlayerReplicatedData(currentMoveInput, currentLookInput, isJumping, isRunning);
-        // Any one time inputs (like jump) should be reset after sending to the server to avoid sending the same input multiple times.
+        // Any accumulated inputs should be reset after sending to the server to avoid sending the same input multiple times.
         isJumping = false;
+        currentLookInput = Vector2.zero;
         return data;
     }
 
@@ -187,8 +189,8 @@ public class PlayerController : NetworkBehaviour
             data.sprintInput = false;
         }
 
-        transform.Rotate(Vector3.up, data.lookInput.x * lookSensitivity * deltaTime);
-        xRotation -= data.lookInput.y * lookSensitivity * deltaTime;
+        transform.Rotate(Vector3.up, data.lookInput.x * lookSensitivity);
+        xRotation -= data.lookInput.y * lookSensitivity;
         xRotation = Mathf.Clamp(xRotation, -90f, 90f);
 
         _cameraMount.localRotation = Quaternion.Euler(xRotation, 0f, 0f);
