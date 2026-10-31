@@ -16,6 +16,7 @@ Will & John · first written Oct 26, 2026 · last updated Oct 30, 2026
 | AI | Not started | John |
 | Interaction, pickups, bodies and ground items in the world | Started (John's dropped-item prefab) | To agree |
 | Hideout screen: login, gear and stash, deploy, raid results | Done | Will |
+| Raid HUD: clock, extraction countdown, the card as you leave | Done | Will |
 | Scene flow: Boot, Hideout and raid scenes, joining | Not started | John |
 
 Who owns what below is **proposed**: several of John's items moved to Will along the way, and the rest of the
@@ -128,8 +129,8 @@ The plan, still the goal:
 Today `SampleScene` is all three: the NetworkManager prefab, John's greybox geometry, a crate, an extraction
 zone over the pad in the far corner, the `InventoryScreen` and the `HideoutScreen`. The Hideout shows whenever
 you're not in a raid, so the scene plays a whole loop (log in, deploy, loot, extract, see the result) until the
-scene flow exists; the F1 overlay's Deploy still works too. Not yet in it: `RaidSessionClient` on the
-NetworkManager (the raid clock and how you left).
+scene flow exists; the F1 overlay's Deploy still works too. Add a `RaidHud` too for the raid clock, the extraction
+countdown and the card as you leave; it adds the `RaidSessionClient` it needs to the NetworkManager by itself.
 
 ### Builds
 

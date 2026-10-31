@@ -295,7 +295,9 @@ The key in `appsettings.Development.json` is for local runs only. Real deploymen
   `ContainerRegistry` so the server can check reach. A dead player's body must be its own object: their
   connection closes a few seconds after they leave, and Fish-Net despawns whatever it owned.
 - `RaidSessionClient` is the client's view of the raid: its phase, the clock, the extraction countdown, and
-  a `LeftRaid` event saying how the player left. It's carried by three small broadcasts.
+  a `LeftRaid` event saying how the player left. It's carried by three small broadcasts. `RaidHud` (in
+  `Game.UI`) draws it: the clock, the countdown and a card as you leave, worded by `RaidHudText` in
+  `Game.Shared`.
 - Inventory messages travel as two Fish-Net broadcasts carrying `RaidProtocol` bytes, so the network layer
   never interprets them.
 - Fish-Net needs a client and server to have the same networked code. `NetworkFingerprint` hashes every

@@ -160,23 +160,26 @@ then is missing in action, and the server stops; start it again for a new raid.
 
 To set it up in a scene:
 
-- Add `RaidSessionClient` to the NetworkManager, next to `RaidInventoryClient`. The HUD reads the clock and
-  the extraction countdown from it, and the end-of-raid screen listens to its `LeftRaid` event.
+- Add `RaidHud` (assembly `Game.UI`) to its own GameObject, as with the inventory and Hideout screens. It shows
+  the raid clock, the extraction countdown and the card as you leave, from the `RaidSessionClient` on the
+  NetworkManager, which it adds by itself if the scene doesn't have one.
 - `SampleScene` has one `ExtractionZone`, over the extraction pad in the far corner. Elsewhere, add one or more:
   an empty GameObject with the component, sized with the green gizmo so the box covers where players stand.
   Stand in it for 8 seconds to extract.
 - For testing, set `Raid Minutes` on `RaidServer` to 2 or so, so the clock runs out quickly. A dedicated
   server takes `--raid-minutes` on the command line instead.
 
-What to check (the top right of the screen shows the raid's phase, the clock, any extraction countdown, and
-how you left):
+What to check (the HUD shows the clock at the top and the countdown low in the middle; the F1 overlay's top
+right shows the same as text):
 
 1. The clock starts at the full raid length when the first client joins and counts down; a second client
-   joining later sees the same time left.
-2. Standing in a zone starts the countdown; stepping out cancels it; staying in extracts you. You see
-   "you left: Extracted", then the client disconnects about 3 seconds later.
+   joining later sees the same time left. In the last minute it turns red. It stays visible with the inventory
+   open.
+2. Standing in a zone starts the countdown ("Extracting at ExtractionTrigger: 8" and a bar filling); stepping
+   out cancels it; staying in extracts you. The "Extracted" card comes up, the client disconnects about 3
+   seconds later, and the card stays a moment longer over the Hideout coming back.
 3. With two clients, the raid keeps going after one extracts, and ends once the other extracts too.
-4. Letting the clock run out with a client inside shows "you left: MissingInAction", and the server stops.
+4. Letting the clock run out with a client inside shows the "Missing in action" card, and the server stops.
 5. Disconnecting every client (and not coming back) ends the raid after 3 minutes.
 
 In each case, `GET /v1/me/raids/{raid_id}` on the backend (or the admin tool) shows the outcome: extracted,
