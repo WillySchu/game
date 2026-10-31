@@ -1,6 +1,6 @@
 # Raid Zero: Unity Client & Game Server Plan
 
-Will & John · first written Oct 26, 2026 · last updated Oct 29, 2026
+Will & John · first written Oct 26, 2026 · last updated Oct 30, 2026
 
 ## Status
 
@@ -11,10 +11,10 @@ Will & John · first written Oct 26, 2026 · last updated Oct 29, 2026
 | Raid inventory on the server, join and auth, raid lifecycle, extraction, outbox | Done | Will |
 | Loot tables and crates | Done | Will |
 | Inventory screen (raid), with the Hideout's data source, tooltips and rendered icons | Done | Will |
-| Greybox map, NavMesh | Not started | John |
+| Greybox map, NavMesh | In progress (in `SampleScene` for now) | John |
 | Weapons, hit registration, damage, health and death | Not started | John |
 | AI | Not started | John |
-| Interaction, pickups, bodies and ground items in the world | Not started | To agree |
+| Interaction, pickups, bodies and ground items in the world | Started (John's dropped-item prefab) | To agree |
 | Hideout screen: login, gear and stash, deploy, raid results | Done | Will |
 | Scene flow: Boot, Hideout and raid scenes, joining | Not started | John |
 
@@ -125,10 +125,11 @@ The plan, still the goal:
 - **Hideout:** stash and equipment screens backed by the client API. No networking.
 - **Raid\_Greybox01:** the map. Loaded by the server through Fish-Net's scene manager.
 
-Today `SampleScene` is all three: the NetworkManager prefab, John's greybox geometry, a crate, and the
-`InventoryScreen`. Add a `HideoutScreen` to it and it shows whenever you're not in a raid, so the scene works as
-Hideout and raid at once until the scene flow exists; the F1 overlay's Deploy still works too. Not yet committed
-to it: an `ExtractionZone` (the `ExtractionCube` is only a mesh) and `RaidSessionClient` on the NetworkManager.
+Today `SampleScene` is all three: the NetworkManager prefab, John's greybox geometry, a crate, an extraction
+zone over the pad in the far corner, the `InventoryScreen` and the `HideoutScreen`. The Hideout shows whenever
+you're not in a raid, so the scene plays a whole loop (log in, deploy, loot, extract, see the result) until the
+scene flow exists; the F1 overlay's Deploy still works too. Not yet in it: `RaidSessionClient` on the
+NetworkManager (the raid clock and how you left).
 
 ### Builds
 
@@ -148,14 +149,13 @@ to it: an `ExtractionZone` (the `ExtractionCube` is only a mesh) and `RaidSessio
   as the merge tool.
 - Only one person edits a given scene or prefab at a time. Put most content in prefabs so scene conflicts stay
   rare.
-- A prefab with a missing script can't be saved, so commit scripts with the prefabs that use them. (The
-  NetworkManager prefab has a stray `ServerCharacterController` component that needs removing.)
+- A prefab with a missing script can't be saved, so commit scripts with the prefabs that use them.
 
 ### Network simulation
 
 Fish-Net's latency simulator on the NetworkManager's Transport Manager is set to 100 ms and 2% packet loss.
-Tick its Enabled box and leave it on in the editor; turn it off only when profiling something unrelated. (It
-was never saved ticked, so until someone does, it's off.) Builds turn it off whatever the box says
+Its Enabled box is ticked in the prefab, so it's on in the editor; untick it only when profiling something
+unrelated. Builds turn it off whatever the box says
 (`NetworkConditions`), so playtest clients and dedicated servers never add fake lag, unless started with
 `--simulate-lag`. Each side delays what it sends, so between two editor instances a round trip is about
 200 ms.
@@ -180,9 +180,10 @@ Build a kinematic `CharacterController`-based controller driven by Fish-Net's pr
 
 ### Known issues
 
-- Mouse look reads only the latest frame's movement each tick, so look sensitivity drops as the frame rate rises
-  above the tick rate (very low on a fast Mac). The fix is to add up the movement every frame and send the total
-  each tick, without multiplying it by the tick time. Client and server change together.
+- Gamepad look doesn't work: the right stick is added up like mouse movement, and the Input System only reports
+  a stick when it moves, so holding it steady turns nothing. A stick needs handling separately from the mouse,
+  as how far it's pushed times the tick time.
+- Look sensitivity (degrees per unit of mouse movement) still needs tuning; 0.5 feels high.
 - A sprint held while the inventory opens can stay on after it closes (buttons don't send a release when the
   input map switches).
 
@@ -280,7 +281,7 @@ One small greybox map, one server-run raid timer, and two ways out: extract or d
 process, then exit; a fresh process per raid means no state leaks between raids, and it's how container
 hosting runs it (Docker restarts the server for the next raid).
 
-### Greybox map (John, not started)
+### Greybox map (John, in progress)
 
 - Roughly 200 by 200 m, built in ProBuilder.
 - 3 or 4 distinct points of interest, so routes and risk differ.
@@ -399,12 +400,13 @@ These must match exactly across Unity and the backend. Change them in one pull r
 
 Two tracks ran in parallel until step 8, when they joined. Each step ends with something you can check.
 
-1. **Skeleton (both). Done,** except the Boot scene and saving the latency simulator switched on. Repo, packages, assembly definitions, host mode, Linux
+1. **Skeleton (both). Done,** except the Boot scene, which comes with John's scene flow. Repo, packages, assembly definitions, host mode, Linux
    server build in CI (and now client builds).
    - Check: a host and a second client connect in an empty scene, with the latency simulator on.
 2. **Predicted movement (John). In progress.**
    - Check: the controller's done list above.
-3. **Greybox map v0 and NavMesh (John). Not started.**
+3. **Greybox map v0 and NavMesh (John). In progress,** in `SampleScene` for now; it moves to its own scene with
+   the scene flow.
    - Check: you can walk every route; AI agents can path between points of interest.
 4. **Hitscan weapon (John). Not started.** First against a static dummy, then against the second client.
    - Check: the weapons done list above.

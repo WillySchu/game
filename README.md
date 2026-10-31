@@ -289,7 +289,7 @@ The key in `appsettings.Development.json` is for local runs only. Real deploymen
   the backend accepts; `RaidServer` owns the backend client and the raid's inventory on the server;
   `RaidInventoryClient` is the client's end, with the `View` the inventory screen draws from.
 - Fish-Net's latency simulator (100 ms, 2% loss) is on the NetworkManager's Transport Manager. Its Enabled box
-  decides in the editor; `NetworkConditions` turns it off in builds unless they're started with `--simulate-lag`.
+  (ticked in the prefab) decides in the editor; `NetworkConditions` turns it off in builds unless they're started with `--simulate-lag`.
 - Gameplay calls `RaidServer.PlayerDied`, `Consume` and `InterruptExtraction` (on damage). Levels place
   `ExtractionZone`s, and crates carry a `LootContainer`; bodies and ground piles register in
   `ContainerRegistry` so the server can check reach. A dead player's body must be its own object: their

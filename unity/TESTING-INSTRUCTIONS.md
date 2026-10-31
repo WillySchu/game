@@ -23,8 +23,8 @@ dotnet run --project backend/Game.Backend
   first run with settings for the local backend, and it isn't committed, so each of you can point yours
   elsewhere. Outside the editor, use `--backend-url` and `--server-token`, or the `RAIDZERO_BACKEND_URL` and
   `RAIDZERO_SERVER_TOKEN` environment variables.
-- To test on a bad connection, as the plan asks, tick Enabled under Latency Simulator on the NetworkManager's
-  Transport Manager (it's set to 100 ms of latency and 2% packet loss each way). The console says so at
+- The editor tests on a bad connection, as the plan asks: Latency Simulator on the NetworkManager's Transport
+  Manager is ticked (100 ms of latency and 2% packet loss each way). Untick it to compare. The console says so at
   startup. Builds never simulate, whatever the box says, unless started with `--simulate-lag`.
 - Every client logs in as a new dev player (`dev-12345`) with the starter kit, and they all join the same
   raid. The console shows `[raid] Server ready`, then a `joined raid` line for each player.
@@ -89,8 +89,8 @@ placed ones. It's presentation only, so it isn't in the catalog and changing it 
 
 ## Hideout
 
-Add `HideoutScreen` (assembly `Game.UI`) to any GameObject in `SampleScene`, on its own object like
-`InventoryScreen` (not inside the NetworkManager prefab). With the local backend running, press Play: the Hideout
+`SampleScene` has one (the `HideoutScreen` object); in another scene, add `HideoutScreen` (assembly `Game.UI`) to
+its own GameObject, not inside the NetworkManager prefab. With the local backend running, press Play: the Hideout
 fills the screen whenever you're not in a raid.
 
 1. **Log in:** type a name and press Log in. Dev login only knows names, so the same name is the same player
@@ -162,8 +162,9 @@ To set it up in a scene:
 
 - Add `RaidSessionClient` to the NetworkManager, next to `RaidInventoryClient`. The HUD reads the clock and
   the extraction countdown from it, and the end-of-raid screen listens to its `LeftRaid` event.
-- Add one or more `ExtractionZone`s to the level: an empty GameObject with the component, sized with the
-  green gizmo so the box covers where players stand. Stand in it for 8 seconds to extract.
+- `SampleScene` has one `ExtractionZone`, over the extraction pad in the far corner. Elsewhere, add one or more:
+  an empty GameObject with the component, sized with the green gizmo so the box covers where players stand.
+  Stand in it for 8 seconds to extract.
 - For testing, set `Raid Minutes` on `RaidServer` to 2 or so, so the clock runs out quickly. A dedicated
   server takes `--raid-minutes` on the command line instead.
 
