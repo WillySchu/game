@@ -17,11 +17,20 @@ MonoBehaviour:
   m_Subtarget: 2
   m_PlatformId: cb423bfea44b4d658edb8bc5d91a3024
   m_PlatformBuildProfile:
-    rid: 6967622383811952718
+    rid: 6967622383811952743
   m_ActivePlatformGuid: 
   m_AdditionalPlatformBuildSettings: []
   m_OverrideGlobalSceneList: 1
-  m_Scenes: []
+  m_Scenes:
+  - m_enabled: 1
+    m_path: Assets/_Project/Scenes/SampleScene.unity
+    m_guid: 99c9720ab356a0642a771bea13969a05
+  - m_enabled: 1
+    m_path: Assets/_Project/Scenes/core.unity
+    m_guid: 43477050f5c623c489cfa1f4d300390c
+  - m_enabled: 1
+    m_path: Assets/_Project/Scenes/core.server.unity
+    m_guid: 8e3880fb8b8f90847bf72cd50fc55629
   m_HasScriptingDefines: 0
   m_ScriptingDefines: []
   m_PlayerSettingsYaml:
@@ -30,7 +39,7 @@ MonoBehaviour:
   references:
     version: 2
     RefIds:
-    - rid: 6967622383811952718
+    - rid: 6967622383811952743
       type: {class: LinuxPlatformSettings, ns: UnityEditor.LinuxStandalone, asm: UnityEditor.LinuxStandalone.Extensions}
       data:
         m_Development: 0
