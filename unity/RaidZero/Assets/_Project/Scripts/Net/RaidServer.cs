@@ -342,7 +342,10 @@ namespace RaidZero.Net
                 var minutes = ServerConfig.FloatArgument("--raid-minutes") ?? _raidMinutes;
                 _testExtractAtSpawn = ServerConfig.HasFlag("--test-extract-at-spawn");
 
-                _backend = new BackendClient(settings, catalog.Version, new BackendClientOptions { MapId = _mapId }, log: new UnityBackendLog());
+                // The map and network code go into the server's ready reports, so the backend only sends it
+                // players on this map whose game runs the same networked code.
+                var options = new BackendClientOptions { MapId = _mapId, NetworkCode = NetworkFingerprint.Current };
+                _backend = new BackendClient(settings, catalog.Version, options, log: new UnityBackendLog());
                 _backend.RaidAborted += OnRaidAborted;
                 _backend.ReportRejected += rejection => Debug.LogError("[raid] The backend refused a report: " + rejection);
                 _backend.Start();

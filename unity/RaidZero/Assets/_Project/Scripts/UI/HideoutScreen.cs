@@ -474,7 +474,10 @@ namespace RaidZero.UI
                 case "already_in_raid":
                     return "Your gear is still in a raid this game can't rejoin. It comes back (or doesn't) when that raid ends.";
                 case "no_server_available":
-                    return "No raid server is free right now. Try again in a moment.";
+                    // The backend says whether servers are busy or haven't reported in.
+                    return string.IsNullOrEmpty(deployed.Message) ? "No raid server is free right now. Try again in a moment." : deployed.Message;
+                case "version_mismatch":
+                    return "Your game is a different version from the raid servers, so it can't join them. Update it and try again.";
                 default:
                     return "Couldn't deploy: " + InventoryUiErrors.Describe(deployed.Error) + (string.IsNullOrEmpty(deployed.Message) ? "" : " (" + deployed.Message + ")");
             }

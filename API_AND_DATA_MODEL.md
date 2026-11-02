@@ -9,7 +9,7 @@ Will & John · first written Oct 26, 2026 · last updated Nov 2, 2026
 | Data model, migrations 0001 to 0006 | Done |
 | Client API (dev login, profile, stash edits, tickets, raid results) | Done |
 | Game server API (ready, join, heartbeat, outcomes, close) and lease expiry | Done |
-| Several game servers: ready reports, raids routed by map and network code | Done (backend and `BackendClient`; the Unity side passes the network code after the scene reorganization) |
+| Several game servers: ready reports, raids routed by map and network code | Done |
 | Admin API and page | Done |
 | Integrity rules | Done, each with tests |
 | Steam login, matchmaking queue, traders, insurance | Not started (the queue is proposed below) |

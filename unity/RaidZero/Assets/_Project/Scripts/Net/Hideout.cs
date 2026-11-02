@@ -24,7 +24,7 @@ namespace RaidZero.Net
         /// <summary>The player was already in this raid (they'd disconnected), so this goes back into it.</summary>
         public bool Rejoined { get; }
 
-        /// <summary>already_in_raid, no_server_available, logged_out and so on.</summary>
+        /// <summary>already_in_raid, no_server_available, version_mismatch, logged_out and so on.</summary>
         public string Error { get; }
 
         public string Message { get; }
@@ -130,11 +130,12 @@ namespace RaidZero.Net
         /// names, which redeems it (RaidAuthenticator). If the player is still in the raid this client last
         /// deployed to (they disconnected), it rejoins that raid with the same ticket instead. Load the raid
         /// scene however the game does it once the connection is up. If the server turns the ticket down,
-        /// RaidAuthenticator.JoinAnswered says why.
+        /// RaidAuthenticator.JoinAnswered says why. The ticket carries this build's network code, so the backend
+        /// only picks a server running the same (version_mismatch if none does).
         /// </summary>
         public static async Task<DeployResult> DeployAsync(NetworkManager networkManager, string mapId)
         {
-            var requested = await Session.RequestTicketAsync(mapId);
+            var requested = await Session.RequestTicketAsync(mapId, NetworkFingerprint.Current);
             RaidTicketInfo ticket;
             bool rejoining;
             if (requested.Succeeded)
