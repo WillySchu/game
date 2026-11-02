@@ -10,17 +10,19 @@ public static class RaidEndpoints
     public const string CatalogVersionHeader = "X-Catalog-Version";
     public const string IdempotencyKeyHeader = "Idempotency-Key";
 
-    public sealed record TicketRequest(string? MapId);
+    public sealed record TicketRequest(string? MapId, string? NetworkCode = null);
 
     public static void MapRaidEndpoints(this WebApplication app)
     {
         var me = app.MapGroup("/v1/me").RequireAuthorization(Policies.Player);
         me.MapPost("/raid-tickets", async (TicketRequest body, ClaimsPrincipal user, RaidService raids, CancellationToken ct) =>
-            (await raids.CreateTicketAsync(user.GetPlayerId(), body.MapId, ct)).ToResult());
+            (await raids.CreateTicketAsync(user.GetPlayerId(), body.MapId, body.NetworkCode, ct)).ToResult());
         me.MapGet("/raids/{raidId}", async (string raidId, ClaimsPrincipal user, RaidService raids, CancellationToken ct) =>
             (await raids.GetResultAsync(user.GetPlayerId(), raidId, ct)).ToResult());
 
         var server = app.MapGroup("/v1/server").RequireAuthorization(Policies.GameServer).AddEndpointFilter(RequireMatchingCatalogAsync);
+        server.MapPost("/ready", async (RaidService.ReadyRequest body, HttpRequest request, ClaimsPrincipal user, RaidService raids, CancellationToken ct) =>
+            (await raids.ReportReadyAsync(user.GetServerId(), body, request.Headers[CatalogVersionHeader].ToString(), ct)).ToResult());
         server.MapPost("/raids/{raidId}/join", (string raidId, HttpRequest request, ClaimsPrincipal user, RaidService raids, CancellationToken ct) =>
             ServerCallAsync<RaidService.JoinRequest>(request, ct, (key, hash, body) => raids.JoinAsync(user.GetServerId(), raidId, key, hash, body, ct)));
         server.MapPost("/raids/{raidId}/heartbeat", async (string raidId, ClaimsPrincipal user, RaidService raids, CancellationToken ct) =>

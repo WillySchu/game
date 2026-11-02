@@ -197,6 +197,7 @@ public sealed partial class RaidService
 
             var lost = await LosePoolAsync(c, tx, raidId, now);
             await c.ExecuteAsync("UPDATE raids SET state = 'closed', closed_at = @now WHERE id = @raidId", new { now, raidId }, transaction: tx);
+            await ForgetReadyAsync(c, tx, raidId);
             await LedgerAsync(c, tx, null, raidId, "raid_close", new { ItemsLost = lost, Died = died }, now);
 
             return ServerResponse.Json(200, new CloseResponse(true, lost, died.Count));

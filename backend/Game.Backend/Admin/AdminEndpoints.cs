@@ -29,6 +29,7 @@ public static class AdminEndpoints
             (await s.GrantAsync(playerId, body, ct)).ToResult());
         admin.MapGet("/items/{itemId}", async (string itemId, AdminService s, CancellationToken ct) => (await s.GetItemAsync(itemId, ct)).ToResult());
         admin.MapGet("/raids", async (bool? all, AdminService s, CancellationToken ct) => (await s.ListRaidsAsync(all != true, ct)).ToResult());
+        admin.MapGet("/servers", async (RaidZero.Backend.Raids.RaidService raids, CancellationToken ct) => Results.Ok(new { Servers = await raids.ListServersAsync(ct) }));
         admin.MapPost("/raids/{raidId}/abort", async (string raidId, AdminService s, CancellationToken ct) => (await s.AbortRaidAsync(raidId, ct)).ToResult());
         admin.MapGet("/backups", (AdminService s) => Results.Ok(s.ListBackups()));
         admin.MapPost("/backups", async (AdminService s, CancellationToken ct) => (await s.BackupAsync(ct)).ToResult());

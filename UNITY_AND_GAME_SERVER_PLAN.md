@@ -1,6 +1,6 @@
 # Raid Zero: Unity Client & Game Server Plan
 
-Will & John · first written Oct 26, 2026 · last updated Oct 30, 2026
+Will & John · first written Oct 26, 2026 · last updated Nov 2, 2026
 
 ## Status
 
@@ -17,6 +17,7 @@ Will & John · first written Oct 26, 2026 · last updated Oct 30, 2026
 | Interaction, pickups, bodies and ground items in the world | Started (John's dropped-item prefab) | To agree |
 | Hideout screen: login, gear and stash, deploy, raid results | Done | Will |
 | Raid HUD: clock, extraction countdown, the card as you leave | Done | Will |
+| Several game servers: ready reports, raids routed by map and network code | Backend done; two Unity lines wait for the scene reorganization | Will |
 | Scene flow: Boot, Hideout and raid scenes, joining | Not started | John |
 
 Who owns what below is **proposed**: several of John's items moved to Will along the way, and the rest of the
@@ -329,6 +330,25 @@ ground piles from drops, is the world side that's still to do.
   Seed on `RaidServer`) repeats a raid's loot exactly.
 - Every spawned item gets a UUIDv7 at spawn time, so its ID is stable from container to stash.
 - The table inspector lists problems and simulates a thousand rolls.
+
+### Several servers (backend done; Unity hooks after the reorganization)
+
+A server waiting for its raid tells the backend it's up and which map it has loaded (`POST /v1/server/ready`),
+and new raids only go to servers that did so in the last 30 seconds. `BackendClient` sends these on its own
+whenever it has a map, and `RaidServer` already gives it one, so dedicated servers and the editor's server
+report in with no Unity change; the image's `RAIDZERO_BUILD` (the commit) goes along for the admin view. The API
+doc's Raid ticket section has the rules.
+
+Two small changes wait until John's reorganization of the scenes and `Scripts/Net` has landed, so they don't
+collide with it:
+
+- `RaidServer`: pass `NetworkCode = NetworkFingerprint.Current` in its `BackendClientOptions`.
+- `Hideout.DeployAsync`: pass `NetworkFingerprint.Current` to `RequestTicketAsync`, so a client on old code is
+  told to update (`version_mismatch`) before it's sent to a server that would refuse it anyway, and so mixed
+  versions can share a backend during a rollout.
+
+Until then the network code check simply doesn't apply: the authenticator still refuses a mismatched client
+at connect, as it does today.
 
 ### Done when
 

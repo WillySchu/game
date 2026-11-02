@@ -28,11 +28,14 @@ public sealed class RaidFixture : IDisposable
     private readonly TempDatabase _temp = new();
     private int _keys;
 
-    public RaidFixture(int maxPlayersPerRaid = 4, bool withServer = true)
+    /// <param name="serverIds">Several game servers, in configuration order, instead of the one dev-local server.</param>
+    public RaidFixture(int maxPlayersPerRaid = 4, bool withServer = true, string[]? serverIds = null)
     {
         Players = new PlayerStore(_temp.Database, Catalog, StarterKit.LoadFile(TestPaths.StarterKitPath, Catalog), Time);
         Stash = new StashInventory(_temp.Database, Catalog, Time);
-        var servers = new GameServerRegistry(withServer ? [new GameServerOptions { Id = ServerId, Token = new string('s', 40) }] : []);
+        var servers = new GameServerRegistry(serverIds is null
+            ? (withServer ? [new GameServerOptions { Id = ServerId, Token = new string('s', 40) }] : [])
+            : serverIds.Select((id, i) => new GameServerOptions { Id = id, Host = id + ".test", Port = 7770 + i, Token = new string((char)('a' + i), 40) }));
         var options = Options.Create(new BackendOptions
         {
             Raids = new RaidOptions { TicketSeconds = 60, LeaseSeconds = 60, MaxPlayersPerRaid = maxPlayersPerRaid },
@@ -63,6 +66,10 @@ public sealed class RaidFixture : IDisposable
     public async Task<Profile> ProfileAsync(string playerId) => (await Players.GetProfileAsync(playerId))!;
 
     public string NextKey() => $"key-{++_keys}";
+
+    /// <summary>A game server's ready report, as a server waiting for a raid sends every few seconds.</summary>
+    public Task<ServerResponse> ReadyAsync(string server = ServerId, string map = Map, string? networkCode = null) =>
+        Raids.ReportReadyAsync(server, new RaidService.ReadyRequest(map, "test-build", networkCode), Catalog.Version);
 
     /// <summary>A ticket, asserting it was granted.</summary>
     public async Task<(string RaidId, string Token)> TicketAsync(string playerId, string map = Map)

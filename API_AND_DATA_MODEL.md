@@ -1,17 +1,18 @@
 # Raid Zero: Backend API & Data Model
 
-Will & John · first written Oct 26, 2026 · last updated Oct 28, 2026
+Will & John · first written Oct 26, 2026 · last updated Nov 2, 2026
 
 ## Status
 
 | Area | State |
 | --- | --- |
-| Data model, migrations 0001 to 0005 | Done |
+| Data model, migrations 0001 to 0006 | Done |
 | Client API (dev login, profile, stash edits, tickets, raid results) | Done |
-| Game server API (join, heartbeat, outcomes, close) and lease expiry | Done |
+| Game server API (ready, join, heartbeat, outcomes, close) and lease expiry | Done |
+| Several game servers: ready reports, raids routed by map and network code | Done (backend and `BackendClient`; the Unity side passes the network code after the scene reorganization) |
 | Admin API and page | Done |
 | Integrity rules | Done, each with tests |
-| Steam login, matchmaker, traders, insurance | Not started |
+| Steam login, matchmaking queue, traders, insurance | Not started (the queue is proposed below) |
 
 Everything in Milestone 1's scope is built and tested. This doc is the design: what each piece does and why. For
 how to run, configure and deploy it, see the README and `deploy/README.md`.
@@ -55,7 +56,10 @@ sequenceDiagram
     participant C as Client (Hideout)
     participant B as Backend
     participant S as Game server
-    C->>B: POST /v1/me/raid-tickets {map_id}
+    loop every 10 s until its first player joins
+        S->>B: POST /v1/server/ready {map_id, build, network_code}
+    end
+    C->>B: POST /v1/me/raid-tickets {map_id, network_code}
     B-->>C: raid_id, server host and port, join_token (valid 60 s)
     C->>S: connect, present join_token (Fish-Net authenticator)
     S->>B: POST /v1/server/raids/{id}/join {join_token, map_id}
@@ -69,6 +73,9 @@ sequenceDiagram
     B-->>C: outcome, items gained, returned and lost
 ```
 
+- **Ready reports:** a server waiting for its raid says so every few seconds, with the map it has loaded. A new
+  raid goes only to a server that reported in the last `ReadyTtlSeconds` (30) with the ticket's map (see Raid
+  ticket for the full rule).
 - **Tickets** last `TicketSeconds` (60). One that is never redeemed expires (participant state `expired`)
   without touching items.
 - **Grouping:** a ticket joins a raid on the same map that started less than `JoinWindowSeconds` (120) ago
@@ -82,7 +89,7 @@ sequenceDiagram
 
 ## Data model
 
-Six tables carry Milestone 1; item definitions live in a JSON catalog exported from Unity, not in the
+Seven tables carry Milestone 1; item definitions live in a JSON catalog exported from Unity, not in the
 database.
 
 | Table | Holds | Notes |
@@ -93,6 +100,7 @@ database.
 | `raid_participants` | One row per player per raid | Stores the loadout snapshot taken at checkout |
 | `ledger_entries` | Append-only audit of every item change | Your best friend when chasing a dupe bug |
 | `idempotency_keys` | Responses to already-processed server reports | Lets the game server retry safely |
+| `game_servers` | Each game server's last ready report | Keyed by the server's id in `Servers`; the settings still say which servers exist |
 
 ### Item catalog (not a table)
 
@@ -127,7 +135,7 @@ as everything else; revisit if traders make a separate balance column simpler.
 
 ### Schema
 
-As of migration 0005. The migrations in `backend/Game.Backend/Migrations` are the source of truth; this is the
+As of migration 0006. The migrations in `backend/Game.Backend/Migrations` are the source of truth; this is the
 shape they add up to.
 
 ```sql
@@ -209,6 +217,15 @@ CREATE TABLE idempotency_keys (
   response      TEXT NOT NULL,
   created_at    TIMESTAMP NOT NULL
 );
+
+CREATE TABLE game_servers (
+  id              TEXT PRIMARY KEY,           -- the server's Id in Servers
+  map_id          TEXT NOT NULL,
+  build           TEXT,                       -- what it was built from, for the admin view
+  network_code    TEXT,                       -- fingerprint of its networked code
+  catalog_version TEXT NOT NULL,
+  reported_at     TIMESTAMP                   -- NULL once its raid closes or aborts (the process exits)
+);
 ```
 
 The item states' `CHECK` constraints enforce invariant 1 in the database itself: `in_raid` exactly when there's
@@ -266,7 +283,7 @@ player actually connected.
 
 ```json
 POST /v1/me/raid-tickets
-{ "map_id": "greybox_01" }
+{ "map_id": "greybox_01", "network_code": "3f9c...e1" }     // network_code is optional
 
 200 {
   "raid_id": "0192...r1",
@@ -275,12 +292,30 @@ POST /v1/me/raid-tickets
   "expires_at": "2026-10-26T20:15:00Z"
 }
 409 { "error": "already_in_raid", "raid_id": "0192...r0" }
-503 { "error": "no_server_available" }
+409 { "error": "version_mismatch", "servers": ["8d21...07"], "message": "..." }  // update the game
+503 { "error": "no_server_available", "message": "..." }
 ```
 
 The backend picks a configured game server (`Servers` in its settings) and creates or joins the raid row
-itself. Later a real matchmaker and server allocator sit behind this same endpoint, so the client
-never changes.
+itself. A matchmaking queue can later sit behind this same idea without the game server changing (see the
+proposal at the end).
+
+**Which server.** The backend first looks for an open raid to join: same map, room left, started less than
+`JoinWindowSeconds` ago. Then it looks for a server to open a new one on. Servers are tried in the order
+`Servers` lists them:
+
+- A server whose network code differs from the ticket's is skipped, for both joining and opening. The check
+  only applies when both the ticket and the server's report have a code.
+- A pending raid (nobody has connected yet) is joined only while its server's report is fresh: a server that
+  went quiet before anyone arrived may be gone. Once a raid is active, its lease decides instead.
+- A new raid goes to a server with no open raid whose last report is fresh (within `ReadyTtlSeconds`) and
+  names the ticket's map.
+- A server that has never reported is treated as before ready reports existed: it's free whenever it has no
+  open raid, for any map. That keeps older server builds working.
+
+If every server was skipped for its network code, the answer is `409 version_mismatch` with the codes the
+servers have, which means the client (or the servers) need updating. Otherwise it's `503 no_server_available`,
+whose message says whether servers are busy or haven't reported in recently.
 
 ### Raid result
 
@@ -306,13 +341,31 @@ Only the game server can check gear into a raid and report what came out. All ca
 
 | Method | Path | Purpose |
 | --- | --- | --- |
+| POST | `/v1/server/ready` | Say the server is up and waiting, with its map, build and network code |
 | POST | `/v1/server/raids/{raid_id}/join` | Redeem a player's join token; checks out their loadout and returns it |
 | POST | `/v1/server/raids/{raid_id}/heartbeat` | Extend the raid lease (every 10 s; lease is 60 s) |
 | POST | `/v1/server/raids/{raid_id}/outcomes` | Report one player extracted or died |
 | POST | `/v1/server/raids/{raid_id}/close` | End the raid; unclaimed items become lost |
 
 Any of them can answer `409 catalog_mismatch` (the server's catalog isn't the backend's) or
-`422 missing_idempotency_key`; a reused key with a different body is `409 idempotency_key_reused`.
+`422 missing_idempotency_key`; a reused key with a different body is `409 idempotency_key_reused`. `/ready`
+changes no items, so it needs no idempotency key.
+
+### Ready reports
+
+```json
+POST /v1/server/ready
+{ "map_id": "greybox_01", "build": "a1b2c3d", "network_code": "3f9c...e1" }   // build and network_code optional
+
+200 { "ok": true, "report_every_seconds": 10 }
+422 { "error": "invalid_request", "message": "..." }
+```
+
+A server sends this as soon as it starts and then every `report_every_seconds` (a third of `ReadyTtlSeconds`)
+until its first player joins. From then on its heartbeats keep the raid alive. Closing or aborting the raid
+clears the server's report, since the process exits after a raid, and the next process reports afresh. The
+catalog version comes from `X-Catalog-Version`, like every server call. `BackendClient` does all of this when
+it's given a map; with a backend that answers 404 (from before ready reports) it just stops sending them.
 
 ### Join (checkout)
 
@@ -400,6 +453,7 @@ same API.
 | POST | `/v1/admin/players/{id}/grants` | Give a player items (`origin = 'admin'`, ledger kind `grant`) |
 | GET | `/v1/admin/items/{id}` | One item: where it is and its history |
 | GET | `/v1/admin/raids?all=` | Live raids, or all of them |
+| GET | `/v1/admin/servers` | Each configured server: last ready report, whether it's fresh, and its open raid |
 | POST | `/v1/admin/raids/{id}/abort` | Abort a raid and refund everyone still inside |
 | GET, POST | `/v1/admin/backups` | List backups, or take one now |
 
@@ -507,8 +561,31 @@ Each later feature lands as new rows, columns or ledger kinds, not a redesign.
 | Traders and crafting | New ledger kinds (`purchase`, `sell`, `craft`) and client endpoints, using the same transaction pattern |
 | Wipes | A `season_id` on players and items, or archive and reset the tables |
 | Real auth | Swap dev login for Steam session tickets; the player token shape stays the same |
-| Multiple servers | A matchmaker and allocator behind `/v1/me/raid-tickets`; servers register with their own tokens |
+| Multiple servers | Done as far as M1 needs: servers report in and tickets go to a fresh one (see Raid ticket) |
+| Matchmaking queue | Proposed below |
+| Servers on demand | An allocator that starts server processes when the queue needs more than are ready; the ready reports already tell it what's free |
 | Scale | Move SQLite to Postgres when you have concurrent servers; the schema is already compatible |
+
+### Matchmaking queue (proposal, not built)
+
+Today a ticket is instant: the player is given a place straight away, and the join window collects whoever else
+deploys in the next two minutes. That's right while there are a handful of players. A queue earns its keep when
+raids should start full and all at once, or when players need sorting (squads, region, later skill).
+
+- **Client API.** `POST /v1/me/queue {map_id, network_code, squad_id?}` answers `202 {queue_id}`. The Hideout
+  polls `GET /v1/me/queue/{id}` (waiting, with time in queue; matched, with exactly today's ticket fields;
+  cancelled or timed out) and can leave with `DELETE`. `PlayerSession` gets `QueueAsync` and
+  `WaitForMatchAsync`; the Hideout shows "Searching 0:12" and a Cancel button.
+- **Matching.** A background job, every second or so, groups waiting entries by map and network code. A group
+  becomes a raid when there's a fresh ready server for it and either it has `MinPlayersPerRaid` or its oldest
+  entry has waited `MaxQueueSeconds`. Everyone in it gets their join token at the same moment.
+- **Data.** A `queue_entries` table (player, map, network code, squad, state, created and matched times, the
+  raid it became). The stash locks when the entry is matched, not while waiting, so players can keep sorting
+  gear in the queue. Gear still moves only at join, so nothing about checkout changes.
+- **Game servers don't change.** They keep reporting ready and redeeming join tokens. The join window can shrink
+  or go, since a raid's players arrive together; backfilling a raid that lost players can come later.
+- **Compatibility.** `/v1/me/raid-tickets` stays, as "queue and match now if possible", for CI, the F1 overlay
+  and older clients.
 
 ### Open questions
 

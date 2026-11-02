@@ -73,6 +73,12 @@ public sealed class RaidOptions
     /// </summary>
     public int JoinWindowSeconds { get; set; } = 120;
 
+    /// <summary>
+    /// How recent a game server's ready report must be for a new raid to go to it. Servers report every 10
+    /// seconds while they wait for a raid, so this allows a couple of missed reports.
+    /// </summary>
+    public int ReadyTtlSeconds { get; set; } = 30;
+
     /// <summary>How often the background job looks for raids whose lease has run out.</summary>
     public int ReaperIntervalSeconds { get; set; } = 10;
 

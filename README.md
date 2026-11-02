@@ -84,6 +84,7 @@ Settings live under `Backend` in `appsettings.json`, with Development overrides 
 | `Raids:LeaseSeconds` | `60` | A raid whose server sends no heartbeat for this long is aborted and refunded |
 | `Raids:MaxPlayersPerRaid` | `4` | |
 | `Raids:JoinWindowSeconds` | `120` | How long after its first player joins a raid still takes new tickets |
+| `Raids:ReadyTtlSeconds` | `30` | A server that reports ready gets new raids only while its last report is this recent |
 | `Raids:ReaperIntervalSeconds` | `10` | How often the abort job runs |
 
 The key in `appsettings.Development.json` is for local runs only. Real deployments set
@@ -167,6 +168,12 @@ The key in `appsettings.Development.json` is for local runs only. Real deploymen
 - Tickets join the server's open raid when the map matches and there's room, so co-op and looting other players
   work on one dev server. Each server runs one raid at a time, and a raid stops taking tickets two minutes
   after its first player joins, so nobody drops into a raid that's nearly over.
+- With several servers, a game server waiting for its raid posts `/v1/server/ready` every few seconds with its
+  map, build and network code. New raids go to the first configured server that reported in the last
+  `Raids:ReadyTtlSeconds` (30) with the ticket's map, so a server that hung or quit stops getting players. A
+  server that has never reported is used whenever it's idle, as before. A ticket can send the client's
+  `network_code`; servers on different code are skipped, and if that leaves none it's a 409 `version_mismatch`.
+  `GET /v1/admin/servers` shows each server's last report and raid.
 
 **Admin tool**
 - `/v1/admin` takes only the admin token; player and server tokens don't work there, and the admin token
@@ -178,6 +185,10 @@ The key in `appsettings.Development.json` is for local runs only. Real deploymen
 - `BackendClient` is the game server's side of `/v1/server`: `JoinAsync` from the authenticator,
   `ReportExtracted` / `ReportDied` from gameplay, `EndRaidAsync` when the raid is over. Heartbeats run on their own
   from the first join until the close is answered.
+- With `BackendClientOptions.MapId` set (`RaidServer` sets it), `Start` also begins ready reports, sent at once
+  and then every `ReadyInterval` (10 s, or sooner if the backend asks) until the first player joins or the raid
+  ends. They carry `Build` (default: the `RAIDZERO_BUILD` environment variable) and `NetworkCode` when set. A
+  backend without `/ready` (404) or one that refuses the report gets logged once and left alone.
 - Reports go through a durable outbox: one append-only journal per raid in the outbox directory, flushed to disk
   before the call returns, delivered in order (the close always last) and retried with the same idempotency key
   until the backend answers. A new run resends whatever the last one left. Refused reports are kept as
@@ -371,5 +382,6 @@ The Milestone 1 backend is complete: every endpoint in the API doc exists and is
 conversation exists too, as `shared/Game.BackendClient`, and so do the raid's inventory rules, in
 `shared/Game.Raid`, along with the inventory's network protocol, and the Hideout's side, as `PlayerSession`.
 The thin Unity layers over them live in `unity/RaidZero/Assets/_Project/Scripts/Net`, including the raid's
-lifecycle, and CI builds the dedicated server and deploys it next to the backend. Next are Steam login in place
-of dev login, and a matchmaker that spreads raids across several servers.
+lifecycle, and CI builds the dedicated server and deploys it next to the backend. Servers report in when
+they're ready, so raids can spread across several of them (step 1 of matchmaking). Next are Steam login in place
+of dev login, and a matchmaking queue once there are enough players to need one (proposed in the API doc).

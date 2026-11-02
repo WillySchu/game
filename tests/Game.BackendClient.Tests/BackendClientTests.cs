@@ -323,6 +323,105 @@ public sealed class BackendClientTests : IDisposable
         Assert.Contains(_log.Lines, l => l.Message.Contains("incomplete last line", StringComparison.Ordinal));
     }
 
+    // ---- Ready reports ----
+
+    private static BackendClientOptions Ready(string? networkCode = "net-1")
+    {
+        var options = Fast();
+        options.MapId = "greybox_01";
+        options.Build = "abc1234";
+        options.NetworkCode = networkCode;
+        options.ReadyInterval = TimeSpan.FromMilliseconds(20);
+        return options;
+    }
+
+    [Fact]
+    public async Task ReadyReports_RunFromStart_UntilTheFirstPlayerJoins()
+    {
+        var client = Client(options: Ready());
+        await Wait.UntilAsync(() => _backend.To("/v1/server/ready").Count >= 3, "ready reports");
+
+        var report = _backend.To("/v1/server/ready")[0];
+        Assert.Equal("Bearer server-token", report.Headers["Authorization"]);
+        Assert.Equal(Catalog, report.Headers["X-Catalog-Version"]);
+        Assert.Null(report.Headers.GetValueOrDefault("Idempotency-Key"));
+        var body = JsonDocument.Parse(report.Body).RootElement;
+        Assert.Equal("greybox_01", body.GetProperty("map_id").GetString());
+        Assert.Equal("abc1234", body.GetProperty("build").GetString());
+        Assert.Equal("net-1", body.GetProperty("network_code").GetString());
+        Assert.Contains(_log.Lines, l => l.Level == BackendLogLevel.Info && l.Message.Contains("ready for a raid on greybox_01"));
+
+        Assert.True((await client.JoinAsync(_raidId, "token-p1")).Succeeded);
+        await Task.Delay(60);
+        var afterJoin = _backend.To("/v1/server/ready").Count;
+        await Task.Delay(120);
+
+        Assert.Equal(afterJoin, _backend.To("/v1/server/ready").Count);
+    }
+
+    [Fact]
+    public async Task ReadyReports_LeaveOutWhatIsntSet_AndStopWhenARaidNobodyJoinedEnds()
+    {
+        var options = Ready(networkCode: null);
+        options.Build = null;
+        var client = Client(options: options);
+        await Wait.UntilAsync(() => _backend.To("/v1/server/ready").Count >= 1, "a ready report");
+
+        await client.EndRaidAsync();
+        await Task.Delay(60);
+        var afterEnd = _backend.To("/v1/server/ready").Count;
+        await Task.Delay(120);
+
+        Assert.Equal("""{"map_id":"greybox_01"}""", _backend.To("/v1/server/ready")[0].Body);
+        Assert.Equal(afterEnd, _backend.To("/v1/server/ready").Count);
+    }
+
+    [Fact]
+    public async Task WithoutAMap_NoReadyReportsAreSent()
+    {
+        Client();
+        await Task.Delay(100);
+
+        Assert.Empty(_backend.To("/v1/server/ready"));
+    }
+
+    [Fact]
+    public async Task AnOlderBackendWithoutReadyReports_IsLeftAlone()
+    {
+        _backend.Handler = r => r.Path == "/v1/server/ready" ? new BackendResponse(404, "") : FakeBackend.DefaultHandler(r);
+        Client(options: Ready());
+        await Wait.UntilAsync(() => _log.Lines.Any(l => l.Message.Contains("doesn't take ready reports")), "the log line");
+        await Task.Delay(100);
+
+        Assert.Single(_backend.To("/v1/server/ready"));
+        Assert.DoesNotContain(_log.Lines, l => l.Level != BackendLogLevel.Info);
+    }
+
+    [Fact]
+    public async Task ARefusedReadyReport_IsLoggedAsAnError_AndNotRepeated()
+    {
+        _backend.Handler = r => r.Path == "/v1/server/ready" ? FakeBackend.Error(422, "invalid_request") : FakeBackend.DefaultHandler(r);
+        Client(options: Ready());
+        await Wait.UntilAsync(() => _log.Lines.Any(l => l.Level == BackendLogLevel.Error), "the error");
+        await Task.Delay(100);
+
+        Assert.Single(_backend.To("/v1/server/ready"));
+        Assert.Contains("invalid_request", _log.Lines.Single(l => l.Level == BackendLogLevel.Error).Message);
+    }
+
+    [Fact]
+    public async Task ReadyReportsThatDontGetThrough_KeepTrying_AndAreLoggedOnce()
+    {
+        var down = true;
+        _backend.Handler = r => r.Path == "/v1/server/ready" && Volatile.Read(ref down) ? throw new HttpRequestException("network down") : FakeBackend.DefaultHandler(r);
+        Client(options: Ready());
+        await Wait.UntilAsync(() => _backend.To("/v1/server/ready").Count >= 4, "retries");
+        Volatile.Write(ref down, false);
+        await Wait.UntilAsync(() => _log.Lines.Any(l => l.Message.Contains("getting through again")), "the recovery");
+
+        Assert.Single(_log.Lines, l => l.Level == BackendLogLevel.Warning);
+    }
+
     // ---- Heartbeats and the raid's end ----
 
     [Fact]

@@ -9,7 +9,7 @@ your Mac, John's PC ──Tailscale──▶ the server PC: backend :5080, game 
 the server PC itself ─────────────▶ same, through its own Tailscale address
 ```
 
-It needs an x86 machine (Unity's Linux server build is x86-64 only) with Docker Desktop. The steps below assume
+It needs an x86 machine (our CI builds the Linux server for x86-64 only) with Docker Desktop. The steps below assume
 Windows; on Linux, use the shell equivalents. It's only up while that machine is on, and dev login is on, so
 don't expose it to the internet.
 

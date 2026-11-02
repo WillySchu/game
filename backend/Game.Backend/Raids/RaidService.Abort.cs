@@ -69,6 +69,7 @@ public sealed partial class RaidService
 
         var lost = await LosePoolAsync(c, tx, raidId, now);
         await c.ExecuteAsync("UPDATE raids SET state = 'aborted', closed_at = @now WHERE id = @raidId", new { now, raidId }, transaction: tx);
+        await ForgetReadyAsync(c, tx, raidId);
         await LedgerAsync(c, tx, null, raidId, "raid_abort", new { Refunded = inside.Select(p => p.PlayerId), ItemsLost = lost }, now);
     }
 

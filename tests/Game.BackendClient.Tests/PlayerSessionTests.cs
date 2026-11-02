@@ -134,4 +134,19 @@ public sealed class PlayerSessionTests : IDisposable
         Assert.Equal("not_logged_in", result.Error);
         Assert.Empty(_backend.Requests);
     }
+
+    [Fact]
+    public async Task ATicketRequest_CarriesTheNetworkCode_OnlyWhenThereIsOne()
+    {
+        await _session.DevLoginAsync("Sam");
+        _backend.Handler = r => r.Path == "/v1/me/raid-tickets" ? FakeBackend.Error(409, "version_mismatch") : Normal(r);
+
+        var withCode = await _session.RequestTicketAsync("greybox_01", "net-1");
+        await _session.RequestTicketAsync("greybox_01");
+
+        var bodies = _backend.To("/v1/me/raid-tickets").Select(r => JObject.Parse(r.Body)).ToList();
+        Assert.Equal("version_mismatch", withCode.Error);
+        Assert.Equal("net-1", (string?)bodies[0]["network_code"]);
+        Assert.Null(bodies[1]["network_code"]);
+    }
 }

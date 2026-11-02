@@ -19,7 +19,8 @@ For playtests on a machine you already have, over Tailscale and with no VPS, see
 - A DNS name, such as `api.yourgame.com`, with an A record pointing at the server.
 - Ports 80 and 443 (TCP) open (Caddy needs 80 for the certificate challenge), and the game server's port,
   7770 by default, open for UDP. Nothing else. With ufw: `ufw allow 80,443/tcp && ufw allow 7770/udp`.
-- An x86 server. The backend image also runs on ARM, but Unity's Linux server build is x86-64 only.
+- An x86 server. The backend image also runs on ARM, but our CI builds the game server for x86-64 only (Unity
+  can build Linux ARM64 servers too; we haven't needed one).
 - The two images, which CI pushes to GitHub Container Registry from `main`: `ghcr.io/<owner>/<repo>/backend` on
   every push, and `ghcr.io/<owner>/<repo>/gameserver` whenever the Unity project or shared code changes (it needs
   the Unity secrets below). New packages start out private on GHCR even in a public repository: either make each

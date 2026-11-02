@@ -190,4 +190,31 @@ public class RaidApiTests
         Assert.Equal(HttpStatusCode.UnprocessableEntity, status);
         Assert.Equal("missing_idempotency_key", body.GetProperty("error").GetString());
     }
+
+    [Fact]
+    public async Task AServerReportsReady_OverHttp_AndTicketsCheckItsNetworkCode()
+    {
+        await using var api = await ApiHost.StartAsync();
+        var (_, playerToken) = await api.LoginAsync();
+        var catalog = await CatalogVersionAsync(api);
+        var report = new { map_id = "greybox_01", build = "abc1234", network_code = "net-1" };
+
+        var (asPlayer, _) = await SendAsync(api, Request(HttpMethod.Post, "/v1/server/ready", playerToken, report, catalogVersion: catalog));
+        var (oldBuild, _) = await SendAsync(api, Request(HttpMethod.Post, "/v1/server/ready", ApiHost.ServerToken, report, catalogVersion: "0000000000000000"));
+        var (ready, readyBody) = await SendAsync(api, Request(HttpMethod.Post, "/v1/server/ready", ApiHost.ServerToken, report, catalogVersion: catalog));
+        var (stale, staleBody) = await SendAsync(api, Request(HttpMethod.Post, "/v1/me/raid-tickets", playerToken, new { map_id = "greybox_01", network_code = "net-0" }));
+        var (current, _) = await SendAsync(api, Request(HttpMethod.Post, "/v1/me/raid-tickets", playerToken, new { map_id = "greybox_01", network_code = "net-1" }));
+        var (_, servers) = await SendAsync(api, Request(HttpMethod.Get, "/v1/admin/servers", ApiHost.AdminToken));
+
+        Assert.Equal(HttpStatusCode.Unauthorized, asPlayer);
+        Assert.Equal(HttpStatusCode.Conflict, oldBuild);
+        Assert.Equal(HttpStatusCode.OK, ready);
+        Assert.True(readyBody.GetProperty("report_every_seconds").GetInt32() >= 1);
+        Assert.Equal(HttpStatusCode.Conflict, stale);
+        Assert.Equal("version_mismatch", staleBody.GetProperty("error").GetString());
+        Assert.Equal(HttpStatusCode.OK, current);
+        var listed = servers.GetProperty("servers")[0];
+        Assert.Equal("abc1234", listed.GetProperty("build").GetString());
+        Assert.True(listed.GetProperty("ready").GetBoolean());
+    }
 }

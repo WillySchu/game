@@ -9,8 +9,8 @@ using RaidZero.Shared.Inventory;
 namespace RaidZero.BackendApi
 {
     /// <summary>
-    /// The game server's connection to the backend for one raid: letting players in, keeping the raid's lease
-    /// alive, and reporting how each player left.
+    /// The game server's connection to the backend for one raid: saying it's ready for one, letting players in,
+    /// keeping the raid's lease alive, and reporting how each player left.
     ///
     /// Typical use, from the server's main thread:
     ///   var backend = new BackendClient(BackendSettings.Resolve(...), catalog.Version);
@@ -52,6 +52,7 @@ namespace RaidZero.BackendApi
         private bool _disposed;
         private Task _endTask;
         private CancellationTokenSource _heartbeatStop;
+        private CancellationTokenSource _readyStop;
 
         /// <param name="catalogVersion">The version of the item catalog this server was built with (ItemCatalog.Version).</param>
         /// <param name="transport">Leave null for HTTP; tests pass their own.</param>
@@ -105,10 +106,13 @@ namespace RaidZero.BackendApi
 
         /// <summary>
         /// Opens the outbox and starts resending reports an earlier run of this server didn't get answered.
-        /// Call once, before anything else, after subscribing to the events.
+        /// With a <see cref="BackendClientOptions.MapId"/>, also starts telling the backend this server is
+        /// ready for a raid on that map, until the first player joins. Call once, before anything else, after
+        /// subscribing to the events.
         /// </summary>
         public void Start()
         {
+            CancellationToken readyToken = default;
             lock (_gate)
             {
                 ThrowIfDisposed();
@@ -118,10 +122,19 @@ namespace RaidZero.BackendApi
                 }
 
                 _started = true;
+                if (_options.MapId != null)
+                {
+                    _readyStop = CancellationTokenSource.CreateLinkedTokenSource(_stopping.Token);
+                    readyToken = _readyStop.Token;
+                }
             }
 
             _outbox.Start();
             _log.Write(BackendLogLevel.Info, $"Backend client started: {_settings}.");
+            if (_options.MapId != null)
+            {
+                Task.Run(() => ReadyLoopAsync(readyToken));
+            }
         }
 
         /// <summary>
@@ -247,6 +260,7 @@ namespace RaidZero.BackendApi
                 }
 
                 _ending = true;
+                _readyStop?.Cancel();
                 if (_raidId == null)
                 {
                     // Nobody joined, so the backend never handed this server a raid it knows about. The raid it
@@ -331,7 +345,9 @@ namespace RaidZero.BackendApi
                 // which the backend never assigns to a busy server, is a real conflict.
                 if (_raidId == null)
                 {
+                    // The raid has started: the backend tracks this server by the raid's lease from now on.
                     _raidId = raidId;
+                    _readyStop?.Cancel();
                     startHeartbeat = !_aborted && !_disposed;
                 }
                 else if (_raidId != raidId)
@@ -381,6 +397,79 @@ namespace RaidZero.BackendApi
 
                 _outbox.Enqueue(_raidId, kind, playerId, $"/v1/server/raids/{_raidId}/outcomes", Wire.Compact(body));
                 _reported.Add(playerId);
+            }
+        }
+
+        /// <summary>
+        /// Tells the backend this server is up with its map loaded: once straight away, then every
+        /// <see cref="BackendClientOptions.ReadyInterval"/> (or sooner, if the backend asks) until the raid starts.
+        /// The backend gives new raids only to servers whose report is recent, so a server that hangs or quits
+        /// before its raid stops getting players within half a minute.
+        /// </summary>
+        private async Task ReadyLoopAsync(CancellationToken ct)
+        {
+            var report = new JObject { ["map_id"] = _options.MapId };
+            if (!string.IsNullOrEmpty(_options.Build))
+            {
+                report["build"] = _options.Build;
+            }
+
+            if (!string.IsNullOrEmpty(_options.NetworkCode))
+            {
+                report["network_code"] = _options.NetworkCode;
+            }
+
+            var body = Wire.Compact(report);
+            var interval = _options.ReadyInterval > TimeSpan.Zero ? _options.ReadyInterval : TimeSpan.FromSeconds(10);
+            bool reported = false;
+            bool failing = false;
+            try
+            {
+                while (true)
+                {
+                    var result = await CallAsync("POST", "/v1/server/ready", body, null, ct).ConfigureAwait(false);
+                    if (result.Status == CallStatus.Succeeded)
+                    {
+                        var every = (int?)Wire.TryParseObject(result.Body)?["report_every_seconds"];
+                        if (every > 0 && TimeSpan.FromSeconds(every.Value) < interval)
+                        {
+                            interval = TimeSpan.FromSeconds(every.Value);
+                        }
+
+                        if (!reported || failing)
+                        {
+                            _log.Write(BackendLogLevel.Info, failing
+                                ? "Ready reports are getting through again."
+                                : $"Told the backend this server is ready for a raid on {_options.MapId}.");
+                        }
+
+                        reported = true;
+                        failing = false;
+                    }
+                    else if (result.StatusCode == 404 && result.Error == "http_404")
+                    {
+                        // A backend from before ready reports: it sends raids to any server without one.
+                        _log.Write(BackendLogLevel.Info, "This backend doesn't take ready reports, so this server doesn't send them.");
+                        return;
+                    }
+                    else if (result.Status == CallStatus.Rejected)
+                    {
+                        _log.Write(BackendLogLevel.Error,
+                            $"The backend refused this server's ready report: {result}. It won't send raids here until that's fixed.");
+                        return;
+                    }
+                    else if (!failing)
+                    {
+                        _log.Write(result.IsConfigurationProblem ? BackendLogLevel.Error : BackendLogLevel.Warning,
+                            $"Ready report failed: {result}. The backend sends no new raids here until one gets through.");
+                        failing = true;
+                    }
+
+                    await Task.Delay(interval, ct).ConfigureAwait(false);
+                }
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
             }
         }
 

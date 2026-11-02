@@ -169,9 +169,24 @@ namespace RaidZero.BackendApi
         /// Reserves a place in a raid on the given map. Connect to the server in the ticket and present its
         /// join token before it expires. From now until the raid resolves, the stash is locked.
         /// </summary>
-        public async Task<PlayerResult<RaidTicketInfo>> RequestTicketAsync(string mapId, CancellationToken cancellationToken = default)
+        public Task<PlayerResult<RaidTicketInfo>> RequestTicketAsync(string mapId, CancellationToken cancellationToken = default) =>
+            RequestTicketAsync(mapId, null, cancellationToken);
+
+        /// <summary>
+        /// As above, but only to a game server running the same networked code as this client
+        /// (<paramref name="networkCode"/>, its fingerprint). If every server that reported one is on different
+        /// code, this fails with version_mismatch, meaning this client or the servers need updating. Null skips
+        /// the check.
+        /// </summary>
+        public async Task<PlayerResult<RaidTicketInfo>> RequestTicketAsync(string mapId, string networkCode, CancellationToken cancellationToken = default)
         {
-            var reply = await SendAsync("POST", "/v1/me/raid-tickets", new JObject { ["map_id"] = mapId }, authenticated: true, cancellationToken);
+            var request = new JObject { ["map_id"] = mapId };
+            if (!string.IsNullOrEmpty(networkCode))
+            {
+                request["network_code"] = networkCode;
+            }
+
+            var reply = await SendAsync("POST", "/v1/me/raid-tickets", request, authenticated: true, cancellationToken);
             if (!reply.Ok)
             {
                 return Fail<RaidTicketInfo>(reply);

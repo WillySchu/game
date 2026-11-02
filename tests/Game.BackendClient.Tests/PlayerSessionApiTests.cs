@@ -197,4 +197,42 @@ public class PlayerSessionApiTests
         Assert.Empty(session.Profile.Character.Children);
         Directory.Delete(outbox, recursive: true);
     }
+
+    [Fact]
+    public async Task AServerReportsReady_AndOnlyPlayersOnItsNetworkCodeAreSentThere()
+    {
+        await using var api = await ApiHost.StartAsync();
+        var catalog = (await (await api.Client.GetAsync("/healthz")).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("catalog_version").GetString()!;
+        var outbox = Path.Combine(Path.GetTempPath(), "raidzero-tests", "outbox-" + Guid.NewGuid().ToString("N"));
+        var options = new BackendClientOptions { MapId = "greybox_01", NetworkCode = "net-1", Build = "abc1234", ReadyInterval = TimeSpan.FromMilliseconds(50) };
+        using var server = new BackendClient(new BackendSettings(api.Client.BaseAddress!.ToString(), ApiHost.ServerToken, outbox), catalog,
+            options, new HttpClientTransport(api.Client.BaseAddress!.ToString(), TimeSpan.FromSeconds(10)), new CapturingLog());
+        using var session = Session(api);
+        await session.DevLoginAsync("Sam");
+
+        server.Start();
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (!(await AdminServersAsync(api)).GetProperty("ready").GetBoolean())
+        {
+            Assert.True(DateTime.UtcNow < deadline, "The server never reported ready.");
+            await Task.Delay(20);
+        }
+
+        var stale = await session.RequestTicketAsync("greybox_01", "net-0");
+        var ticket = await session.RequestTicketAsync("greybox_01", "net-1");
+        var joined = await server.JoinAsync(ticket.Value.RaidId, ticket.Value.JoinToken);
+
+        Assert.Equal("version_mismatch", stale.Error);
+        Assert.True(joined.Succeeded, joined.ToString());
+        var listed = await AdminServersAsync(api);
+        Assert.Equal("abc1234", listed.GetProperty("build").GetString());
+        Assert.Equal("active", listed.GetProperty("raid_state").GetString());
+    }
+
+    private static async Task<JsonElement> AdminServersAsync(ApiHost api)
+    {
+        using var response = await api.GetAsync("/v1/admin/servers", ApiHost.AdminToken);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("servers")[0];
+    }
 }

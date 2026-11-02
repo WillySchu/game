@@ -21,13 +21,29 @@ public sealed partial class RaidService
     /// when the map matches and there's room (which is how co-op and looting another player's body get tested
     /// on one dev server), and otherwise opens a new raid on the first idle server. A raid stops taking tickets
     /// <see cref="RaidOptions.JoinWindowSeconds"/> after its first player joins.
+    ///
+    /// Servers that report in (<see cref="ReportReadyAsync"/>) are held to what they report: a new raid only goes
+    /// to one that reported within <see cref="RaidOptions.ReadyTtlSeconds"/> with the ticket's map, and when the
+    /// request names its network code, only to a server running the same. A server that has never reported is
+    /// treated as before, as idle whenever it has no raid.
     /// </summary>
-    public Task<ServerResponse> CreateTicketAsync(string playerId, string? mapId, CancellationToken ct = default)
+    /// <param name="networkCode">The client's network code fingerprint, if it sends one.</param>
+    public Task<ServerResponse> CreateTicketAsync(string playerId, string? mapId, CancellationToken ct = default) =>
+        CreateTicketAsync(playerId, mapId, null, ct);
+
+    public Task<ServerResponse> CreateTicketAsync(string playerId, string? mapId, string? networkCode, CancellationToken ct = default)
     {
-        if (string.IsNullOrEmpty(mapId) || mapId.Length > 64 || !mapId.All(ch => char.IsAsciiLetterLower(ch) || char.IsAsciiDigit(ch) || ch == '_'))
+        if (!IsValidMapId(mapId))
         {
             return Task.FromResult(ServerResponse.Error(422, "invalid_request", "map_id must be lowercase letters, digits and underscores."));
         }
+
+        if (!IsValidReportField(networkCode))
+        {
+            return Task.FromResult(ServerResponse.Error(422, "invalid_request", $"network_code must be printable and at most {MaxReportFieldLength} characters."));
+        }
+
+        networkCode = string.IsNullOrEmpty(networkCode) ? null : networkCode;
 
         return _db.WriteAsync(async (c, tx) =>
         {
@@ -52,10 +68,11 @@ public sealed partial class RaidService
 
             var expires = nowValue.AddSeconds(_options.TicketSeconds);
             var joinWindowOpenedAfter = Timestamps.Format(nowValue.AddSeconds(-_options.JoinWindowSeconds));
-            var target = await FindOrOpenRaidAsync(c, tx, playerId, mapId, now, joinWindowOpenedAfter, Timestamps.Format(expires.AddSeconds(_options.LeaseSeconds)));
+            var skipped = new Skipped();
+            var target = await FindOrOpenRaidAsync(c, tx, playerId, mapId, networkCode, now, joinWindowOpenedAfter, Timestamps.Format(expires.AddSeconds(_options.LeaseSeconds)), skipped);
             if (target is null)
             {
-                return ServerResponse.Error(503, "no_server_available", "Every game server is busy with another raid. Try again shortly.");
+                return NoServer(mapId, networkCode, skipped);
             }
 
             var (raidId, server, rejoining) = target.Value;
@@ -90,10 +107,20 @@ public sealed partial class RaidService
     }
 
     private async Task<(string RaidId, GameServerOptions Server, bool Rejoining)?> FindOrOpenRaidAsync(
-        SqliteConnection c, SqliteTransaction tx, string playerId, string mapId, string now, string joinWindowOpenedAfter, string newRaidLease)
+        SqliteConnection c, SqliteTransaction tx, string playerId, string mapId, string? networkCode, string now, string joinWindowOpenedAfter,
+        string newRaidLease, Skipped skipped)
     {
+        var reports = await LoadReportsAsync(c, tx);
+        var freshAfter = FreshAfter();
         foreach (var server in _servers.All)
         {
+            reports.TryGetValue(server.Id, out var report);
+            if (report is not null && networkCode is not null && report.NetworkCode is not null && report.NetworkCode != networkCode)
+            {
+                skipped.Versions.Add(report.NetworkCode);
+                continue;
+            }
+
             var open = (await c.QueryAsync<RaidRow>(
                 """
                 SELECT id AS Id, map_id AS MapId, server_id AS ServerId, state AS State, lease_expires_at AS LeaseExpiresAt, started_at AS StartedAt
@@ -103,6 +130,19 @@ public sealed partial class RaidService
 
             if (open is null)
             {
+                // A server that reports in only gets a new raid while its reports are recent and for this map.
+                if (report is not null && !IsFresh(report, freshAfter))
+                {
+                    skipped.Quiet++;
+                    continue;
+                }
+
+                if (report is not null && report.MapId != mapId)
+                {
+                    skipped.OtherMaps++;
+                    continue;
+                }
+
                 var raidId = Uuid7.NewId();
                 await c.ExecuteAsync(
                     "INSERT INTO raids (id, map_id, server_id, state, lease_expires_at, created_at) VALUES (@raidId, @mapId, @serverId, 'pending', @newRaidLease, @now)",
@@ -112,6 +152,14 @@ public sealed partial class RaidService
 
             if (open.MapId != mapId)
             {
+                continue;
+            }
+
+            // Nobody has joined yet, so the server is still waiting and still reporting. If it went quiet, it's
+            // gone: don't send anyone else to it (the raid expires with its tickets).
+            if (open.State == RaidStates.Pending && report is not null && !IsFresh(report, freshAfter))
+            {
+                skipped.Quiet++;
                 continue;
             }
 
@@ -140,5 +188,31 @@ public sealed partial class RaidService
         }
 
         return null;
+    }
+
+    private ServerResponse NoServer(string mapId, string? networkCode, Skipped skipped)
+    {
+        if (skipped.Versions.Count > 0 && skipped.Quiet == 0 && skipped.OtherMaps == 0)
+        {
+            var theirs = string.Join(", ", skipped.Versions.Distinct(StringComparer.Ordinal));
+            return ServerResponse.Error(409, "version_mismatch",
+                $"No raid server runs your game's network code ({networkCode}); they run {theirs}. Everyone needs the same version: update the game, or the servers.",
+                new { Servers = skipped.Versions.Distinct(StringComparer.Ordinal).ToList() });
+        }
+
+        var why = skipped.Quiet > 0 && skipped.OtherMaps == 0 && skipped.Versions.Count == 0
+            ? "No game server for " + mapId + " has reported in recently: it may be down or restarting. Try again shortly."
+            : "Every game server for " + mapId + " is busy with another raid. Try again shortly.";
+        return ServerResponse.Error(503, "no_server_available", why);
+    }
+
+    /// <summary>Why servers were passed over, so a refusal can say something useful.</summary>
+    private sealed class Skipped
+    {
+        public List<string> Versions { get; } = new();
+
+        public int Quiet { get; set; }
+
+        public int OtherMaps { get; set; }
     }
 }
