@@ -1,0 +1,79 @@
+# Posts to a Discord channel when CI, Game client or Game server fails, with the branch, the commit, and which
+# jobs and steps failed. It also posts when main goes green again after a failure, so the channel shows when
+# a break is fixed.
+#
+# Needs one repository secret, DISCORD_WEBHOOK_URL: in Discord, Edit Channel > Integrations > Webhooks > New
+# Webhook > Copy Webhook URL. Without it this does nothing. Runs from forks' pull requests are left out.
+#
+# workflow_run always uses this file as it is on main, so changes to it take effect once they're merged.
+name: Notify
+
+on:
+  workflow_run:
+    workflows: [CI, Game client, Game server]
+    types: [completed]
+
+permissions:
+  actions: read
+
+jobs:
+  discord:
+    runs-on: ubuntu-latest
+    if: >-
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      (github.event.workflow_run.conclusion == 'failure' ||
+       github.event.workflow_run.conclusion == 'timed_out' ||
+       (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main'))
+    steps:
+      - name: Post to Discord
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          WORKFLOW: ${{ github.event.workflow_run.name }}
+          WORKFLOW_ID: ${{ github.event.workflow_run.workflow_id }}
+          CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
+          EVENT: ${{ github.event.workflow_run.event }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+          MESSAGE: ${{ github.event.workflow_run.head_commit.message }}
+          AUTHOR: ${{ github.event.workflow_run.head_commit.author.name }}
+        run: |
+          if [ -z "$WEBHOOK" ]; then
+            echo "DISCORD_WEBHOOK_URL isn't set, so there's nowhere to post."
+            exit 0
+          fi
+
+          if [ "$CONCLUSION" = success ]; then
+            # Only worth saying if the run before this one on main failed.
+            previous=$(gh api "repos/$REPO/actions/workflows/$WORKFLOW_ID/runs?branch=main&status=completed&per_page=2" \
+              --jq '.workflow_runs[1].conclusion // ""')
+            if [ "$previous" != failure ] && [ "$previous" != timed_out ]; then
+              echo "The last run on main didn't fail; nothing to report."
+              exit 0
+            fi
+            title="✅ $WORKFLOW is passing again on main"
+            color=3066993
+            details=""
+          else
+            title="❌ $WORKFLOW failed on $BRANCH"
+            [ "$CONCLUSION" = timed_out ] && title="⏱️ $WORKFLOW timed out on $BRANCH"
+            color=15158332
+            # Each failed job, with the first step in it that failed.
+            details=$(gh api "repos/$REPO/actions/runs/$RUN_ID/jobs?per_page=100" --jq '
+              .jobs[] | select(.conclusion == "failure" or .conclusion == "timed_out")
+              | "• **\(.name)**: \(([.steps[]? | select(.conclusion == "failure")][0].name) // "failed")"' || true)
+          fi
+
+          subject=$(printf '%s' "$MESSAGE" | head -n 1 | cut -c 1-200)
+          description=$(printf '[`%s`](https://github.com/%s/commit/%s) %s, by %s (%s)\n%s' \
+            "${SHA:0:7}" "$REPO" "$SHA" "$subject" "$AUTHOR" "$EVENT" "$details")
+
+          # jq builds the JSON, so quotes and newlines in commit messages can't break it. allowed_mentions
+          # keeps an @everyone in a commit message from pinging anyone.
+          jq -n --arg title "$title" --arg url "$RUN_URL" --arg description "$description" --argjson color "$color" \
+            '{username: "Raid Zero CI", allowed_mentions: {parse: []},
+              embeds: [{title: $title, url: $url, description: $description, color: $color}]}' \
+            | curl -sS --fail-with-body -H "Content-Type: application/json" -d @- "$WEBHOOK"

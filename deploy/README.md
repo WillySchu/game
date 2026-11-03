@@ -43,6 +43,14 @@ build and returns it afterwards. If you change Unity versions and activation sta
 file again. Without these secrets the game server workflow skips the build with a warning, and nothing else
 breaks.
 
+### Build failures in Discord
+
+`.github/workflows/notify.yml` posts to a Discord channel when CI, Game client or Game server fails (on any
+branch, but not from forks), naming the commit and the failed jobs and steps, and again when main passes after
+a failure. In Discord, open the channel's **Edit Channel → Integrations → Webhooks → New Webhook**, copy its URL,
+and save it as the repository secret `DISCORD_WEBHOOK_URL`. Without the secret it does nothing. Treat the URL
+like a password: anyone who has it can post to that channel.
+
 ## First deploy
 
 ```sh
