@@ -1,0 +1,17 @@
+{
+    "name": "Game.Server",
+    "rootNamespace": "RaidZero.Server",
+    "references": [
+        "FishNet.Runtime",
+        "Game.Net"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": ["BUILD_SERVER"],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

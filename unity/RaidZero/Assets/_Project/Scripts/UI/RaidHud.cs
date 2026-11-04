@@ -145,12 +145,6 @@ namespace RaidZero.UI
                 _session = _networkManager.GetComponent<RaidSessionClient>();
             }
 
-            if (_session == null)
-            {
-                Debug.Log("[hud] No RaidSessionClient on the NetworkManager; adding one so the HUD has a clock to show.");
-                _session = _networkManager.gameObject.AddComponent<RaidSessionClient>();
-            }
-
             _session.LeftRaid += OnLeftRaid;
             _session.ExtractionChanged += OnExtractionChanged;
         }

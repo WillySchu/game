@@ -10,37 +10,38 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 15003, guid: 0000000000000000e000000000000000, type: 0}
-  m_Name: Linux
+  m_Name: Windows Server
   m_EditorClassIdentifier: UnityEditor.dll::UnityEditor.Build.Profile.BuildProfile
   m_AssetVersion: 2
-  m_BuildTarget: 24
-  m_Subtarget: 2
-  m_PlatformId: cb423bfea44b4d658edb8bc5d91a3024
+  m_BuildTarget: 19
+  m_Subtarget: 1
+  m_PlatformId: 8d1e1bca926649cba89d37a4c66e8b3d
   m_PlatformBuildProfile:
-    rid: 6967622383811952743
+    rid: 6507251870116610049
   m_ActivePlatformGuid: 
   m_AdditionalPlatformBuildSettings: []
   m_OverrideGlobalSceneList: 1
   m_Scenes:
-  - m_enabled: 1
-    m_path: Assets/_Project/Scenes/SampleScene.unity
-    m_guid: 99c9720ab356a0642a771bea13969a05
   - m_enabled: 1
     m_path: Assets/_Project/Scenes/core.unity
     m_guid: 43477050f5c623c489cfa1f4d300390c
   - m_enabled: 1
     m_path: Assets/_Project/Scenes/core.server.unity
     m_guid: 8e3880fb8b8f90847bf72cd50fc55629
-  m_HasScriptingDefines: 0
-  m_ScriptingDefines: []
+  - m_enabled: 1
+    m_path: Assets/_Project/Scenes/SampleScene.unity
+    m_guid: 99c9720ab356a0642a771bea13969a05
+  m_HasScriptingDefines: 1
+  m_ScriptingDefines:
+  - BUILD_SERVER
   m_PlayerSettingsYaml:
     m_Settings: []
   requiredComponents: []
   references:
     version: 2
     RefIds:
-    - rid: 6967622383811952743
-      type: {class: LinuxPlatformSettings, ns: UnityEditor.LinuxStandalone, asm: UnityEditor.LinuxStandalone.Extensions}
+    - rid: 6507251870116610049
+      type: {class: WindowsPlatformSettings, ns: UnityEditor.WindowsStandalone, asm: UnityEditor.WindowsStandalone.Extensions}
       data:
         m_Development: 0
         m_ConnectProfiler: 0
@@ -57,10 +58,9 @@ MonoBehaviour:
         m_InsightsSettingsContainer:
           m_BuildProfileEngineDiagnosticsState: 2
         m_AdaptivePerformanceEnabled: 0
+        m_WindowsBuildAndRunDeployTarget: 0
         m_Architecture: 0
-        m_RemoteDeviceSectionFoldoutOpen: 0
-        m_DeployTarget: 0
-        m_RemoteDeviceAddress: 
-        m_RemoteDeviceUsername: 
-        m_RemoteDeviceExports: 
-        m_PathOnRemoteDevice: 
+        m_CreateSolution: 0
+        m_CopyPDBFiles: 0
+        m_WindowsDevicePortalAddress: 
+        m_WindowsDevicePortalUsername: 
