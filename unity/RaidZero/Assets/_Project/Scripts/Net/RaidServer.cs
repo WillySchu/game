@@ -337,6 +337,12 @@ namespace RaidZero.Net
         // Currently hardcoded to SampleScene, eventually update with scene name connected to _mapID.
         private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
         {
+            // The CI's scripted player runs from the server image, but it's a client: it mustn't listen too.
+            if (ServerConfig.HasFlag("--ci-client"))
+            {
+                return;
+            }
+
             if(scene.name == "SampleScene")
             {
                 _networkManager.ServerManager.StartConnection();

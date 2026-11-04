@@ -14,8 +14,13 @@ namespace RaidZero.Server
         {
         _networkManager = InstanceFinder.NetworkManager;
 
-        _networkManager.gameObject.AddComponent<RaidServer>();
-        _networkManager.gameObject.AddComponent<RaidAuthenticator>();
+        if (_networkManager.gameObject.GetComponent<RaidServer>() == null)
+        {
+            _networkManager.gameObject.AddComponent<RaidServer>();
+        }
+
+        // Registers it with the ServerManager too; adding the component alone leaves Fish-Net without one.
+        RaidAuthenticator.Install(_networkManager);
 
         }
 

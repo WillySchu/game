@@ -9,14 +9,15 @@ using UnityEngine;
 namespace RaidZero.Net
 {
     /// <summary>
-    /// Lets a client into the game server only with a valid raid ticket from the backend. Assign it to the
-    /// ServerManager's Authenticator field. It goes on the same GameObject as <see cref="RaidServer"/>.
+    /// Lets a client into the game server only with a valid raid ticket from the backend. It works on both
+    /// sides: a client sends its ticket from here when it connects, and the server redeems it through the
+    /// <see cref="RaidServer"/> on the same GameObject. So every process that connects or listens needs one on
+    /// its NetworkManager, registered as the ServerManager's authenticator: call <see cref="Install"/>.
     ///
     /// The client, as soon as it connects, sends its ticket (<see cref="RaidTickets"/>). The server redeems it
     /// with the backend, which moves the player's gear into the raid, and only then lets the connection in.
     /// The host in the editor is a player too, so it goes through exactly the same steps.
     /// </summary>
-    [RequireComponent(typeof(RaidServer))]
     public sealed class RaidAuthenticator : Authenticator
     {
         private readonly HashSet<NetworkConnection> _joining = new HashSet<NetworkConnection>();
@@ -28,6 +29,29 @@ namespace RaidZero.Net
         /// ticket_expired or invalid_join_token the Hideout should get a new ticket.
         /// </summary>
         public static event Action<JoinRaidResultBroadcast> JoinAnswered;
+
+        /// <summary>
+        /// Puts the authenticator on the NetworkManager, if it isn't there yet, and makes it the ServerManager's
+        /// authenticator. Adding the component alone isn't enough: Fish-Net only uses the one the ServerManager
+        /// holds, and without one it lets every connection straight in, so the client never sends its ticket,
+        /// nobody joins the raid, and the raid never starts (no clock, no raid inventory, no extraction).
+        /// Call it from both the client and the server setup, before connecting; calling it twice is harmless.
+        /// </summary>
+        public static RaidAuthenticator Install(NetworkManager networkManager)
+        {
+            var authenticator = networkManager.GetComponent<RaidAuthenticator>();
+            if (authenticator == null)
+            {
+                authenticator = networkManager.gameObject.AddComponent<RaidAuthenticator>();
+            }
+
+            if (networkManager.ServerManager.GetAuthenticator() != authenticator)
+            {
+                networkManager.ServerManager.SetAuthenticator(authenticator);
+            }
+
+            return authenticator;
+        }
 
         public override void InitializeOnce(NetworkManager networkManager)
         {
@@ -108,6 +132,13 @@ namespace RaidZero.Net
                 }
 
                 var raidServer = GetComponent<RaidServer>();
+                if (raidServer == null)
+                {
+                    // A client-only process listening by mistake.
+                    Refuse(connection, "no_raid_server", "This process has no raid server to join.");
+                    return;
+                }
+
                 var (success, error, message) = await raidServer.JoinAsync(connection, request.RaidId, request.JoinToken);
                 if (!connection.IsActive)
                 {
