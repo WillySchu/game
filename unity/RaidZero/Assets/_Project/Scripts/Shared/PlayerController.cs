@@ -75,6 +75,7 @@ namespace RaidZero.World
         public bool invertLook = false;
 
         [SerializeField] private Transform _cameraMount;
+        private Camera _heldCamera;
         [SerializeField] private CharacterController _characterController;
 
         private Vector2 currentMoveInput;
@@ -95,11 +96,25 @@ namespace RaidZero.World
 
             if(Camera.main != null)
             {
+                _heldCamera = Camera.main;
                 Camera.main.transform.SetParent(_cameraMount);
                 Camera.main.transform.SetPositionAndRotation(_cameraMount.position, _cameraMount.rotation);
             }
             Cursor.lockState = CursorLockMode.Locked;
             currentMoveSpeed = walkSpeed;
+        }
+
+        // The camera is the scene's, borrowed while this player is ours. Give it back before the player is
+        // destroyed (extracting, dying, disconnecting), or it goes too and the next player has none.
+        public override void OnStopClient()
+        {
+            base.OnStopClient();
+            if (_heldCamera != null && _heldCamera.transform.IsChildOf(transform))
+            {
+                _heldCamera.transform.SetParent(null, true);
+            }
+
+            _heldCamera = null;
         }
 
         public override void OnStartNetwork()

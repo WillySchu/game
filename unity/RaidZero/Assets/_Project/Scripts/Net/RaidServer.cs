@@ -93,6 +93,7 @@ namespace RaidZero.Net
         private ExtractionTracker _extraction;
         private Task _closing;
         private double _closingSince;
+        private float _restartAt;
         private bool _testExtractAtSpawn;
 
         private readonly Dictionary<string, GroundItem> _groundItems = new Dictionary<string, GroundItem>(StringComparer.Ordinal);
@@ -289,6 +290,16 @@ namespace RaidZero.Net
 
         private void Update()
         {
+            if (_restartAt > 0f && Time.unscaledTime >= _restartAt)
+            {
+                _restartAt = 0f;
+                if (!_networkManager.IsServerStarted)
+                {
+                    Debug.Log("[raid] Starting the server again for the next raid.");
+                    _networkManager.ServerManager.StartConnection(); // StartRaid follows once it's listening
+                }
+            }
+
             if (!IsRunning)
             {
                 return;
@@ -587,8 +598,12 @@ namespace RaidZero.Net
             }
             else
             {
-                Debug.Log("[raid] Raid closed, so the server has stopped. Start it again for a new raid.");
+                // In the editor or a windowed game there's no supervisor to start a fresh process, so stop
+                // (dropping this raid's players, ground items and state) and start a new raid here a moment later,
+                // once the transport has let go of the port.
+                Debug.Log("[raid] Raid closed. The server stops, and starts again for a new raid in a moment.");
                 _networkManager.ServerManager.StopConnection(true);
+                _restartAt = Time.unscaledTime + 1f;
             }
         }
 

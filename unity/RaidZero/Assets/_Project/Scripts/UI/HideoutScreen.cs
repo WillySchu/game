@@ -98,6 +98,7 @@ namespace RaidZero.UI
             _view.Show();
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
+            InventoryView.EnsureUiInput();
             EnsureModel();
             Refresh();
         }
@@ -155,7 +156,9 @@ namespace RaidZero.UI
                 _networkManager = FindAnyObjectByType<NetworkManager>();
             }
 
-            var inRaid = _networkManager != null && (_networkManager.ClientManager.Started || _networkManager.IsServerStarted);
+            // In a raid means this game's player is connected to a raid. A host's server runs between raids
+            // too, so whether this game is also the server doesn't count.
+            var inRaid = _networkManager != null && _networkManager.ClientManager.Started;
             if (_showWhenNotInARaid)
             {
                 if (inRaid && _shown)

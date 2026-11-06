@@ -53,6 +53,7 @@ namespace RaidZero.UI
             _split.Message += ShowMessage;
             _drag.SplitRequested += (itemId, rotated, target) => _split.Show(_model, itemId, rotated, target);
             _tooltip = new InventoryTooltip(Root, Panels, _drag);
+            Panels.CloseClicked += OnCloseClicked;
         }
 
         /// <summary>Fills the screen; the dimmed backdrop around the window is what "outside" means for drops.</summary>
@@ -117,6 +118,20 @@ namespace RaidZero.UI
             return view;
         }
 
+        /// <summary>
+        /// Makes sure UI Toolkit gets clicks and keys: it reads them from the project-wide input actions' "UI"
+        /// map, which anything that switches a PlayerInput's action maps (it uses the same asset) can turn off.
+        /// Call when a screen opens.
+        /// </summary>
+        public static void EnsureUiInput()
+        {
+            var ui = InputSystem.actions != null ? InputSystem.actions.FindActionMap("UI") : null;
+            if (ui != null && !ui.enabled)
+            {
+                ui.Enable();
+            }
+        }
+
         public void SetModel(InventoryModel model)
         {
             _model = model;
@@ -125,6 +140,25 @@ namespace RaidZero.UI
         }
 
         public void Show() => Root.style.display = DisplayStyle.Flex;
+
+        // A panel's ×: an item opened from inside another (a backpack in the stash) closes back into its
+        // parent; anything else that was opened (a crate) is closed with the source.
+        private void OnCloseClicked(string id)
+        {
+            if (_model == null)
+            {
+                return;
+            }
+
+            if (_model.IsOpenedItem(id))
+            {
+                _model.CloseItem(id);
+            }
+            else
+            {
+                _model.Close(id);
+            }
+        }
 
         /// <summary>Hides it, dropping any drag, split or tooltip in progress.</summary>
         public void Hide()

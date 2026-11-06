@@ -11,7 +11,7 @@ namespace RaidZero.UI
 {
     /// <summary>
     /// The raid inventory screen. Tab opens and closes it; while it's open the mouse is free and the player's
-    /// input switches to the "UI" action map, so moving the mouse doesn't turn the camera.
+    /// input is off, so moving the mouse doesn't turn the camera.
     ///
     /// Drag items between grids, slots and containers; R turns the item you're dragging; let go over another
     /// item to stack, load or put it inside; let go outside the window to drop it on the ground. Ctrl+click
@@ -26,10 +26,9 @@ namespace RaidZero.UI
     /// </summary>
     public sealed class InventoryScreen : MonoBehaviour
     {
-        private const string UiActionMap = "UI";
         private const string Help = "Tab close   ·   drag to move   ·   R rotate while dragging   ·   Shift+drag split   ·   Ctrl+click quick move   ·   double-click open   ·   drag out of the window to drop";
 
-        private readonly List<KeyValuePair<PlayerInput, string>> _switchedInputs = new List<KeyValuePair<PlayerInput, string>>();
+        private readonly List<PlayerInput> _pausedInputs = new List<PlayerInput>();
 
         private InventoryView _view;
         private ItemCatalog _catalog;
@@ -60,6 +59,7 @@ namespace RaidZero.UI
             _cursorVisibleBefore = Cursor.visible;
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
+            InventoryView.EnsureUiInput();
             SwitchInputs();
             Rebuild();
         }
@@ -101,7 +101,6 @@ namespace RaidZero.UI
                 return;
             }
 
-            _view.Panels.CloseClicked += OnCloseClicked;
         }
 
         private void OnDestroy()
@@ -203,23 +202,6 @@ namespace RaidZero.UI
             _source = null;
         }
 
-        private void OnCloseClicked(string id)
-        {
-            if (_model == null)
-            {
-                return;
-            }
-
-            if (_model.IsOpenedItem(id))
-            {
-                _model.CloseItem(id);
-            }
-            else
-            {
-                _model.Close(id);
-            }
-        }
-
         // In the Hideout, Tab (typing in the name box, say) mustn't open the raid's screen over it.
         private static bool HideoutShowing()
         {
@@ -238,31 +220,34 @@ namespace RaidZero.UI
 
         // Stop the character walking and looking around while the screen is up, and put it back after.
         // PlayerInput.all holds only enabled PlayerInputs, which in a raid is the local player's.
+        // The player's input goes quiet while the screen is open: their current action map is turned off,
+        // and on again when it closes. Not by switching them to the "UI" map, as this used to: the first player's
+        // PlayerInput uses the project-wide actions themselves, and UI Toolkit reads clicks from that asset's UI
+        // map, so switching back to "Player" turned UI clicks off everywhere, the Hideout included.
         private void SwitchInputs()
         {
-            _switchedInputs.Clear();
+            _pausedInputs.Clear();
             foreach (var input in PlayerInput.all)
             {
-                var map = input.currentActionMap;
-                if (map != null && map.name != UiActionMap && input.actions != null && input.actions.FindActionMap(UiActionMap) != null)
+                if (input.inputIsActive)
                 {
-                    _switchedInputs.Add(new KeyValuePair<PlayerInput, string>(input, map.name));
-                    input.SwitchCurrentActionMap(UiActionMap);
+                    _pausedInputs.Add(input);
+                    input.DeactivateInput();
                 }
             }
         }
 
         private void RestoreInputs()
         {
-            foreach (var pair in _switchedInputs)
+            foreach (var input in _pausedInputs)
             {
-                if (pair.Key != null)
+                if (input != null && input.isActiveAndEnabled)
                 {
-                    pair.Key.SwitchCurrentActionMap(pair.Value);
+                    input.ActivateInput();
                 }
             }
 
-            _switchedInputs.Clear();
+            _pausedInputs.Clear();
         }
     }
 }
