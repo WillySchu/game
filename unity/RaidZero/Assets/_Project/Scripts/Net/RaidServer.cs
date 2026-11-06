@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
+using FishNet;
 using FishNet.Connection;
 using FishNet.Managing;
 using FishNet.Transporting;
@@ -11,6 +12,7 @@ using RaidZero.Raid;
 using RaidZero.Shared.Inventory;
 using RaidZero.Shared.Raid;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace RaidZero.Net
 {
@@ -246,9 +248,12 @@ namespace RaidZero.Net
 
         private void Start()
         {
-            _networkManager = GetComponent<NetworkManager>();
+            _networkManager = InstanceFinder.NetworkManager;
             _networkManager.ServerManager.OnServerConnectionState += OnServerConnectionState;
             _networkManager.ServerManager.OnRemoteConnectionState += OnRemoteConnectionState;
+
+            SceneManager.sceneLoaded += OnSceneLoaded;
+
             if (_networkManager.IsServerStarted)
             {
                 StartRaid();
@@ -263,6 +268,7 @@ namespace RaidZero.Net
                 _networkManager.ServerManager.OnRemoteConnectionState -= OnRemoteConnectionState;
             }
 
+            SceneManager.sceneLoaded -= OnSceneLoaded;
             StopRaid();
         }
 
@@ -325,6 +331,21 @@ namespace RaidZero.Net
                     _lifecycle?.PlayerDisconnected(playerId);
                     _extraction?.Forget(playerId);
                 }
+            }
+        }
+
+        // Currently hardcoded to SampleScene, eventually update with scene name connected to _mapID.
+        private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+        {
+            // The CI's scripted player runs from the server image, but it's a client: it mustn't listen too.
+            if (ServerConfig.HasFlag("--ci-client"))
+            {
+                return;
+            }
+
+            if(scene.name == "SampleScene")
+            {
+                _networkManager.ServerManager.StartConnection();
             }
         }
 

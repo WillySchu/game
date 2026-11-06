@@ -1,14 +1,17 @@
 {
-    "name": "Game.Client",
+    "name": "Client",
     "rootNamespace": "RaidZero.Client",
-    "references": [],
+    "references": [
+        "FishNet.Runtime",
+        "Game.Net"
+    ],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
     "overrideReferences": false,
     "precompiledReferences": [],
     "autoReferenced": true,
-    "defineConstraints": [],
+    "defineConstraints": ["BUILD_CLIENT"],
     "versionDefines": [],
     "noEngineReferences": false
 }

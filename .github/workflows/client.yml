@@ -1,5 +1,6 @@
-# Builds the game client for Windows and macOS (Development builds, so the F1 overlay and its Deploy button
-# work) and attaches each to the run as a downloadable artifact, RaidZero-Windows-<commit> and
+# Builds the game client for Windows and macOS from their build profiles (Windows Client and macOS Client,
+# which set BUILD_CLIENT and the client scene list), as Development builds so the F1 overlay and its Deploy
+# button work, and attaches each to the run as a downloadable artifact, RaidZero-Windows-<commit> and
 # RaidZero-macOS-<commit>, kept for 14 days.
 # Runs on pushes to main that touch the Unity project or the shared code, and by hand from the Actions tab.
 #
@@ -54,8 +55,10 @@ jobs:
         include:
           - name: Windows
             targetPlatform: StandaloneWindows64
+            buildProfile: Assets/Settings/Build Profiles/Windows Client.asset
           - name: macOS
             targetPlatform: StandaloneOSX
+            buildProfile: Assets/Settings/Build Profiles/macOS Client.asset
     steps:
       # The Unity editor image is large; the runner's preinstalled Android SDK and the like are not needed.
       - uses: jlumbroso/free-disk-space@v1.3.1
@@ -82,13 +85,14 @@ jobs:
       - name: Fetch LFS objects
         run: git lfs pull
 
-      # A Library per platform: imported assets differ between targets.
+      # A Library per platform: imported assets differ between targets. A Library also remembers the build
+      # settings it was made with, so builds from the client profiles don't reuse ones from before profiles.
       - uses: actions/cache@v5
         with:
           path: unity/RaidZero/Library
-          key: library-client-${{ matrix.targetPlatform }}-${{ hashFiles('unity/RaidZero/Assets/**', 'unity/RaidZero/Packages/**', 'unity/RaidZero/ProjectSettings/**', 'shared/**/*.cs') }}
+          key: library-client-profile-${{ matrix.targetPlatform }}-${{ hashFiles('unity/RaidZero/Assets/**', 'unity/RaidZero/Packages/**', 'unity/RaidZero/ProjectSettings/**', 'shared/**/*.cs') }}
           restore-keys: |
-            library-client-${{ matrix.targetPlatform }}-
+            library-client-profile-${{ matrix.targetPlatform }}-
 
       - name: Add swap
         run: |
@@ -110,6 +114,7 @@ jobs:
         with:
           projectPath: unity/RaidZero
           targetPlatform: ${{ matrix.targetPlatform }}
+          buildProfile: ${{ matrix.buildProfile }}
           buildName: RaidZero
           customParameters: -Development
           versioning: None
@@ -129,9 +134,26 @@ jobs:
         with:
           projectPath: unity/RaidZero
           targetPlatform: ${{ matrix.targetPlatform }}
+          buildProfile: ${{ matrix.buildProfile }}
           buildName: RaidZero
           customParameters: -Development
           versioning: None
+
+      # A build that didn't use its profile still succeeds, but has no Hideout or HUD. Catch it by the
+      # assemblies the defines let in.
+      - name: Check the build used its profile
+        run: |
+          managed=$(dirname "$(find "build/${{ matrix.targetPlatform }}" -path '*/Managed/Game.Net.dll' | head -n 1)")
+          echo "Managed assemblies in $managed:"
+          ls "$managed" | grep -E '^(Game\.|Client\.)' || true
+          if [ ! -f "$managed/Client.dll" ]; then
+            echo "::error::Client.dll is missing, so BUILD_CLIENT wasn't defined: the ${{ matrix.name }} Client profile wasn't used."
+            exit 1
+          fi
+          if [ -f "$managed/Game.Server.dll" ]; then
+            echo "::error::Game.Server.dll is in the client build, so BUILD_SERVER was defined."
+            exit 1
+          fi
 
       # Leave out what Unity says not to ship (debug symbols for Burst and IL2CPP). The artifact is a zip, which
       # drops file permissions: fine for Windows, but the macOS app needs its executable bit, so it goes in a

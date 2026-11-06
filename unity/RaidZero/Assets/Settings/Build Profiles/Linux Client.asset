@@ -10,36 +10,37 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 15003, guid: 0000000000000000e000000000000000, type: 0}
-  m_Name: Linux
+  m_Name: Linux Client
   m_EditorClassIdentifier: UnityEditor.dll::UnityEditor.Build.Profile.BuildProfile
   m_AssetVersion: 2
   m_BuildTarget: 24
   m_Subtarget: 2
   m_PlatformId: cb423bfea44b4d658edb8bc5d91a3024
   m_PlatformBuildProfile:
-    rid: 6967622383811952743
+    rid: 6507251870116610130
   m_ActivePlatformGuid: 
   m_AdditionalPlatformBuildSettings: []
   m_OverrideGlobalSceneList: 1
   m_Scenes:
   - m_enabled: 1
-    m_path: Assets/_Project/Scenes/SampleScene.unity
-    m_guid: 99c9720ab356a0642a771bea13969a05
-  - m_enabled: 1
     m_path: Assets/_Project/Scenes/core.unity
     m_guid: 43477050f5c623c489cfa1f4d300390c
   - m_enabled: 1
-    m_path: Assets/_Project/Scenes/core.server.unity
-    m_guid: 8e3880fb8b8f90847bf72cd50fc55629
-  m_HasScriptingDefines: 0
-  m_ScriptingDefines: []
+    m_path: Assets/_Project/Scenes/core.client.unity
+    m_guid: 8c36e4a2d7e5401488204a79d50f7ee7
+  - m_enabled: 1
+    m_path: Assets/_Project/Scenes/SampleScene.unity
+    m_guid: 99c9720ab356a0642a771bea13969a05
+  m_HasScriptingDefines: 1
+  m_ScriptingDefines:
+  - BUILD_CLIENT
   m_PlayerSettingsYaml:
     m_Settings: []
   requiredComponents: []
   references:
     version: 2
     RefIds:
-    - rid: 6967622383811952743
+    - rid: 6507251870116610130
       type: {class: LinuxPlatformSettings, ns: UnityEditor.LinuxStandalone, asm: UnityEditor.LinuxStandalone.Extensions}
       data:
         m_Development: 0

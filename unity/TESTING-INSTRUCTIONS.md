@@ -235,9 +235,11 @@ What to check:
 ## A dedicated server build
 
 CI builds the dedicated server on every change to the Unity project (`.github/workflows/server.yml`). To build
-one yourself, install the **Linux Dedicated Server Build Support** module in Unity Hub, pick **Linux Server** in
-the Build Profiles window, and build to `build/StandaloneLinux64` at the repo root under the name
-`RaidZeroServer`. Then, from the repo root, with the backend running:
+one yourself, install the **Linux Dedicated Server Build Support** module in Unity Hub, pick the project's
+**Linux Server** profile in the Build Profiles window (listed under Build Profiles, not the Linux platform
+entry: the profile is what sets `BUILD_SERVER` and the server's scenes), and build to `build/StandaloneLinux64`
+at the repo root under the name `RaidZeroServer`. Client builds work the same way from the **Windows Client**,
+**macOS Client** and **Linux Client** profiles, which set `BUILD_CLIENT`. Then, from the repo root, with the backend running:
 
 ```sh
 docker build -f unity/server.Dockerfile -t raidzero-gameserver build/StandaloneLinux64

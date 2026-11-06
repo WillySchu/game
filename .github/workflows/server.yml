@@ -82,12 +82,14 @@ jobs:
       - name: Fetch LFS objects
         run: git lfs pull
 
+      # A Library remembers the build settings it was made with, so builds from the Linux Server profile
+      # don't reuse ones from before profiles ("profile" in the key).
       - uses: actions/cache@v5
         with:
           path: unity/RaidZero/Library
-          key: library-linux-server-${{ hashFiles('unity/RaidZero/Assets/**', 'unity/RaidZero/Packages/**', 'unity/RaidZero/ProjectSettings/**', 'shared/**/*.cs') }}
+          key: library-linux-server-profile-${{ hashFiles('unity/RaidZero/Assets/**', 'unity/RaidZero/Packages/**', 'unity/RaidZero/ProjectSettings/**', 'shared/**/*.cs') }}
           restore-keys: |
-            library-linux-server-
+            library-linux-server-profile-
 
       # Swap as headroom for real memory spikes. (Unity's occasional exit code 137 at startup isn't one: it
       # happens with memory to spare, with nothing from the kernel's out-of-memory killer, systemd-oomd or
@@ -104,8 +106,11 @@ jobs:
           swapon --show
           free -h
 
-      # Unity defines UNITY_SERVER for the Server subtarget, which is what makes Fish-Net start the server
-      # on its own. The output is build/StandaloneLinux64/RaidZeroServer.x86_64 plus its data folder.
+      # The Linux Server build profile sets the Dedicated Server subtarget, the BUILD_SERVER define (which
+      # compiles Game.Server and makes the core scene load core.server) and the scene list. Unity defines
+      # UNITY_SERVER for that subtarget, which is what makes Fish-Net start the server on its own.
+      # targetPlatform only picks the editor image and the output folder: the output is
+      # build/StandaloneLinux64/RaidZeroServer.x86_64 plus its data folder.
       # If Unity is killed at startup, the next step tries once more (the image is pulled by then, so a
       # failed attempt costs seconds); the Diagnostics step reports either way.
       - id: build
@@ -118,8 +123,8 @@ jobs:
         with:
           projectPath: unity/RaidZero
           targetPlatform: StandaloneLinux64
+          buildProfile: Assets/Settings/Build Profiles/Linux Server.asset
           buildName: RaidZeroServer
-          customParameters: -standaloneBuildSubtarget Server
           versioning: None
 
       # The killed editor leaves its Temp folder (owned by root, from the container) behind; clear it first.
@@ -139,9 +144,24 @@ jobs:
         with:
           projectPath: unity/RaidZero
           targetPlatform: StandaloneLinux64
+          buildProfile: Assets/Settings/Build Profiles/Linux Server.asset
           buildName: RaidZeroServer
-          customParameters: -standaloneBuildSubtarget Server
           versioning: None
+
+      # A build that didn't use the profile still succeeds, but its server never starts a raid. Catch it here,
+      # by the assemblies the defines let in, rather than as a smoke test timeout.
+      - name: Check the build used its profile
+        run: |
+          managed=build/StandaloneLinux64/RaidZeroServer_Data/Managed
+          ls "$managed" | grep -E '^(Game\.|Client\.)' || true
+          if [ ! -f "$managed/Game.Server.dll" ]; then
+            echo "::error::Game.Server.dll is missing, so BUILD_SERVER wasn't defined: the Linux Server profile wasn't used."
+            exit 1
+          fi
+          if [ -f "$managed/Client.dll" ]; then
+            echo "::error::Client.dll is in the server build, so BUILD_CLIENT was defined."
+            exit 1
+          fi
 
       - name: Build the image
         run: |

@@ -39,6 +39,7 @@ namespace RaidZero.UI
         private string _lastPoint;
         private float _extractionTotal;
         private float _cardUntil;
+        private bool _warnedNoSession;
 
         private void Awake()
         {
@@ -145,10 +146,17 @@ namespace RaidZero.UI
                 _session = _networkManager.GetComponent<RaidSessionClient>();
             }
 
+            // The client setup (SetupClientComponents) adds it. Without it there's no clock to show, so say so
+            // once rather than failing every frame.
             if (_session == null)
             {
-                Debug.Log("[hud] No RaidSessionClient on the NetworkManager; adding one so the HUD has a clock to show.");
-                _session = _networkManager.gameObject.AddComponent<RaidSessionClient>();
+                if (!_warnedNoSession)
+                {
+                    Debug.LogWarning("[hud] No RaidSessionClient on the NetworkManager, so the raid HUD stays hidden. Start from the core scene, or check SetupClientComponents ran.");
+                    _warnedNoSession = true;
+                }
+
+                return;
             }
 
             _session.LeftRaid += OnLeftRaid;
