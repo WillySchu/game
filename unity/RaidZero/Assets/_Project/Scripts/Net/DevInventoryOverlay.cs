@@ -143,7 +143,8 @@ namespace RaidZero.Net
                 return;
             }
 
-            if (networkManager.ClientManager.Started)
+            // Only a server process has a RaidServer to start (a host or server role in the editor, a server build).
+            if (networkManager.ClientManager.Started || networkManager.GetComponent<RaidServer>() == null)
             {
                 return;
             }

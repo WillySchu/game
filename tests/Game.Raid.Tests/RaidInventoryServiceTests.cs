@@ -278,6 +278,56 @@ public class RaidInventoryServiceTests
         AssertRefused(_raid.Drop("sam", _raid.CharacterOf("sam")!), InventoryErrorCodes.ItemNotFound);
     }
 
+    // ---- Loose loot ----
+
+    [Fact]
+    public void LooseLoot_LiesInAPileOfItsOwn_WithEverythingInsideIt()
+    {
+        Join("sam");
+        var rifle = Node("rifle", children: [Node("mag", "magazine", children: [Node("ammo", "rounds", quantity: 30)])]);
+
+        var pile = _raid.PlaceOnGround(rifle);
+
+        Assert.Equal(RootKind.Ground, _raid.KindOf(pile));
+        var lying = Assert.Single(_raid.Snapshot(pile)!.Children);
+        Assert.Equal(rifle.Id, lying.Id);
+        Assert.Equal(GridSpec.MainName, lying.Slot);
+        Assert.Equal(pile, _raid.RootOf(rifle.Children[0].Children[0].Id));
+        Assert.Empty(_raid.OpenContainersOf("sam"));
+    }
+
+    [Fact]
+    public void LooseLoot_IsPickedUpLikeADrop_AndItsPileGoes()
+    {
+        var alex = Join("alex");
+        var gpu = Node("gpu");
+        var pile = _raid.PlaceOnGround(gpu);
+
+        var picked = _raid.PickUp("alex", gpu.Id);
+
+        AssertOk(picked);
+        Assert.Equal(new[] { pile }, picked.RemovedRoots);
+        Assert.Equal(alex.Id, RootOfItem(gpu.Id));
+        Assert.Null(_raid.KindOf(pile));
+    }
+
+    [Fact]
+    public void LooseLoot_MustBeANewItemThatCanLieOnTheGround()
+    {
+        var sam = Join("sam");
+        var gpu = Node("gpu");
+        _raid.PlaceOnGround(gpu);
+        var samsRig = _raid.Snapshot(sam.Id)!.Children.Single(c => c.Slot == "rig").Clone();
+
+        Assert.Throws<ArgumentException>(() => _raid.PlaceOnGround(gpu.Clone()));  // already on the ground
+        Assert.Throws<ArgumentException>(() => _raid.PlaceOnGround(samsRig));      // already on Sam
+        Assert.Throws<ArgumentException>(() => _raid.PlaceOnGround(Node("nonsense")));
+        Assert.Throws<ArgumentException>(() => _raid.PlaceOnGround(Node("ground")));
+        Assert.Throws<ArgumentException>(() => _raid.PlaceOnGround(Node("character")));
+        Assert.Throws<ArgumentNullException>(() => _raid.PlaceOnGround(null!));
+        Assert.Single(_raid.Snapshot(sam.Id)!.Children, c => c.Slot == "rig");
+    }
+
     // ---- Shooting ----
 
     [Fact]

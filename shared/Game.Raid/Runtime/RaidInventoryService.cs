@@ -107,7 +107,7 @@ namespace RaidZero.Raid
 
             if (container.DefId == WellKnownDefs.Character || container.DefId == WellKnownDefs.Ground)
             {
-                throw new ArgumentException("Characters join with AddPlayer, and ground piles come from Drop.", nameof(container));
+                throw new ArgumentException("Characters join with AddPlayer, and ground piles come from Drop or PlaceOnGround.", nameof(container));
             }
 
             if (!_catalog.TryGet(container.DefId, out var def) || (!def.HasGrids() && (def.Slots == null || def.Slots.Count == 0)))
@@ -117,6 +117,45 @@ namespace RaidZero.Raid
 
             _tree.AddRoot(container);
             _kinds[container.Id] = RootKind.Container;
+        }
+
+        /// <summary>
+        /// Puts an item the server made (loose loot rolled at raid start, say) on the ground, in a pile of its
+        /// own, and returns the pile's ID. Like a crate's contents, nobody is shown it until they pick it up or
+        /// open the pile, so there's nothing to send. Throws if the item is unknown, is already in the raid, or
+        /// doesn't fit in a pile.
+        /// </summary>
+        public string PlaceOnGround(ItemNode item)
+        {
+            if (item == null)
+            {
+                throw new ArgumentNullException(nameof(item));
+            }
+
+            if (!_catalog.TryGet(item.DefId, out var def))
+            {
+                throw new ArgumentException("Unknown item '" + item.DefId + "'.", nameof(item));
+            }
+
+            if (item.DefId == WellKnownDefs.Character || item.DefId == WellKnownDefs.Ground)
+            {
+                throw new ArgumentException("A '" + item.DefId + "' can't lie on the ground.", nameof(item));
+            }
+
+            var pile = new ItemNode { Id = _newId(), DefId = WellKnownDefs.Ground };
+            if (!GridPlacement.TryFindFreeSpot(_catalog, pile, def, out var grid, out var x, out var y, out var rotated))
+            {
+                throw new ArgumentException("'" + item.DefId + "' is too big for a pile on the ground.", nameof(item));
+            }
+
+            item.Slot = grid;
+            item.X = x;
+            item.Y = y;
+            item.Rotated = rotated;
+            pile.Children.Add(item);
+            _tree.AddRoot(pile); // checks the item and that none of its IDs are already in the raid
+            _kinds[pile.Id] = RootKind.Ground;
+            return pile.Id;
         }
 
         // ---- Reading ----

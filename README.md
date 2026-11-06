@@ -283,7 +283,9 @@ The key in `appsettings.Development.json` is for local runs only. Real deploymen
   and rounds loaded, how full a container is) and the asset's description.
 
 **Inventory screen** (`unity/RaidZero/Assets/_Project/Scripts/UI`, assembly `Game.UI`)
-- `InventoryScreen` is the raid's inventory in UI Toolkit: Tab toggles it, F opens the nearest crate for now.
+- `InventoryScreen` is the raid's inventory in UI Toolkit: Tab toggles it. `WorldInteraction` is F: it finds the
+  crate or ground item the camera is looking at within reach, `RaidHud` shows its prompt ("F  Take AK-74"), and F
+  opens the crate or takes the item. If there's no room for the item, its pile opens in the inventory screen.
   `InventoryPanels` builds the elements from the model (gear and its rig and backpack on the left, open
   containers on the right); `InventoryDrag` turns pointer movement into `DropTarget`s and asks the model for a
   plan. `InventoryItemLook` draws an item (its icon, or the plain look) for the panels and the drag ghost alike;
@@ -295,6 +297,13 @@ The key in `appsettings.Development.json` is for local runs only. Real deploymen
   NetworkManager isn't running a client or server. All the look is in `Assets/_Project/UI/Resources/InventoryScreen.uss`; cell size is
   `InventoryPanels.Cell`, at a 1920x1080 reference resolution set on `InventoryPanelSettings`.
 
+**Startup** (`unity/RaidZero/Assets/_Project/Scenes`)
+- Every game starts in `core`, which loads `core.client` (adds the client's components) and, for a server or a
+  host, `core.server` (adds `RaidServer`), then the map. `ProcessRole` says which a process is: in a build, its
+  build profile's `BUILD_CLIENT` / `BUILD_SERVER`; in the editor, the multiplayer role picked in the toolbar
+  (one player Client and Server, the others Client). The `Client` and `Game.Server` assemblies compile in a build
+  only with their define, and always in the editor.
+
 **Unity networking** (`unity/RaidZero/Assets/_Project/Scripts/Net`, assembly `Game.Net`)
 - The thin Fish-Net layer over everything above. `RaidAuthenticator` lets a client in only with a raid ticket
   the backend accepts; `RaidServer` owns the backend client and the raid's inventory on the server;
@@ -302,8 +311,13 @@ The key in `appsettings.Development.json` is for local runs only. Real deploymen
 - Fish-Net's latency simulator (100 ms, 2% loss) is on the NetworkManager's Transport Manager. Its Enabled box
   (ticked in the prefab) decides in the editor; `NetworkConditions` turns it off in builds unless they're started with `--simulate-lag`.
 - Gameplay calls `RaidServer.PlayerDied`, `Consume` and `InterruptExtraction` (on damage). Levels place
-  `ExtractionZone`s, and crates carry a `LootContainer`; bodies and ground piles register in
-  `ContainerRegistry` so the server can check reach. A dead player's body must be its own object: their
+  `ExtractionZone`s, and crates carry a `LootContainer`; bodies register in `ContainerRegistry` so the server
+  can check reach.
+- Items on the ground are `GroundItem`s (on the `DroppedItem` prefab, one per pile, carrying the pile, item and
+  type to every client). `RaidServer` spawns one when a player drops something (in front of them, on the
+  ground) and for each item a `LooseLootSpot` rolls at raid start (`RaidInventoryService.PlaceOnGround`), and
+  despawns it when the pile is emptied. A ground item shows the item's world model, or a box the size of its
+  inventory footprint while it has none, and registers itself for reach checks. A dead player's body must be its own object: their
   connection closes a few seconds after they leave, and Fish-Net despawns whatever it owned.
 - `RaidSessionClient` is the client's view of the raid: its phase, the clock, the extraction countdown, and
   a `LeftRaid` event saying how the player left. It's carried by three small broadcasts. `RaidHud` (in

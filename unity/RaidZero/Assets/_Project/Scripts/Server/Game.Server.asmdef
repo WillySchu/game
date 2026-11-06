@@ -11,7 +11,7 @@
     "overrideReferences": false,
     "precompiledReferences": [],
     "autoReferenced": true,
-    "defineConstraints": ["BUILD_SERVER"],
+    "defineConstraints": ["BUILD_SERVER || UNITY_EDITOR"],
     "versionDefines": [],
     "noEngineReferences": false
 }

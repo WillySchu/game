@@ -35,6 +35,9 @@ namespace RaidZero.UI
         private VisualElement _card;
         private Label _cardTitle;
         private Label _cardDetail;
+        private VisualElement _prompt;
+        private Label _promptKey;
+        private Label _promptText;
 
         private string _lastPoint;
         private float _extractionTotal;
@@ -89,6 +92,14 @@ namespace RaidZero.UI
             _extraction.Add(bar);
             _root.Add(_extraction);
 
+            // What F does, from WorldInteraction, just under the middle of the screen.
+            _prompt = new VisualElement { pickingMode = PickingMode.Ignore }.WithClass("hud-prompt");
+            _promptKey = new Label("F") { pickingMode = PickingMode.Ignore }.WithClass("hud-prompt__key");
+            _promptText = new Label { pickingMode = PickingMode.Ignore }.WithClass("hud-prompt__text");
+            _prompt.Add(_promptKey);
+            _prompt.Add(_promptText);
+            _root.Add(_prompt);
+
             _card = new VisualElement { pickingMode = PickingMode.Ignore }.WithClass("hud-card");
             _cardTitle = new Label { pickingMode = PickingMode.Ignore }.WithClass("hud-card__title");
             _cardDetail = new Label { pickingMode = PickingMode.Ignore }.WithClass("hud-card__detail");
@@ -98,6 +109,7 @@ namespace RaidZero.UI
 
             _clock.style.display = DisplayStyle.None;
             _extraction.style.display = DisplayStyle.None;
+            _prompt.style.display = DisplayStyle.None;
             _card.style.display = DisplayStyle.None;
             document.rootVisualElement.Add(_root);
         }
@@ -119,6 +131,7 @@ namespace RaidZero.UI
             var inRaid = _session != null && _networkManager != null && _networkManager.IsClientStarted && !_session.Exit.HasValue;
             ShowClock(inRaid);
             ShowExtraction(inRaid);
+            ShowPrompt(inRaid);
 
             if (_cardUntil > 0 && Time.unscaledTime > _cardUntil)
             {
@@ -185,6 +198,18 @@ namespace RaidZero.UI
             var left = _session.SecondsRemaining;
             _clock.text = RaidHudText.Clock(left);
             _clock.EnableInClassList("hud-clock--late", left <= LateSeconds);
+        }
+
+        // The prompt when there's something to use; otherwise, for a moment, what happened when F was pressed.
+        private void ShowPrompt(bool inRaid)
+        {
+            var interaction = WorldInteraction.Instance;
+            var prompt = inRaid && interaction != null ? interaction.Prompt : null;
+            var message = inRaid && interaction != null && prompt == null ? interaction.Message : null;
+            _prompt.style.display = prompt != null || message != null ? DisplayStyle.Flex : DisplayStyle.None;
+            _promptKey.style.display = prompt != null ? DisplayStyle.Flex : DisplayStyle.None;
+            _promptText.text = prompt ?? message ?? "";
+            _prompt.EnableInClassList("hud-prompt--message", prompt == null);
         }
 
         private void ShowExtraction(bool inRaid)

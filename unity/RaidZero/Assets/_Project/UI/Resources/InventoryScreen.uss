@@ -511,6 +511,39 @@
     background-color: rgb(140, 210, 120);
 }
 
+/* What F does when looking at an item on the ground or a crate, just under the middle of the screen. */
+.hud-prompt {
+    position: absolute;
+    top: 56%;
+    flex-direction: row;
+    align-items: center;
+    padding: 3px 10px;
+    background-color: rgba(0, 0, 0, 0.45);
+    border-radius: 3px;
+}
+
+.hud-prompt__key {
+    min-width: 22px;
+    margin-right: 8px;
+    padding: 1px 6px;
+    font-size: 14px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+    color: rgb(20, 22, 18);
+    background-color: rgb(232, 228, 214);
+    border-radius: 3px;
+}
+
+.hud-prompt__text {
+    font-size: 16px;
+    color: rgb(232, 228, 214);
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.9);
+}
+
+.hud-prompt--message .hud-prompt__text {
+    color: rgb(236, 190, 120);
+}
+
 /* The card as you leave: in front of the Hideout coming back for a few seconds. */
 .hud-card {
     position: absolute;

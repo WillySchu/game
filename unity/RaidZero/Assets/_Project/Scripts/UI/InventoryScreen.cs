@@ -16,22 +16,18 @@ namespace RaidZero.UI
     /// Drag items between grids, slots and containers; R turns the item you're dragging; let go over another
     /// item to stack, load or put it inside; let go outside the window to drop it on the ground. Ctrl+click
     /// (Cmd+click on a Mac) quick-moves an item; Shift+drag splits a stack, asking how many; double-click opens a
-    /// container that's inside another. Resting the pointer on an item shows its tooltip. F opens the nearest
-    /// crate (a stand-in until interaction exists).
+    /// container that's inside another. Resting the pointer on an item shows its tooltip. Crates and items on
+    /// the ground are opened and taken by looking at them and pressing F (<see cref="WorldInteraction"/>).
     ///
     /// The rules all live in shared code (InventoryModel over the raid's RaidInventorySource), and the window,
-    /// dragging and tooltips in InventoryView, which the Hideout screen shares; this adds the raid's parts: Tab,
-    /// the player's input, crates. Put it on any GameObject in the raid scene. It makes its own UIDocument from
+    /// dragging and tooltips in InventoryView, which the Hideout screen shares; this adds the raid's parts: Tab
+    /// and the player's input. Put it on any GameObject in the raid scene. It makes its own UIDocument from
     /// Resources/InventoryPanelSettings and styles itself with Resources/InventoryScreen.uss.
     /// </summary>
     public sealed class InventoryScreen : MonoBehaviour
     {
         private const string UiActionMap = "UI";
-        private const string Help = "Tab close   ·   drag to move   ·   R rotate while dragging   ·   Shift+drag split   ·   Ctrl+click quick move   ·   double-click open   ·   drag out of the window to drop   ·   F open nearest crate";
-
-        [SerializeField]
-        [Tooltip("How close the nearest crate must be for F to open it, in metres.")]
-        private float _openRange = 2.5f;
+        private const string Help = "Tab close   ·   drag to move   ·   R rotate while dragging   ·   Shift+drag split   ·   Ctrl+click quick move   ·   double-click open   ·   drag out of the window to drop";
 
         private readonly List<KeyValuePair<PlayerInput, string>> _switchedInputs = new List<KeyValuePair<PlayerInput, string>>();
 
@@ -46,6 +42,9 @@ namespace RaidZero.UI
         private bool _cursorVisibleBefore;
 
         public bool IsOpen => _open;
+
+        /// <summary>A sentence on the status line for a few seconds, such as why something couldn't be taken.</summary>
+        public void ShowMessage(string sentence) => _view?.ShowMessage(sentence);
 
         public void Open()
         {
@@ -149,10 +148,6 @@ namespace RaidZero.UI
                 else if (keyboard.escapeKey.wasPressedThisFrame && _open)
                 {
                     Close();
-                }
-                else if (keyboard.fKey.wasPressedThisFrame)
-                {
-                    OpenNearestCrate();
                 }
             }
 
@@ -268,39 +263,6 @@ namespace RaidZero.UI
             }
 
             _switchedInputs.Clear();
-        }
-
-        // Temporary: interaction (look at a crate, press E) belongs to gameplay. Until then, F opens whatever
-        // crate is nearest the camera, and the screen with it.
-        private void OpenNearestCrate()
-        {
-            var client = RaidInventoryClient.Instance;
-            if (client == null || client.View.Character == null)
-            {
-                return;
-            }
-
-            var from = Camera.main != null ? Camera.main.transform.position : Vector3.zero;
-            LootContainer nearest = null;
-            float best = _openRange;
-            foreach (var crate in FindObjectsByType<LootContainer>())
-            {
-                var distance = Vector3.Distance(from, crate.transform.position);
-                if (distance <= best)
-                {
-                    best = distance;
-                    nearest = crate;
-                }
-            }
-
-            if (nearest == null)
-            {
-                _view.ShowMessage("There's no crate within " + _openRange + " m.");
-                return;
-            }
-
-            client.Open(nearest.ContainerId);
-            Open();
         }
     }
 }

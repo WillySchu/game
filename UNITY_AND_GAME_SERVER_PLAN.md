@@ -1,6 +1,6 @@
 # Raid Zero: Unity Client & Game Server Plan
 
-Will & John · first written Oct 26, 2026 · last updated Nov 2, 2026
+Will & John · first written Oct 26, 2026 · last updated Nov 6, 2026
 
 ## Status
 
@@ -14,7 +14,8 @@ Will & John · first written Oct 26, 2026 · last updated Nov 2, 2026
 | Greybox map, NavMesh | In progress (in `SampleScene` for now) | John |
 | Weapons, hit registration, damage, health and death | Not started | John |
 | AI | Not started | John |
-| Interaction, pickups, bodies and ground items in the world | Started (John's dropped-item prefab) | To agree |
+| Interaction, items on the ground, loose loot | Done | Will |
+| Bodies in the world | Not started | To agree |
 | Hideout screen: login, gear and stash, deploy, raid results | Done | Will |
 | Raid HUD: clock, extraction countdown, the card as you leave | Done | Will |
 | Several game servers: ready reports, raids routed by map and network code | Done | Will |
@@ -42,7 +43,8 @@ doc; where the two meet (joining a raid, reporting outcomes, item IDs), that doc
 | The greybox map and its extraction points and crates | John |
 | Raid timer, extraction rules, loot tables and rolling | Will (done) |
 | Raid inventory on the server, and the inventory screen on the client | Will (done; the screen was John's, handed over) |
-| Interaction, pickups, and bodies and ground items in the world | To agree |
+| Interaction, items on the ground, loose loot | Will (done) |
+| Bodies in the world | To agree |
 | Hideout screen | Will (done) |
 | The scene flow around a raid (Boot, Hideout and raid scenes, joining) | John |
 | The dedicated server and client builds | Will (done) |
@@ -140,7 +142,8 @@ countdown and the card as you leave; it adds the `RaidSessionClient` it needs to
 - **Server:** Linux Dedicated Server build in CI (`Game server` workflow), smoke tested against a real backend
   and pushed as `ghcr.io/<owner>/<repo>/gameserver`. Unity is sometimes killed at startup on GitHub's runners,
   so the build retries once.
-- **Daily play:** Multiplayer Play Mode in the editor (Server and Client buttons) against a local backend, or
+- **Daily play:** Multiplayer Play Mode in the editor (each player's multiplayer role in its toolbar: one
+  Client and Server, the rest Client) against a local backend, or
   Deploy from the F1 overlay to a dedicated server. Playtests run the backend and game server on one PC over
   Tailscale (`deploy/LOCAL.md`).
 
@@ -316,8 +319,22 @@ left, and disconnects them a moment later. The Hideout then fetches the raid res
 
 Gameplay calls `RaidServer.PlayerDied`. The player's raid inventory becomes a body container holding their
 gear, the server sends a `died` outcome, and the client is told how they left. The body must be its own object
-in the world, since Fish-Net despawns whatever the dead player's connection owns; spawning it, and showing
-ground piles from drops, is the world side that's still to do.
+in the world, since Fish-Net despawns whatever the dead player's connection owns; spawning it is the world side
+that's still to do. It can follow the ground items' pattern: a server-spawned object registered for reach, and
+"F  Search body" through `WorldInteraction`.
+
+### Items on the ground (done)
+
+- Dropping (dragging an item out of the inventory window) puts it in a pile of its own; the server spawns a
+  `GroundItem` about 0.75 m in front of the player, on the ground, short of any wall.
+- `LooseLootSpot`s in a level roll at raid start from the raid's seed, like crates: a loot table and a chance,
+  or a fixed item for testing. Each item rolled lies in its own pile on the surface below the spot.
+- Looking at an item within reach shows "F  Take <item>". F puts it straight on the player, into the first
+  place it fits; with no room, its pile opens in the inventory screen. Crates work the same way ("F  Open").
+- A ground item shows the item's world model, or a box the size of its inventory footprint until the item has
+  one. Its colliders are off and it's a trigger, so nobody trips over it.
+- The raid starts once the server is listening and the map scene has loaded: a dedicated server listens from the
+  core scene, before the map's crates and loot spots exist.
 
 ### Loot (done)
 
@@ -366,7 +383,7 @@ client, the game server and the backend. The client only previews; the server an
 | Inventory screen in a raid (`Game.UI`) | Will (handed over from John) | Done |
 | Hideout inventory source (`HideoutInventorySource`) | Will | Done |
 | Hideout screens and scene flow | To agree | Not started |
-| World containers, pickups, bodies, interaction | To agree | Crates done; the rest not started |
+| World containers, pickups, bodies, interaction | Will | Crates, ground items, loose loot and interaction done; bodies not started |
 | Item `ScriptableObject` authoring | Both | Ongoing: sizes, stack limits, slots, models; icons render from models (Render Icons) |
 
 ### In a raid
@@ -380,8 +397,8 @@ client, the game server and the backend. The client only previews; the server an
   confirms it.
 - Controls: Tab opens the screen; drag to move; R rotates while dragging; Shift+drag splits a stack;
   Ctrl+click (Cmd+click) quick-moves; double-click opens a container inside another; dragging out of the
-  window drops; resting the pointer on an item shows its tooltip. F opens the nearest crate until interaction
-  exists.
+  window drops; resting the pointer on an item shows its tooltip. In the world, F opens the crate or takes the
+  item you're looking at.
 - At 100 ms latency inventory still feels fine without prediction; revisit only if playtests say otherwise.
 
 ### In the Hideout
@@ -464,7 +481,7 @@ Automate what can be expressed as rules, and playtest what can only be felt.
 - [ ] Hit markers: keep server-confirmed, or predict them once playtests show the delay matters?
 - [ ] Third-person body for remote players: buy an animated asset pack now, or stay on capsules until the loop
   is fun?
-- [ ] Who takes interaction, pickups and bodies in the world? (The Hideout screen is Will's, done; scene flow is John's.)
+- [ ] Who takes bodies in the world? (Interaction and items on the ground are Will's, done.)
 - [x] Tick rate: 60 Hz.
 - [x] Grid inventory or slot-based: grids (Tarkov-style), plus named slots and pockets.
 - [x] Disconnects: the gear stays in the raid and the player can rejoin with the same ticket until it ends;

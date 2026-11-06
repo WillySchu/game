@@ -2,6 +2,7 @@ using UnityEngine;
 using FishNet;
 using FishNet.Managing;
 using RaidZero.Net;
+using RaidZero.World;
 using UnityEngine.SceneManagement;
 
 namespace RaidZero.Client
@@ -36,15 +37,14 @@ namespace RaidZero.Client
 
         void Start()
         {
-            
-            #if BUILD_SERVER
-            // This will usually only be the case in editor.
-            SceneManager.LoadScene("core.server");
-            return;
-            #endif
+            // A host: the server half comes next, and it loads the map.
+            if (ProcessRole.IsServer)
+            {
+                SceneManager.LoadScene("core.server");
+                return;
+            }
 
             SceneManager.LoadScene("SampleScene");
-
         }
     }
 }

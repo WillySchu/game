@@ -133,9 +133,16 @@ namespace RaidZero.Shared.Raid
             Cleared?.Invoke();
         }
 
+        /// <summary>
+        /// The ID of the request made last (pick up, drop, open, ops), to match it with its
+        /// <see cref="RequestCompleted"/> result. Zero before the first.
+        /// </summary>
+        public uint LastRequestId { get; private set; }
+
         private uint NextId()
         {
             var id = _nextRequestId++;
+            LastRequestId = id;
             if (_nextRequestId == 0)
             {
                 _nextRequestId = 1;

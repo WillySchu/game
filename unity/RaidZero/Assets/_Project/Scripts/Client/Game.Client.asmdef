@@ -3,7 +3,8 @@
     "rootNamespace": "RaidZero.Client",
     "references": [
         "FishNet.Runtime",
-        "Game.Net"
+        "Game.Net",
+        "Game.World"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
@@ -11,7 +12,7 @@
     "overrideReferences": false,
     "precompiledReferences": [],
     "autoReferenced": true,
-    "defineConstraints": ["BUILD_CLIENT"],
+    "defineConstraints": ["BUILD_CLIENT || UNITY_EDITOR"],
     "versionDefines": [],
     "noEngineReferences": false
 }

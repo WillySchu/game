@@ -2,11 +2,28 @@
 
 To test the client using Multiplayer Play Mode:
 
-1. Open the Multiplayer Play Mode menu with `Window > Multiplayer > Multiplayer Play Mode`
-2. Check boxes in menu to activate extra players.
-3. Once extra player windows appear, start Play Mode
-4. Choose one player or the editor window to be the server and click the `Server` button in the top left.
-5. Click `Client` on each other player.
+1. Open the `core` scene: every game starts there, and it loads the rest.
+2. Open the Multiplayer Play Mode menu with `Window > Multiplayer > Multiplayer Play Mode`, and check the boxes
+   to activate extra players.
+3. Before pressing Play, pick each player's multiplayer role in the role dropdown on its toolbar (next to Play
+   in the main editor, and at the top of each extra player's window):
+   - **Client and Server** for the one that hosts: it starts the raid server when the map loads, and you play
+     on it too.
+   - **Client** for each other player.
+   - **Server** for a server with nobody playing on it.
+4. Press Play. The console says `[core] Starting as ...` with the role each one took. Every player starts in
+   the Hideout: log in and Deploy, host first.
+
+The editor loads scenes from the active build profile's scene list, or the shared list when no profile is
+active (File > Build Profiles). Play with no profile active (the plain platform, using the shared list, which has
+all four scenes), or with one that lists `core`, `core.client`, `core.server` and `SampleScene`, like John's
+`Windows` profile. The Client and Server profiles list only their own half, so under the macOS Client profile a
+host stops with "Scene 'core.server' couldn't be loaded".
+
+Only one player can host: two set to Client and Server both try to listen on port 7770, and the second can't.
+The role used to come from Server and Client buttons on screen; it's the toolbar dropdown now, and in a build
+it's the build's profile (`BUILD_CLIENT`, `BUILD_SERVER`). The editor compiles both halves whatever build
+profile is active.
 
 If you change any code or update any prefab, you must deactivate and reactivate each additional player in the Multiplayer Play Mode menu to get the changes.
 
@@ -41,8 +58,8 @@ itself with `InventoryScreen.uss` beside it, so there's nothing else to wire up.
 
 - **Tab** opens and closes the screen. The mouse is freed and the player's input switches to the `UI` action
   map, so the camera stays still; closing puts both back and closes anything you had open.
-- **F** opens the nearest crate (within 2.5 m of the camera) and the screen with it. This is a stand-in until
-  interaction exists.
+- **F** uses what you're looking at: it opens a crate (and the screen with it) or takes an item off the ground.
+  The prompt under the middle of the screen says which. See "Items on the ground" below.
 - **Drag** an item; **R** while dragging turns it; **Escape** cancels the drag (or closes the screen).
 - **Ctrl+click** (Cmd+click on a Mac) quick-moves an item.
 - **Shift+drag** a stack to split it: let go where part of it should go, and it asks how many (Enter splits,
@@ -99,8 +116,8 @@ fills the screen whenever you're not in a raid.
    (drag, R, Shift+drag, Ctrl+click, double-click, tooltips) except dropping, as there's no ground. Moved items
    dim until the backend answers. Refresh reloads; Log out goes back to the name.
 3. **Deploy:** gets a ticket for `greybox_01` (Map Id on the component) and connects to the server the ticket
-   names, as the F1 overlay does. The Hideout hides once the connection starts. Start a server first (Multiplayer
-   Play Mode's Server button in another player, or a dedicated server), or you'll get "No raid server is free" or
+   names, as the F1 overlay does. The Hideout hides once the connection starts. Start a server first (a player
+   whose role is Client and Server or Server, or a dedicated server), or you'll get "No raid server is free" or
    a connection that comes straight back.
 4. **Back from the raid:** extract (or wait out the clock). The Hideout comes back, says it's waiting for the
    result, then shows it: Extracted / Lost in the zone / Raid called off, what came home and what was lost.
@@ -197,9 +214,10 @@ The editor stays logged in as the same dev player between Play sessions, so Depl
 raid they dropped out of, or with whatever they extracted with. A dev player who died or went missing in action
 has no gear left, so Deploy starts a fresh one with the starter kit instead.
 
-**Start as server**, above Deploy, makes this game the raid's server, as the `Server` button does in Multiplayer
-Play Mode, but in any game: the editor, or a Development build started with `--server-token` (the editor takes
-the token from `RaidZeroDev.json`). While it runs, the overlay says so and has **Stop server**, which ends the
+**Start as server**, above Deploy, makes this game the raid's server again after **Stop server**. It's only
+there in a game that can be one: a player whose role includes Server, or a server build started with
+`--server-token` (the editor takes the token from `RaidZeroDev.json`). A host starts its server on its own when
+the map loads. While it runs, the overlay says so and has **Stop server**, which ends the
 raid properly. Press Deploy after starting it to play on that server from the same game (host mode): against
 the local backend, the ticket names this machine.
 
@@ -231,6 +249,33 @@ What to check:
 2. Deploy joins the PC's dedicated server; the inventory screen (Tab), looting and extraction work as in the
    editor.
 3. Restarting the client keeps the backend address.
+
+## Items on the ground
+
+Dropping (drag an item out of the inventory window) and loose loot both put items on the ground, where anyone
+can take them with F.
+
+To have loose loot to try, add an empty GameObject to `SampleScene` where an item should lie (on a table, the
+floor) and give it a `LooseLootSpot` (assembly `Game.Net`). Either set **Fixed Def Id** to an item ID such as
+`ak74` for the same item every raid, or give it a **Loot Table** and a **Chance**. The item lands on the first
+surface below the spot. Keep spots' names unique, like crates.
+
+What to check, with two players (a host and an MPPM clone):
+
+1. At raid start, the server's log line `[raid] Server ready: ...` ends with how many loose items it placed, and
+   each spot's item is lying there for both players. Items without a world model show as a flat box the size of
+   their inventory footprint.
+2. Look at one from within about 2.5 m: the prompt reads "F  Take <item>". Press F: it lands on you (a rifle in
+   an empty primary slot, otherwise your rig, then your backpack) and disappears for both players.
+3. Open the inventory and drag something out of the window: it lands about 0.75 m in front of you, on the
+   ground, and the other player sees it too. Drop a few in a row: they land side by side, not inside each
+   other. Facing a wall, it lands at the foot of the wall.
+4. Fill your rig and backpack, then press F on a rifle while your primary slot is taken: the inventory opens
+   with the item's pile on the right and says there's no room. Make room and drag it across.
+5. Walk out of reach while looking at an item: the prompt goes. Crates show "F  Open Wooden crate" the same
+   way, and a wall between you and a crate or item hides the prompt.
+6. A player who joins after items were dropped sees them where they lie.
+7. With `--loot-seed` (or Loot Seed on `RaidServer`) the same spots get the same items again.
 
 ## A dedicated server build
 

@@ -6,9 +6,11 @@ using System.Threading.Tasks;
 using FishNet;
 using FishNet.Connection;
 using FishNet.Managing;
+using FishNet.Object;
 using FishNet.Transporting;
 using RaidZero.BackendApi;
 using RaidZero.Raid;
+using RaidZero.Shared.Catalog;
 using RaidZero.Shared.Inventory;
 using RaidZero.Shared.Raid;
 using UnityEngine;
@@ -27,13 +29,23 @@ namespace RaidZero.Net
     /// supervisor can start a fresh one.
     ///
     /// Gameplay code calls <see cref="PlayerDied"/>, <see cref="Consume"/> and <see cref="InterruptExtraction"/>;
-    /// <see cref="ExtractionZone"/>s in the level handle extraction. World code listens to <see cref="PileCreated"/>
-    /// and <see cref="PileRemoved"/> to spawn and despawn items on the ground, and registers bodies and piles in
-    /// <see cref="ContainerRegistry"/>.
+    /// <see cref="ExtractionZone"/>s in the level handle extraction. Items on the ground are this class's too:
+    /// it rolls the level's <see cref="LooseLootSpot"/>s at raid start and spawns a <see cref="GroundItem"/> for
+    /// each pile, from loose loot or a player's drop, and despawns it when the pile is emptied.
+    /// <see cref="PileCreated"/> and <see cref="PileRemoved"/> are there for anything else that cares.
+    ///
+    /// The raid starts once the server is listening and the map scene has loaded, whichever comes last: a
+    /// dedicated server starts listening in the core scene, before the map's crates and loot spots exist.
     /// </summary>
     [RequireComponent(typeof(NetworkManager))]
     public sealed class RaidServer : MonoBehaviour
     {
+        /// <summary>The map's scene. Currently always SampleScene; eventually the scene that goes with the map ID.</summary>
+        private const string MapScene = "SampleScene";
+
+        /// <summary>How far in front of a player what they drop lands, in metres.</summary>
+        private const float DropDistance = 0.75f;
+
         [Tooltip("The map this scene is, as tickets name it. The backend refuses to send players here for a raid on another map.")]
         [SerializeField]
         private string _mapId = "greybox_01";
@@ -83,10 +95,13 @@ namespace RaidZero.Net
         private double _closingSince;
         private bool _testExtractAtSpawn;
 
-        /// <summary>A pile appeared on the ground: (pile ID, the dropping player's connection). Spawn a pickup at their feet.</summary>
+        private readonly Dictionary<string, GroundItem> _groundItems = new Dictionary<string, GroundItem>(StringComparer.Ordinal);
+        private NetworkObject _groundItemPrefab;
+
+        /// <summary>A player dropped something, which now lies in a new pile: (pile ID, their connection). Its GroundItem is already spawned.</summary>
         public event Action<string, NetworkConnection> PileCreated;
 
-        /// <summary>A pile on the ground is empty and gone. Despawn its pickup.</summary>
+        /// <summary>A pile on the ground was emptied and is gone. Its GroundItem is already despawned.</summary>
         public event Action<string> PileRemoved;
 
         /// <summary>The raid moved to another phase. On Ending, gameplay can stop AI and spawning.</summary>
@@ -254,7 +269,7 @@ namespace RaidZero.Net
 
             SceneManager.sceneLoaded += OnSceneLoaded;
 
-            if (_networkManager.IsServerStarted)
+            if (_networkManager.IsServerStarted && MapLoaded())
             {
                 StartRaid();
             }
@@ -301,7 +316,7 @@ namespace RaidZero.Net
 
         private void OnServerConnectionState(ServerConnectionStateArgs args)
         {
-            if (args.ConnectionState == LocalConnectionState.Started)
+            if (args.ConnectionState == LocalConnectionState.Started && MapLoaded())
             {
                 StartRaid();
             }
@@ -343,11 +358,22 @@ namespace RaidZero.Net
                 return;
             }
 
-            if(scene.name == "SampleScene")
+            if (scene.name != MapScene)
             {
-                _networkManager.ServerManager.StartConnection();
+                return;
+            }
+
+            if (_networkManager.IsServerStarted)
+            {
+                StartRaid(); // a dedicated server is already listening; the raid needed the map
+            }
+            else
+            {
+                _networkManager.ServerManager.StartConnection(); // StartRaid follows once it's listening
             }
         }
+
+        private static bool MapLoaded() => SceneManager.GetSceneByName(MapScene).isLoaded;
 
         private void StartRaid()
         {
@@ -380,6 +406,8 @@ namespace RaidZero.Net
                     inventory.AddContainer(container.BuildContents(catalog, lootSeed));
                 }
 
+                var looseLoot = PlaceLooseLoot(inventory, catalog, lootSeed);
+
                 _lifecycle = new RaidLifecycle(new RaidLifecycleOptions
                 {
                     Duration = TimeSpan.FromMinutes(minutes),
@@ -388,12 +416,17 @@ namespace RaidZero.Net
                 _extraction = new ExtractionTracker();
                 _host = new RaidInventoryHost(inventory) { CanReach = CanReach };
                 _host.ProtocolViolation += OnProtocolViolation;
+                foreach (var (pileId, place) in looseLoot)
+                {
+                    SpawnGroundItem(pileId, place);
+                }
+
                 _networkManager.ServerManager.RegisterBroadcast<InventoryToServerBroadcast>(OnInventoryBroadcast);
                 // CI bakes the commit into the server image (RAIDZERO_BUILD); anything else is a local build.
                 var build = System.Environment.GetEnvironmentVariable("RAIDZERO_BUILD");
                 Debug.Log("[raid] Server ready: build " + (string.IsNullOrEmpty(build) ? "local" : build) + ", network code " + NetworkFingerprint.Current
                     + ", " + settings + ", map " + _mapId + ", catalog " + catalog.Version + ", " + minutes + "-minute raids, "
-                    + ExtractionZone.All.Count + " extraction zone(s).");
+                    + ExtractionZone.All.Count + " extraction zone(s), " + looseLoot.Count + " loose item(s).");
                 if (_testExtractAtSpawn)
                 {
                     // For CI's raid test: players extract without moving, whatever the level has.
@@ -441,6 +474,7 @@ namespace RaidZero.Net
 
             _backend = null;
             _host = null;
+            _groundItems.Clear(); // the server stopping despawns them
             _lifecycle = null;
             _extraction = null;
             _closing = null;
@@ -641,13 +675,124 @@ namespace RaidZero.Net
 
             foreach (var pileId in output.CreatedRoots)
             {
+                SpawnGroundItem(pileId, DropPlace(sender));
                 PileCreated?.Invoke(pileId, sender);
             }
 
             foreach (var pileId in output.RemovedRoots)
             {
+                DespawnGroundItem(pileId);
                 PileRemoved?.Invoke(pileId);
             }
+        }
+
+        // ---- Items on the ground ----
+
+        /// <summary>Rolls every LooseLootSpot in the level and puts what they get on the ground: (pile, where it lies).</summary>
+        private List<(string PileId, Vector3 Place)> PlaceLooseLoot(RaidInventoryService inventory, ItemCatalog catalog, int lootSeed)
+        {
+            var placed = new List<(string, Vector3)>();
+            foreach (var spot in FindObjectsByType<LooseLootSpot>())
+            {
+                var items = spot.Roll(catalog, lootSeed);
+                for (int i = 0; i < items.Count; i++)
+                {
+                    try
+                    {
+                        placed.Add((inventory.PlaceOnGround(items[i]), OnGround(spot.PlaceFor(i, items.Count) + Vector3.up * 0.1f)));
+                    }
+                    catch (ArgumentException exception)
+                    {
+                        Debug.LogWarning("[loot] " + spot.name + " rolled an item that can't lie on the ground: " + exception.Message, spot);
+                    }
+                }
+            }
+
+            return placed;
+        }
+
+        private void SpawnGroundItem(string pileId, Vector3 place)
+        {
+            var item = _host.Service.Snapshot(pileId)?.Children.FirstOrDefault();
+            var prefab = GroundItemPrefab();
+            if (item == null || prefab == null)
+            {
+                return;
+            }
+
+            var spin = Quaternion.Euler(0f, UnityEngine.Random.Range(0f, 360f), 0f);
+            var spawned = Instantiate(prefab, place, spin);
+            var groundItem = spawned.GetComponent<GroundItem>();
+            groundItem.Setup(pileId, item.Id, item.DefId);
+            var map = SceneManager.GetSceneByName(MapScene);
+            _networkManager.ServerManager.Spawn(spawned, null, map.isLoaded ? map : SceneManager.GetActiveScene());
+            _groundItems[pileId] = groundItem;
+        }
+
+        private void DespawnGroundItem(string pileId)
+        {
+            if (_groundItems.TryGetValue(pileId, out var groundItem))
+            {
+                _groundItems.Remove(pileId);
+                if (groundItem != null)
+                {
+                    _networkManager.ServerManager.Despawn(groundItem.NetworkObject);
+                }
+            }
+        }
+
+        /// <summary>The DroppedItem prefab, found in the NetworkManager's spawnable prefabs by its GroundItem.</summary>
+        private NetworkObject GroundItemPrefab()
+        {
+            if (_groundItemPrefab != null)
+            {
+                return _groundItemPrefab;
+            }
+
+            var prefabs = _networkManager.SpawnablePrefabs;
+            for (int i = 0; prefabs != null && i < prefabs.GetObjectCount(); i++)
+            {
+                var candidate = prefabs.GetObject(true, i);
+                if (candidate != null && candidate.GetComponent<GroundItem>() != null)
+                {
+                    return _groundItemPrefab = candidate;
+                }
+            }
+
+            Debug.LogError("[raid] No spawnable prefab has a GroundItem, so items on the ground can't be shown. The DroppedItem prefab should have one.");
+            return null;
+        }
+
+        /// <summary>
+        /// Just in front of the player, on the ground: short of any wall in the way, and a little to one side
+        /// so several drops in a row don't land inside each other.
+        /// </summary>
+        private static Vector3 DropPlace(NetworkConnection dropper)
+        {
+            var body = dropper != null && dropper.FirstObject != null ? dropper.FirstObject.transform : null;
+            if (body == null)
+            {
+                return Vector3.zero;
+            }
+
+            var chest = body.position + Vector3.up;
+            var forward = Vector3.ProjectOnPlane(body.forward, Vector3.up).normalized;
+            float distance = DropDistance;
+            if (Physics.Raycast(chest, forward, out var wall, DropDistance + 0.2f, ~0, QueryTriggerInteraction.Ignore))
+            {
+                distance = Mathf.Max(0f, wall.distance - 0.25f);
+            }
+
+            var jitter = UnityEngine.Random.insideUnitCircle * 0.15f;
+            return OnGround(chest + forward * distance + new Vector3(jitter.x, 0f, jitter.y));
+        }
+
+        /// <summary>The first surface below a point, or the point itself if there's none within a few metres.</summary>
+        private static Vector3 OnGround(Vector3 point)
+        {
+            return Physics.Raycast(point, Vector3.down, out var hit, 4f, ~0, QueryTriggerInteraction.Ignore)
+                ? hit.point
+                : point;
         }
 
         private bool CanReach(string playerId, string containerId)

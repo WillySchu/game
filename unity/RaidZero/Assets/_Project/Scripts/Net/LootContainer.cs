@@ -79,6 +79,9 @@ namespace RaidZero.Net
 
         public string ContainerId { get; private set; }
 
+        /// <summary>The container's item type, such as crate_wooden: what the "Open" prompt calls it.</summary>
+        public string DefId => _defId;
+
         /// <summary>The loot table this crate rolls: its own, or its container type's default. Null if neither is set.</summary>
         public LootTableAsset LootTable
         {

@@ -35,6 +35,19 @@ public class RaidInventoryViewTests
     }
 
     [Fact]
+    public void LastRequestId_IsTheOneJustSent_SoItsResultCanBeFound()
+    {
+        Assert.Equal(0u, _view.LastRequestId);
+
+        var take = (PickUpRequest)RaidProtocol.DecodeFromClient(_view.PickUp(Uuid7.NewId()));
+        Assert.Equal(take.RequestId, _view.LastRequestId);
+
+        var open = (OpenRequest)RaidProtocol.DecodeFromClient(_view.Open(Uuid7.NewId()));
+        Assert.Equal(open.RequestId, _view.LastRequestId);
+        Assert.NotEqual(take.RequestId, open.RequestId);
+    }
+
+    [Fact]
     public void Views_ReplaceWhatWasShown_AndClosingRemovesThem()
     {
         var changed = new List<string>();
