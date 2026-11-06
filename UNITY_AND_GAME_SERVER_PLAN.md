@@ -304,7 +304,7 @@ hosting runs it (Docker restarts the server for the next raid).
 | Waiting | Scene loaded, loot rolled, AI spawned; players join with tickets | The first player joins (that starts the clock) |
 | In progress | The clock runs (25 minutes; `--raid-minutes` on a dedicated server); heartbeats every 10 s | Time runs out, everyone who joined has extracted or died, or nobody inside has been connected for 3 minutes |
 | Ending | Anyone still inside is missing in action (dies); reports flush from the outbox | All reports acknowledged, or the close timeout |
-| Closed | Close report sent, process exits | n/a |
+| Closed | Close report sent; a dedicated server exits, the editor or a host starts a fresh raid a second later | n/a |
 
 A disconnected player's gear stays in the raid, and Deploy with the same ticket brings them back while it runs.
 

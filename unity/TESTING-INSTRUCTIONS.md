@@ -56,8 +56,9 @@ dotnet run --project backend/Game.Backend
 `Game.UI`) to any GameObject. It makes its own UIDocument from `Assets/_Project/UI/Resources/InventoryPanelSettings` and styles
 itself with `InventoryScreen.uss` beside it, so there's nothing else to wire up. Join a raid as above, then:
 
-- **Tab** opens and closes the screen. The mouse is freed and the player's input switches to the `UI` action
-  map, so the camera stays still; closing puts both back and closes anything you had open.
+- **Tab** opens and closes the screen. The mouse is freed and the player's input is turned off, so the camera
+  stays still; closing puts both back and closes anything you had open. After a raid, the Hideout must still
+  take clicks: if it doesn't, something has turned off the input actions' UI map (see `InventoryView.EnsureUiInput`).
 - **F** uses what you're looking at: it opens a crate (and the screen with it) or takes an item off the ground.
   The prompt under the middle of the screen says which. See "Items on the ground" below.
 - **Drag** an item; **R** while dragging turns it; **Escape** cancels the drag (or closes the screen).
@@ -173,7 +174,8 @@ What to check:
 
 The raid waits until someone joins, then runs its clock. It ends when the clock runs out, when everyone who
 joined has extracted or died, or when nobody inside has been connected for 3 minutes. Anyone still inside
-then is missing in action, and the server stops; start it again for a new raid.
+then is missing in action, and the server stops. In the editor (or any game that isn't a dedicated server) it
+starts again a second later with a fresh raid, so you can Deploy again without leaving Play mode.
 
 To set it up in a scene:
 

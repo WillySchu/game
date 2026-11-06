@@ -2,6 +2,7 @@ using System;
 using RaidZero.Shared.Inventory;
 using RaidZero.Shared.InventoryUi;
 using UnityEngine;
+using UnityEngine.InputSystem;
 using UnityEngine.UIElements;
 
 namespace RaidZero.UI
@@ -136,7 +137,7 @@ namespace RaidZero.UI
                 return;
             }
 
-            if (evt.ctrlKey || evt.commandKey)
+            if (QuickMoveHeld(evt))
             {
                 var quick = _model.PlanQuickMove(item.ItemId);
                 if (!_model.Execute(item.ItemId, quick) && quick.Message != null)
@@ -155,7 +156,7 @@ namespace RaidZero.UI
             _itemId = item.ItemId;
             _pointerId = evt.pointerId;
             _rotated = node.Rotated;
-            _splitting = evt.shiftKey && _model.CanSplit(item.ItemId);
+            _splitting = SplitHeld(evt) && _model.CanSplit(item.ItemId);
             _splitPreview = Math.Max(1, node.Quantity / 2);
             GridPlacement.GetSize(def, _rotated, out _width, out _height);
 
@@ -344,6 +345,24 @@ namespace RaidZero.UI
             {
                 Message?.Invoke(plan.Message);
             }
+        }
+
+        // Modifier keys are read from the keyboard itself, not the pointer event. On macOS, UI Toolkit learns
+        // about Ctrl, Cmd and Shift only when the next event arrives, so a click carries the keys as they were
+        // before it: the first Ctrl+click looked like a plain click, and the first click after letting go still
+        // looked like Ctrl. The event's own flags are the fallback when there's no keyboard.
+        private static bool QuickMoveHeld(PointerDownEvent evt)
+        {
+            var keyboard = Keyboard.current;
+            return keyboard != null
+                ? keyboard.ctrlKey.isPressed || keyboard.leftCommandKey.isPressed || keyboard.rightCommandKey.isPressed
+                : evt.ctrlKey || evt.commandKey;
+        }
+
+        private static bool SplitHeld(PointerDownEvent evt)
+        {
+            var keyboard = Keyboard.current;
+            return keyboard != null ? keyboard.shiftKey.isPressed : evt.shiftKey;
         }
     }
 }
