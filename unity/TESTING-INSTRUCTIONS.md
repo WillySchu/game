@@ -279,6 +279,19 @@ What to check, with two players (a host and an MPPM clone):
 6. A player who joins after items were dropped sees them where they lie.
 7. With `--loot-seed` (or Loot Seed on `RaidServer`) the same spots get the same items again.
 
+## Bodies
+
+Nothing deals damage yet, so open the F1 overlay in a raid and press **Die**. It only works in the editor and
+Development builds.
+
+1. The player who died sees the "Killed" card and goes back to the Hideout, where the result says their gear
+   stayed in the zone.
+2. Where they stood, the other player finds a body lying down (a long grey box for now). Looking at it within
+   reach shows "F  Search body"; F opens it in the inventory screen with the dead player's slots, rig and
+   backpack, and everything in them can be taken, dragged or Ctrl+clicked across.
+3. The body stays after it's emptied, and until the raid ends.
+4. A player who joins after the death sees the body too.
+
 ## A dedicated server build
 
 CI builds the dedicated server on every change to the Unity project (`.github/workflows/server.yml`). To build

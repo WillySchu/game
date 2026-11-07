@@ -99,6 +99,71 @@ public class RaidEndToEndTests
         Directory.Delete(outbox, recursive: true);
     }
 
+    [Fact]
+    public async Task SwappingYourRifleAndArmorForADeadPlayers_KeepsTheirsAfterExtracting()
+    {
+        await using var api = await ApiHost.StartAsync();
+        var catalog = CatalogLoader.LoadFile(TestPaths.CatalogPath);
+        var (samId, samToken) = await api.LoginAsync("Sam");
+        var (alexId, alexToken) = await api.LoginAsync("Alex");
+        var (raidId, samTicket) = await TicketAsync(api, samToken);
+        var (_, alexTicket) = await TicketAsync(api, alexToken);
+
+        var outbox = Path.Combine(Path.GetTempPath(), "raidzero-tests", "outbox-" + Guid.NewGuid().ToString("N"));
+        using var transport = new HttpClientTransport(api.Client.BaseAddress!.ToString(), TimeSpan.FromSeconds(10));
+        var log = new ListLog();
+        using var backend = new BackendClient(new BackendSettings(api.Client.BaseAddress!.ToString(), ApiHost.ServerToken, outbox), catalog.Version,
+            new BackendClientOptions { RetryInitialDelay = TimeSpan.FromMilliseconds(10) }, transport, log);
+        backend.Start();
+        var raid = new RaidInventoryService(catalog);
+        var sam = await backend.JoinAsync(raidId, samTicket);
+        var alex = await backend.JoinAsync(raidId, alexTicket);
+        Assert.True(sam.Succeeded && alex.Succeeded, $"{sam} / {alex}");
+        raid.AddPlayer(sam.PlayerId, sam.Loadout);
+        raid.AddPlayer(alex.PlayerId, alex.Loadout);
+
+        var samCharacter = raid.Snapshot(raid.CharacterOf(samId))!;
+        var alexCharacter = raid.Snapshot(raid.CharacterOf(alexId))!;
+        var alexRifle = Slot(alexCharacter, "primary");
+        var alexArmor = Slot(alexCharacter, "armor");
+        raid.Kill(alexId);
+        backend.ReportDied(alexId);
+
+        // Sam drops his own rifle and armor and takes Alex's from the body in their place.
+        Assert.True(raid.Drop(samId, Slot(samCharacter, "primary")).Success);
+        Assert.True(raid.Drop(samId, Slot(samCharacter, "armor")).Success);
+        Assert.True(raid.Open(samId, alexCharacter.Id).Success);
+        var rifle = raid.PickUp(samId, alexRifle);
+        var armor = raid.PickUp(samId, alexArmor);
+        Assert.True(rifle.Success, rifle.ToString());
+        Assert.True(armor.Success, armor.ToString());
+        backend.ReportExtracted(samId, raid.Extract(samId), "north_gate");
+        await Wait.ForAsync(backend.EndRaidAsync());
+
+        Assert.DoesNotContain(log.Lines, l => l.Contains("refused", StringComparison.OrdinalIgnoreCase) || l.Contains("rejected", StringComparison.OrdinalIgnoreCase));
+        var samNow = JsonDocument.Parse(await CharacterJsonAsync(api, samToken)).RootElement;
+        var worn = samNow.GetProperty("children").EnumerateArray().ToDictionary(c => c.GetProperty("slot").GetString()!, c => c.GetProperty("id").GetString()!);
+        Assert.Equal(alexRifle, worn["primary"]);
+        Assert.Equal(alexArmor, worn["armor"]);
+        Assert.True(worn.ContainsKey("rig") && worn.ContainsKey("backpack"));
+
+        backend.Dispose();
+        Directory.Delete(outbox, recursive: true);
+    }
+
+    private sealed class ListLog : IBackendLog
+    {
+        public List<string> Lines { get; } = new();
+
+        public void Write(BackendLogLevel level, string message)
+        {
+            lock (Lines)
+            {
+                Lines.Add(level + ": " + message);
+            }
+        }
+    }
+
     private sealed class QuietLog : IBackendLog
     {
         public void Write(BackendLogLevel level, string message)

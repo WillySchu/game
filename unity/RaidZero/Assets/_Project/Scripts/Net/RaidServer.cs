@@ -98,6 +98,7 @@ namespace RaidZero.Net
 
         private readonly Dictionary<string, GroundItem> _groundItems = new Dictionary<string, GroundItem>(StringComparer.Ordinal);
         private NetworkObject _groundItemPrefab;
+        private NetworkObject _bodyPrefab;
 
         /// <summary>A player dropped something, which now lies in a new pile: (pile ID, their connection). Its GroundItem is already spawned.</summary>
         public event Action<string, NetworkConnection> PileCreated;
@@ -199,10 +200,9 @@ namespace RaidZero.Net
         // ---- Called by gameplay ----
 
         /// <summary>
-        /// The player died. Their gear stays as a body: register the body object in ContainerRegistry under
-        /// <see cref="CharacterIdOf"/> (before this call, while the ID is still theirs) so others can loot it.
-        /// The body must be its own object: the player is disconnected shortly after, and Fish-Net despawns
-        /// whatever their connection owns.
+        /// The player died. Their gear stays where they fell as a <see cref="Body"/> anyone can search, the
+        /// backend is told, and they're sent home. The body is its own object: the player is disconnected
+        /// shortly after, and Fish-Net despawns whatever their connection owns.
         /// </summary>
         public void PlayerDied(NetworkConnection connection)
         {
@@ -212,6 +212,7 @@ namespace RaidZero.Net
                 return;
             }
 
+            SpawnBody(Inventory.CharacterOf(playerId), connection);
             _host.Kill(playerId);
             _backend.ReportDied(playerId);
             Leave(playerId, connection, RaidExit.Died);
@@ -433,6 +434,11 @@ namespace RaidZero.Net
                 }
 
                 _networkManager.ServerManager.RegisterBroadcast<InventoryToServerBroadcast>(OnInventoryBroadcast);
+                if (Application.isEditor || Debug.isDebugBuild)
+                {
+                    _networkManager.ServerManager.RegisterBroadcast<DevDieBroadcast>(OnDevDie);
+                }
+
                 // CI bakes the commit into the server image (RAIDZERO_BUILD); anything else is a local build.
                 var build = System.Environment.GetEnvironmentVariable("RAIDZERO_BUILD");
                 Debug.Log("[raid] Server ready: build " + (string.IsNullOrEmpty(build) ? "local" : build) + ", network code " + NetworkFingerprint.Current
@@ -462,6 +468,7 @@ namespace RaidZero.Net
             if (_networkManager != null)
             {
                 _networkManager.ServerManager.UnregisterBroadcast<InventoryToServerBroadcast>(OnInventoryBroadcast);
+                _networkManager.ServerManager.UnregisterBroadcast<DevDieBroadcast>(OnDevDie);
             }
 
             if (_backend != null)
@@ -678,6 +685,13 @@ namespace RaidZero.Net
             }
         }
 
+        // Only registered in the editor and Development builds.
+        private void OnDevDie(NetworkConnection connection, DevDieBroadcast message, Channel channel)
+        {
+            Debug.Log("[raid] " + PlayerIdOf(connection) + " asked to die (dev).");
+            PlayerDied(connection);
+        }
+
         private void Dispatch(HostOutput output, NetworkConnection sender)
         {
             foreach (var message in output.Messages)
@@ -757,25 +771,43 @@ namespace RaidZero.Net
         }
 
         /// <summary>The DroppedItem prefab, found in the NetworkManager's spawnable prefabs by its GroundItem.</summary>
-        private NetworkObject GroundItemPrefab()
-        {
-            if (_groundItemPrefab != null)
-            {
-                return _groundItemPrefab;
-            }
+        private NetworkObject GroundItemPrefab() => _groundItemPrefab != null ? _groundItemPrefab : _groundItemPrefab = FindPrefab<GroundItem>("DroppedItem");
 
+        /// <summary>The Body prefab, found the same way.</summary>
+        private NetworkObject BodyPrefab() => _bodyPrefab != null ? _bodyPrefab : _bodyPrefab = FindPrefab<Body>("Body");
+
+        private NetworkObject FindPrefab<T>(string expected) where T : Component
+        {
             var prefabs = _networkManager.SpawnablePrefabs;
             for (int i = 0; prefabs != null && i < prefabs.GetObjectCount(); i++)
             {
                 var candidate = prefabs.GetObject(true, i);
-                if (candidate != null && candidate.GetComponent<GroundItem>() != null)
+                if (candidate != null && candidate.GetComponent<T>() != null)
                 {
-                    return _groundItemPrefab = candidate;
+                    return candidate;
                 }
             }
 
-            Debug.LogError("[raid] No spawnable prefab has a GroundItem, so items on the ground can't be shown. The DroppedItem prefab should have one.");
+            Debug.LogError("[raid] No spawnable prefab has a " + typeof(T).Name + ". The " + expected + " prefab should, and it must be in the NetworkManager's spawnable prefabs.");
             return null;
+        }
+
+        /// <summary>A body where the player stands, on the ground, facing the way they faced.</summary>
+        private void SpawnBody(string containerId, NetworkConnection connection)
+        {
+            var prefab = BodyPrefab();
+            var player = connection != null && connection.FirstObject != null ? connection.FirstObject.transform : null;
+            if (prefab == null || containerId == null)
+            {
+                return;
+            }
+
+            var place = player != null ? OnGround(player.position + Vector3.up) : Vector3.zero;
+            var facing = player != null ? Quaternion.Euler(0f, player.eulerAngles.y, 0f) : Quaternion.identity;
+            var spawned = Instantiate(prefab, place, facing);
+            spawned.GetComponent<Body>().Setup(containerId);
+            var map = SceneManager.GetSceneByName(MapScene);
+            _networkManager.ServerManager.Spawn(spawned, null, map.isLoaded ? map : SceneManager.GetActiveScene());
         }
 
         /// <summary>

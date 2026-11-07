@@ -73,8 +73,11 @@ namespace RaidZero.UI
 
             _view.Hide();
             _open = false;
-            Cursor.lockState = _cursorBefore;
-            Cursor.visible = _cursorVisibleBefore;
+            // Back to how it was, unless the raid is over (the screen closes itself when the player dies or
+            // extracts with it open): then the Hideout needs the mouse.
+            var inRaid = RaidInventoryClient.Instance != null && RaidInventoryClient.Instance.View.Character != null;
+            Cursor.lockState = inRaid ? _cursorBefore : CursorLockMode.None;
+            Cursor.visible = inRaid ? _cursorVisibleBefore : true;
             RestoreInputs();
 
             // Looting ends with the screen, as it does in most games: close whatever was open.

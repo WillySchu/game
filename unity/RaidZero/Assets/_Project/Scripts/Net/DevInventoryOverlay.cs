@@ -48,6 +48,17 @@ namespace RaidZero.Net
             }
         }
 
+        // While the overlay is open its buttons need the mouse, whatever else locked it since (the editor
+        // locks a locked cursor again on every click, so one stray lock makes every click hide it).
+        private void LateUpdate()
+        {
+            if (_visible && (Cursor.lockState != CursorLockMode.None || !Cursor.visible))
+            {
+                Cursor.lockState = CursorLockMode.None;
+                Cursor.visible = true;
+            }
+        }
+
         private void OnGUI()
         {
             if (!Application.isEditor && !Debug.isDebugBuild)
@@ -59,8 +70,13 @@ namespace RaidZero.Net
             if (e.type == EventType.KeyDown && e.keyCode == KeyCode.F1)
             {
                 _visible = !_visible;
-                Cursor.lockState = _visible ? CursorLockMode.None : CursorLockMode.Locked;
-                Cursor.visible = _visible;
+
+                // Closing hands the mouse back to the player, but only if there's one in a raid to aim with:
+                // after dying or extracting with the overlay open, the Hideout needs it free.
+                var inRaid = RaidInventoryClient.Instance != null && RaidInventoryClient.Instance.View.Character != null;
+                var free = _visible || !inRaid;
+                Cursor.lockState = free ? CursorLockMode.None : CursorLockMode.Locked;
+                Cursor.visible = free;
                 e.Use();
             }
 
@@ -85,6 +101,16 @@ namespace RaidZero.Net
             }
             else
             {
+                // Until there's damage: the server only takes this in the editor and Development builds.
+                if (GUILayout.Button("Die (leaves a body with everything you carry)"))
+                {
+                    var networkManager = FindAnyObjectByType<NetworkManager>();
+                    if (networkManager != null)
+                    {
+                        networkManager.ClientManager.Broadcast(new DevDieBroadcast());
+                    }
+                }
+
                 GUILayout.Label("Your gear");
                 DrawTree(client, character.Root, 0, isMine: true);
             }

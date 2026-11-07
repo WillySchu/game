@@ -194,6 +194,14 @@ namespace RaidZero.UI
                 return;
             }
 
+            // Nothing plays while the Hideout is up, so the mouse is always free here, whatever locked it last
+            // (the editor locks a locked cursor again on every click in the Game view).
+            if (Cursor.lockState != CursorLockMode.None || !Cursor.visible)
+            {
+                Cursor.lockState = CursorLockMode.None;
+                Cursor.visible = true;
+            }
+
             _view.HandleKeys(Keyboard.current);
             if (_dirty)
             {

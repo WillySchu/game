@@ -51,6 +51,14 @@ namespace RaidZero.Net
         public RaidExit Exit;
     }
 
+    /// <summary>
+    /// Client to server, for testing only: kill me. The server only listens for it in the editor and in
+    /// Development builds (the F1 overlay's Die button), until there's damage to die from.
+    /// </summary>
+    public struct DevDieBroadcast : IBroadcast
+    {
+    }
+
     /// <summary>Server to client: your extraction countdown started (or started over), or stopped (Point is null).</summary>
     public struct ExtractionBroadcast : IBroadcast
     {

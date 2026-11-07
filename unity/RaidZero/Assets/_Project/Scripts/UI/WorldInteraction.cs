@@ -9,8 +9,9 @@ namespace RaidZero.UI
 {
     /// <summary>
     /// What the player is looking at in a raid, and F to use it: take an item lying on the ground
-    /// (<see cref="GroundItem"/>), or open a crate (<see cref="LootContainer"/>). <see cref="RaidHud"/> shows the
-    /// prompt ("F  Take AK-74") under the middle of the screen.
+    /// (<see cref="GroundItem"/>), open a crate (<see cref="LootContainer"/>) or search a body
+    /// (<see cref="Body"/>). <see cref="RaidHud"/> shows the prompt ("F  Take AK-74") under the middle of the
+    /// screen. Crates and bodies open in the inventory screen.
     ///
     /// Taking puts the item straight onto the player, into the first place it fits (a rifle into an empty
     /// primary, then their rig and backpack). If there's no room, the item's pile opens in the inventory screen
@@ -81,8 +82,11 @@ namespace RaidZero.UI
             }
 
             var item = target.GetComponentInParent<GroundItem>();
-            var crate = item == null ? target.GetComponentInParent<LootContainer>() : null;
-            Prompt = item != null ? "Take " + item.DisplayName : "Open " + ItemLibrary.DisplayNameOf(crate.DefId);
+            var body = item == null ? target.GetComponentInParent<Body>() : null;
+            var crate = item == null && body == null ? target.GetComponentInParent<LootContainer>() : null;
+            Prompt = item != null ? "Take " + item.DisplayName
+                : body != null ? "Search body"
+                : "Open " + ItemLibrary.DisplayNameOf(crate.DefId);
 
             var keyboard = Keyboard.current;
             if (keyboard == null || !keyboard.fKey.wasPressedThisFrame)
@@ -96,7 +100,7 @@ namespace RaidZero.UI
             }
             else
             {
-                client.Open(crate.ContainerId);
+                client.Open(body != null ? body.ContainerId : crate.ContainerId);
                 if (_screen != null)
                 {
                     _screen.Open();
@@ -176,7 +180,7 @@ namespace RaidZero.UI
         }
 
         /// <summary>
-        /// The ground item or crate straight ahead within reach, or null. Solid things in the way block it;
+        /// The ground item, body or crate straight ahead within reach, or null. Solid things in the way block it;
         /// triggers that aren't ground items (extraction zones, say) don't. Ground items are triggers so
         /// nobody trips over them, which is why this looks at everything the ray passes through.
         /// </summary>
@@ -187,7 +191,8 @@ namespace RaidZero.UI
             foreach (var hit in hits)
             {
                 var collider = hit.collider;
-                if (collider.GetComponentInParent<GroundItem>() != null || collider.GetComponentInParent<LootContainer>() != null)
+                if (collider.GetComponentInParent<GroundItem>() != null || collider.GetComponentInParent<Body>() != null
+                    || collider.GetComponentInParent<LootContainer>() != null)
                 {
                     return collider;
                 }

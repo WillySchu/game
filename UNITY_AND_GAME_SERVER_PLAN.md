@@ -15,7 +15,7 @@ Will & John · first written Oct 26, 2026 · last updated Nov 6, 2026
 | Weapons, hit registration, damage, health and death | Not started | John |
 | AI | Not started | John |
 | Interaction, items on the ground, loose loot | Done | Will |
-| Bodies in the world | Not started | To agree |
+| Bodies in the world | Done (dying itself waits for damage; F1 has a Die button) | Will |
 | Hideout screen: login, gear and stash, deploy, raid results | Done | Will |
 | Raid HUD: clock, extraction countdown, the card as you leave | Done | Will |
 | Several game servers: ready reports, raids routed by map and network code | Done | Will |
@@ -44,7 +44,7 @@ doc; where the two meet (joining a raid, reporting outcomes, item IDs), that doc
 | Raid timer, extraction rules, loot tables and rolling | Will (done) |
 | Raid inventory on the server, and the inventory screen on the client | Will (done; the screen was John's, handed over) |
 | Interaction, items on the ground, loose loot | Will (done) |
-| Bodies in the world | To agree |
+| Bodies in the world | Will (done) |
 | Hideout screen | Will (done) |
 | The scene flow around a raid (Boot, Hideout and raid scenes, joining) | John |
 | The dedicated server and client builds | Will (done) |
@@ -319,9 +319,11 @@ left, and disconnects them a moment later. The Hideout then fetches the raid res
 
 Gameplay calls `RaidServer.PlayerDied`. The player's raid inventory becomes a body container holding their
 gear, the server sends a `died` outcome, and the client is told how they left. The body must be its own object
-in the world, since Fish-Net despawns whatever the dead player's connection owns; spawning it is the world side
-that's still to do. It can follow the ground items' pattern: a server-spawned object registered for reach, and
-"F  Search body" through `WorldInteraction`.
+in the world, since Fish-Net despawns whatever the dead player's connection owns: `RaidServer.PlayerDied` spawns
+a `Body` where they fell, registered for reach, and "F  Search body" opens it. Bodies are anonymous and stay
+until the raid ends, emptied or not. A player who disconnects without dying leaves no body (their gear waits
+in the raid's inventory; they're missing in action if they don't return), and nobody caught by the fog or the
+clock leaves one. Until there's damage, the F1 overlay's Die button kills you (editor and Development builds).
 
 ### Items on the ground (done)
 
@@ -383,7 +385,7 @@ client, the game server and the backend. The client only previews; the server an
 | Inventory screen in a raid (`Game.UI`) | Will (handed over from John) | Done |
 | Hideout inventory source (`HideoutInventorySource`) | Will | Done |
 | Hideout screens and scene flow | To agree | Not started |
-| World containers, pickups, bodies, interaction | Will | Crates, ground items, loose loot and interaction done; bodies not started |
+| World containers, pickups, bodies, interaction | Will | Done |
 | Item `ScriptableObject` authoring | Both | Ongoing: sizes, stack limits, slots, models; icons render from models (Render Icons) |
 
 ### In a raid
@@ -481,7 +483,6 @@ Automate what can be expressed as rules, and playtest what can only be felt.
 - [ ] Hit markers: keep server-confirmed, or predict them once playtests show the delay matters?
 - [ ] Third-person body for remote players: buy an animated asset pack now, or stay on capsules until the loop
   is fun?
-- [ ] Who takes bodies in the world? (Interaction and items on the ground are Will's, done.)
 - [x] Tick rate: 60 Hz.
 - [x] Grid inventory or slot-based: grids (Tarkov-style), plus named slots and pockets.
 - [x] Disconnects: the gear stays in the raid and the player can rejoin with the same ticket until it ends;

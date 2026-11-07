@@ -284,7 +284,7 @@ The key in `appsettings.Development.json` is for local runs only. Real deploymen
 
 **Inventory screen** (`unity/RaidZero/Assets/_Project/Scripts/UI`, assembly `Game.UI`)
 - `InventoryScreen` is the raid's inventory in UI Toolkit: Tab toggles it. `WorldInteraction` is F: it finds the
-  crate or ground item the camera is looking at within reach, `RaidHud` shows its prompt ("F  Take AK-74"), and F
+  crate, body or ground item the camera is looking at within reach, `RaidHud` shows its prompt ("F  Take AK-74"), and F
   opens the crate or takes the item. If there's no room for the item, its pile opens in the inventory screen.
   `InventoryPanels` builds the elements from the model (gear and its rig and backpack on the left, open
   containers on the right); `InventoryDrag` turns pointer movement into `DropTarget`s and asks the model for a
@@ -317,7 +317,10 @@ The key in `appsettings.Development.json` is for local runs only. Real deploymen
   type to every client). `RaidServer` spawns one when a player drops something (in front of them, on the
   ground) and for each item a `LooseLootSpot` rolls at raid start (`RaidInventoryService.PlaceOnGround`), and
   despawns it when the pile is emptied. A ground item shows the item's world model, or a box the size of its
-  inventory footprint while it has none, and registers itself for reach checks. A dead player's body must be its own object: their
+  inventory footprint while it has none, and registers itself for reach checks.
+- A player who dies leaves a `Body` (the `Body` prefab) where they fell, holding everything they carried, until
+  the raid ends. "F  Search body" opens it in the inventory screen. Nothing deals damage yet, so the F1 overlay
+  has a Die button, which the server only accepts in the editor and Development builds. A dead player's body must be its own object: their
   connection closes a few seconds after they leave, and Fish-Net despawns whatever it owned.
 - `RaidSessionClient` is the client's view of the raid: its phase, the clock, the extraction countdown, and
   a `LeftRaid` event saying how the player left. It's carried by three small broadcasts. `RaidHud` (in
