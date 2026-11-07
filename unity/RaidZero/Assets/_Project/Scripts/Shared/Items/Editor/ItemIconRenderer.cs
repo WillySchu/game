@@ -201,6 +201,14 @@ namespace RaidZero.Items.Editor
             }
             finally
             {
+                // Render() switches the editor's lighting settings to the preview scene's and leaves them there
+                // (only EndPreview switches back, and we don't use it). Once Cleanup closes that scene, anything
+                // that touches lighting, such as SaveAssets, finds them gone and the editor crashes.
+                if (!EditorApplication.isUpdating)
+                {
+                    Unsupported.RestoreOverrideLightingSettings();
+                }
+
                 camera.targetTexture = null;
                 RenderTexture.active = previous;
                 RenderTexture.ReleaseTemporary(target);
