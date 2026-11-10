@@ -333,8 +333,8 @@ clock leaves one. Until there's damage, the F1 overlay's Die button kills you (e
   or a fixed item for testing. Each item rolled lies in its own pile on the surface below the spot.
 - Looking at an item within reach shows "F  Take <item>". F puts it straight on the player, into the first
   place it fits; with no room, its pile opens in the inventory screen. Crates work the same way ("F  Open").
-- A ground item shows the item's world model, or a box the size of its inventory footprint until the item has
-  one. Its colliders are off and it's a trigger, so nobody trips over it.
+- A ground item shows the item's world model, lying with its icon's side up, or a box the size of its inventory
+  footprint until the item has one. Its colliders are off and it's a trigger, so nobody trips over it.
 - The raid starts once the server is listening and the map scene has loaded: a dedicated server listens from the
   core scene, before the map's crates and loot spots exist.
 
@@ -386,7 +386,7 @@ client, the game server and the backend. The client only previews; the server an
 | Hideout inventory source (`HideoutInventorySource`) | Will | Done |
 | Hideout screens and scene flow | To agree | Not started |
 | World containers, pickups, bodies, interaction | Will | Done |
-| Item `ScriptableObject` authoring | Both | Ongoing: sizes, stack limits, slots, models; icons render from models (Render Icons) |
+| Item `ScriptableObject` authoring | Both | Ongoing: sizes, stack limits, slots, models; icons render from models (Render Icons); quick models from pictures (Model From Picture) |
 
 ### In a raid
 

@@ -148,6 +148,28 @@ made from its **World Prefab**, else the plain look. Nothing has a model yet, so
 
 Check the PNGs went into LFS before pushing (`git lfs ls-files`); `.png` files do by the repo's rules.
 
+### Models from pictures
+
+**Raid Zero > Items > Model From Picture** (or **Model From Picture** in an item asset's ⋮ menu) makes a quick
+model from a side-on picture, the trace-and-extrude way.
+
+1. Import a side view of the item into the project: lengthwise, left to right, on a transparent or plain
+   background. A PNG or JPG is read straight from the file, whatever its import settings. Use your own photos or
+   ones whose licence allows it: the repository is public.
+2. Choose it as the **Picture**, and an **Item** if the model is for one. Set **Length** to the real length end
+   to end (an AR-15 is about 0.9 m) and **Thickness** (about 0.05 m for a rifle).
+3. The preview shows the cutout with the traced outline in orange. If background is left on, raise **Colour
+   tolerance**; if parts of the item go missing, lower it. If a pale part of the item is cut out as a hole,
+   untick **Cut enclosed holes**. **Outline detail** trades accuracy for triangles: 1 to 2 is plenty for a gun.
+4. Optional: paint a **Thickness map**, a copy of the picture in greys: white for the thickest parts, black for
+   the thinnest (**Thinnest**, as a share of Thickness), grey between. A thin magazine and grip on a thick
+   receiver reads much better than one slab.
+5. **Make Model** writes the mesh, texture, material and prefab into `Assets/_Project/Models/FromPictures/<name>`.
+   With an item chosen, it becomes the item's **World Prefab**, its **Icon Angles** are reset (the model already
+   faces the icon's way) and its icon renders. Check the icon on the inventory screen.
+6. Drop the item in a raid: it lies on the ground on its side, the picture facing up.
+7. Change a setting and **Make Model** again with the same name: the files update in place.
+
 ## Loot tables
 
 Crates roll their contents from loot tables at the start of each raid. A crate with anything in its
@@ -266,7 +288,7 @@ What to check, with two players (a host and an MPPM clone):
 
 1. At raid start, the server's log line `[raid] Server ready: ...` ends with how many loose items it placed, and
    each spot's item is lying there for both players. Items without a world model show as a flat box the size of
-   their inventory footprint.
+   their inventory footprint; items with one lie on their side, the side the icon shows facing up.
 2. Look at one from within about 2.5 m: the prompt reads "F  Take <item>". Press F: it lands on you (a rifle in
    an empty primary slot, otherwise your rig, then your backpack) and disappears for both players.
 3. Open the inventory and drag something out of the window: it lands about 0.75 m in front of you, on the

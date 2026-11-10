@@ -115,6 +115,12 @@ The key in `appsettings.Development.json` is for local runs only. Real deploymen
 - Icons: an item's hand-drawn **Icon** wins; otherwise the one Raid Zero > Items > Render Icons renders from its
   world prefab (`ItemIconRenderer`: a side view at 64 px per cell, transparent, into `Data/ItemIcons`), turned
   by the item's **Icon Angles** if the model faces another way. Items with neither get the plain look.
+- Quick models: Raid Zero > Items > Model From Picture (`ModelFromPictureWindow`, also in an item asset's ⋮ menu)
+  makes one from a side-on picture of the item: cut out (by transparency, or by the corners' colour), traced,
+  simplified, filled and extruded to a thickness, with the picture painted on both faces
+  (`PictureModelBuilder`, plain C#). A grey thickness map can make parts thinner. It writes a mesh, texture,
+  material and prefab into `Models/FromPictures/<name>`, and with an item chosen sets it as the world prefab
+  and renders its icon. Making it again under the same name updates the files in place.
 - Containers hold items in one or more named grids. A backpack, crate or the stash has one, named `grid`; a rig
   can have one per pocket. Each grid is separate, so an item can't straddle two pockets. An item in a grid stores
   the grid's name as its slot, plus x and y within it. A target of `"slot": "grid"` with no x and y means the
@@ -316,8 +322,8 @@ The key in `appsettings.Development.json` is for local runs only. Real deploymen
 - Items on the ground are `GroundItem`s (on the `DroppedItem` prefab, one per pile, carrying the pile, item and
   type to every client). `RaidServer` spawns one when a player drops something (in front of them, on the
   ground) and for each item a `LooseLootSpot` rolls at raid start (`RaidInventoryService.PlaceOnGround`), and
-  despawns it when the pile is emptied. A ground item shows the item's world model, or a box the size of its
-  inventory footprint while it has none, and registers itself for reach checks.
+  despawns it when the pile is emptied. A ground item shows the item's world model lying on the side its icon
+  shows, or a box the size of its inventory footprint while it has none, and registers itself for reach checks.
 - A player who dies leaves a `Body` (the `Body` prefab) where they fell, holding everything they carried, until
   the raid ends. "F  Search body" opens it in the inventory screen. Nothing deals damage yet, so the F1 overlay
   has a Die button, which the server only accepts in the editor and Development builds. A dead player's body must be its own object: their

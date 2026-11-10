@@ -13,7 +13,8 @@ namespace RaidZero.Net
     ///
     /// It carries the pile's ID, the item's ID and its type to every client, including ones that join later,
     /// so the client can draw it, name it in the "Take" prompt and ask to pick it up. Its look is the item's
-    /// world model, or, while an item has none, the placeholder box sized to the item's inventory footprint.
+    /// world model, lying on the side its icon shows, or, while an item has none, the placeholder box sized to
+    /// the item's inventory footprint.
     /// It's on the DroppedItem prefab, which must stay in the NetworkManager's spawnable prefabs.
     /// </summary>
     public sealed class GroundItem : NetworkBehaviour
@@ -22,6 +23,9 @@ namespace RaidZero.Net
         private const float MinTargetSize = 0.3f;
 
         private static readonly List<GroundItem> Items = new List<GroundItem>();
+
+        /// <summary>Turns the side facing -Z to face up.</summary>
+        private static readonly Quaternion LyingDown = Quaternion.Euler(90f, 0f, 0f);
 
         [Tooltip("Shown, sized to the item's inventory footprint, when the item has no world model.")]
         [SerializeField]
@@ -103,7 +107,9 @@ namespace RaidZero.Net
             {
                 look = Instantiate(asset.WorldPrefab, transform).transform;
                 look.localPosition = Vector3.zero;
-                look.localRotation = Quaternion.identity;
+                // Models face the way their icon shows them (side on, toward -Z, after Icon Angles); lying on
+                // the ground, that side faces up.
+                look.localRotation = LyingDown * Quaternion.Euler(asset.IconAngles);
                 if (_placeholder != null)
                 {
                     _placeholder.gameObject.SetActive(false);

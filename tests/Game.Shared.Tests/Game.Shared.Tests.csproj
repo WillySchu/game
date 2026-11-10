@@ -18,6 +18,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Plain C# from the Unity project's item tools, tested here since Unity's editor code has no tests. -->
+    <Compile Include="..\..\unity\RaidZero\Assets\_Project\Scripts\Shared\Items\Editor\PictureModelBuilder.cs" Link="Unity\PictureModelBuilder.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
 
