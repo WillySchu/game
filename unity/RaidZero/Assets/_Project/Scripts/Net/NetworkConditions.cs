@@ -8,6 +8,7 @@ namespace RaidZero.Net
     /// Enabled box on the NetworkManager's Transport Manager decides, as usual. A build (a client, or the
     /// dedicated server) turns it off, whatever the box says, unless it's started with --simulate-lag.
     /// How much latency and loss comes from the Transport Manager either way (100 ms each way, 2% loss).
+    /// RaidInventoryClient calls it on clients and RaidServer on servers; calling it twice (a host) is harmless.
     /// </summary>
     public static class NetworkConditions
     {

@@ -43,7 +43,7 @@ namespace RaidZero.Net
         private void Start()
         {
             _networkManager = GetComponent<NetworkManager>();
-            NetworkConditions.Apply(_networkManager); // no lag simulation in builds; this sits on every NetworkManager
+            NetworkConditions.Apply(_networkManager); // no lag simulation in client builds; RaidServer does the same on servers
             _networkManager.ClientManager.RegisterBroadcast<InventoryToClientBroadcast>(OnMessage);
             _networkManager.ClientManager.OnClientConnectionState += OnClientConnectionState;
         }

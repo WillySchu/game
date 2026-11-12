@@ -266,6 +266,9 @@ namespace RaidZero.Net
         private void Start()
         {
             _networkManager = InstanceFinder.NetworkManager;
+
+            // A dedicated server never runs the client's setup, so it turns a build's lag simulation off itself.
+            NetworkConditions.Apply(_networkManager);
             _networkManager.ServerManager.OnServerConnectionState += OnServerConnectionState;
             _networkManager.ServerManager.OnRemoteConnectionState += OnRemoteConnectionState;
 

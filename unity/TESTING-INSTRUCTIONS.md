@@ -42,7 +42,9 @@ dotnet run --project backend/Game.Backend
   `RAIDZERO_SERVER_TOKEN` environment variables.
 - The editor tests on a bad connection, as the plan asks: Latency Simulator on the NetworkManager's Transport
   Manager is ticked (100 ms of latency and 2% packet loss each way). Untick it to compare. The console says so at
-  startup. Builds never simulate, whatever the box says, unless started with `--simulate-lag`.
+  startup. Builds never simulate, whatever the box says, unless started with `--simulate-lag`: that goes for client
+  builds and the dedicated server alike. Each editor instance simulates on its own, so with two MPPM players (one
+  the server) the delay is doubled, while a host (Client and Server) playing simulates it once.
 - Every client logs in as a new dev player (`dev-12345`) with the starter kit, and they all join the same
   raid. The console shows `[raid] Server ready`, then a `joined raid` line for each player.
 - Press F1 in play mode for the debug inventory: your gear, anything you have open, a button that opens

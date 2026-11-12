@@ -77,6 +77,7 @@ Each of these runs in the folder with `compose.local.yaml`; they all start with
 | Stop it | `down` (players, stashes and undelivered raid results stay in Docker volumes) |
 | Start over from scratch | `down -v` (deletes every player and item) |
 | Shorter raids | Set `RAID_MINUTES` in `.env.local`, then `up -d` |
+| Simulate a bad connection on the server too | Add `"--simulate-lag"` to the `gameserver` service's `command` in `compose.local.yaml`, then `up -d`. Off by default: an editor client already simulates 100 ms and 2% loss, and doing it on both ends doubles it |
 
 The admin tool is at `http://<tailscale address>:5080/admin`, with `ADMIN_TOKEN` from `.env.local`.
 
