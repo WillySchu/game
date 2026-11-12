@@ -219,7 +219,14 @@ namespace RaidZero.World
 
             _cameraMount.localRotation = Quaternion.Euler(xRotation, 0f, 0f);
 
-            if (_characterController.isGrounded)
+            // Whether the last Move ended on the ground, from our own state rather than the CharacterController.
+            // Its isGrounded is only as fresh as its last Move: after a reconcile puts the player back where the
+            // server had them, it still describes wherever the client had got to (mid-jump, say), so the first
+            // tick replayed after it would refuse a jump the server accepted. wasGroundedLastFrame is the same
+            // fact, but it's part of the reconcile state, so it's right after a reset too.
+            bool grounded = wasGroundedLastFrame;
+
+            if (grounded)
             {
                 currentVelocity.y = -2f; // Small negative value to keep the player grounded
             }
@@ -227,12 +234,12 @@ namespace RaidZero.World
             if(data.moveInput.magnitude < 0.1f)
             {
                 // Apply ground or air friction when no input is given
-                currentVelocity.x *= _characterController.isGrounded ? friction : airFriction;
-                currentVelocity.z *= _characterController.isGrounded ? friction : airFriction;
+                currentVelocity.x *= grounded ? friction : airFriction;
+                currentVelocity.z *= grounded ? friction : airFriction;
             }
             else
             {
-                if(_characterController.isGrounded)
+                if(grounded)
                 {
                     // Reset velocity when there is input on the ground.
                     currentVelocity.x = 0f;
@@ -240,7 +247,7 @@ namespace RaidZero.World
                 }
             }
 
-            if(data.jumpInput && _characterController.isGrounded)
+            if(data.jumpInput && grounded)
             {
                 currentVelocity.y = Mathf.Sqrt(2f * jumpHeight * Mathf.Abs(gravity));
             }
@@ -254,7 +261,7 @@ namespace RaidZero.World
             {
                 moveDirection.Normalize();
             }
-            if(!_characterController.isGrounded)
+            if(!grounded)
             {
                 moveDirection *= airControl; // Reduce control in the air
             }
@@ -263,7 +270,7 @@ namespace RaidZero.World
 
             // Check horizontal velocity and limit air speed to the character's horizontal velocity when they left the ground.
             Vector3 horizontalVelocity = new Vector3(currentVelocity.x, 0f, currentVelocity.z);
-            if(!_characterController.isGrounded && horizontalVelocity.magnitude > horizontalFallVelocity)
+            if(!grounded && horizontalVelocity.magnitude > horizontalFallVelocity)
             {
                 // Limit horizontal velocity in the air to the maximum speed when leaving the ground.
                 horizontalVelocity = horizontalVelocity.normalized * horizontalFallVelocity;
