@@ -46,7 +46,7 @@ namespace RaidZero.BackendApi
         /// <summary>The token expired or was rejected. Send the player back to the login screen.</summary>
         public event Action LoggedOut;
 
-        /// <summary>The profile changed: after a login, a refresh, or an edit. Redraw the stash.</summary>
+        /// <summary>The profile changed: after a login, a refresh, or an edit; null after <see cref="LogOut"/>. Redraw the stash.</summary>
         public event Action<PlayerProfile> ProfileChanged;
 
         public bool IsLoggedIn => _token != null;
@@ -70,11 +70,20 @@ namespace RaidZero.BackendApi
             return await RefreshAsync(cancellationToken);
         }
 
-        /// <summary>Forgets the token and profile. Doesn't raise <see cref="LoggedOut"/>; the caller asked for it.</summary>
+        /// <summary>
+        /// Forgets the token and profile, and raises <see cref="ProfileChanged"/> with null so anything showing
+        /// the gear and stash clears. Doesn't raise <see cref="LoggedOut"/>, which is for being logged out
+        /// unasked; the caller asked for this.
+        /// </summary>
         public void LogOut()
         {
+            bool had = _token != null || Profile != null;
             _token = null;
             Profile = null;
+            if (had)
+            {
+                ProfileChanged?.Invoke(null);
+            }
         }
 
         /// <summary>Loads the profile again, such as when the Hideout opens or a raid ends.</summary>

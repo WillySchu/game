@@ -75,6 +75,24 @@ public sealed class HideoutInventorySourceTests : IDisposable
     }
 
     [Fact]
+    public async Task LoggingOut_ClearsTheScreen()
+    {
+        await _session.DevLoginAsync("Sam");
+        PlayerProfile? announced = new PlayerProfile("x", "x", 0, null, null, null, null);
+        _session.ProfileChanged += p => announced = p;
+        var changes = 0;
+        _model.Changed += () => changes++;
+
+        _session.LogOut();
+
+        Assert.Null(announced);
+        Assert.Empty(_source.Roots);
+        Assert.Null(_model.Character);
+        Assert.True(changes > 0);
+        Assert.False(MoveFuse(1, 0).IsValid); // nothing left to move
+    }
+
+    [Fact]
     public async Task AnEdit_GoesToTheBackend_AndTheScreenSeesTheResult()
     {
         await _session.DevLoginAsync("Sam");
