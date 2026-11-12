@@ -43,6 +43,7 @@ public sealed class ApiHost : IAsyncDisposable
                 ["Backend:DatabasePath"] = Path.Combine(folder, "api.db"),
                 ["Backend:CatalogPath"] = TestPaths.CatalogPath,
                 ["Backend:StarterKitPath"] = TestPaths.StarterKitPath,
+                ["Backend:TradersPath"] = TestPaths.TradersPath,
                 ["Backend:DevLoginEnabled"] = devLogin.ToString(),
                 ["Backend:TokenSigningKey"] = SigningKey,
                 ["Backend:Servers:0:Id"] = ServerId,

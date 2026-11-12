@@ -11,8 +11,8 @@ namespace RaidZero.Shared.Catalog
     /// Computes the catalog version: a hash over every field that affects inventory rules.
     ///
     /// The Unity exporter writes it into item_catalog.json, the game server sends it on every backend
-    /// call, and the backend rejects mismatches. Cosmetic fields (display names) are left out, so a
-    /// rename never forces a redeploy. Definition, tag and slot order don't matter either; grid order does,
+    /// call, and the backend rejects mismatches. Cosmetic fields (display names) and values are left out, so a
+    /// rename or a new price never forces a redeploy. Definition, tag and slot order don't matter either; grid order does,
     /// since it decides which grid "the first free spot" fills first.
     /// </summary>
     public static class CatalogHash

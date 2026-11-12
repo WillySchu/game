@@ -47,6 +47,11 @@ namespace RaidZero.Items
         [SerializeField]
         private bool _hasDurability;
 
+        [Tooltip("What one is worth in credits (one round, for ammo). Traders pay a share of it, less when worn. 0 for things traders don't buy. Changing it needs no game server redeploy.")]
+        [Min(0)]
+        [SerializeField]
+        private int _value;
+
         [Tooltip("Decide which named slots accept this item, e.g. weapon_long or ammo_545.")]
         [SerializeField]
         private List<string> _tags = new List<string>();
@@ -141,6 +146,7 @@ namespace RaidZero.Items
                 Height = _height,
                 MaxStack = _maxStack,
                 HasDurability = _hasDurability,
+                Value = _value,
                 Tags = new List<string>(_tags),
             };
 
@@ -166,6 +172,7 @@ namespace RaidZero.Items
             _height = definition.Height;
             _maxStack = definition.MaxStack;
             _hasDurability = definition.HasDurability;
+            _value = definition.Value;
             _tags = new List<string>(definition.Tags ?? new List<string>());
             _grids = new List<Grid>();
             foreach (var grid in definition.Grids ?? new List<GridSpec>())

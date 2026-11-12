@@ -19,6 +19,7 @@ MonoBehaviour:
   _height: 3
   _maxStack: 1
   _hasDurability: 1
+  _value: 18000
   _tags:
   - armor
   _grids: []

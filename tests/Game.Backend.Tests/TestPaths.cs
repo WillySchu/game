@@ -12,6 +12,8 @@ internal static class TestPaths
 
     public static string StarterKitPath => Path.Combine(RepoRoot, "backend", "Game.Backend", "starter_kit.json");
 
+    public static string TradersPath => Path.Combine(RepoRoot, "backend", "Game.Backend", "traders.json");
+
     private static string FindRepoRoot()
     {
         foreach (var start in new[] { AppContext.BaseDirectory, Directory.GetCurrentDirectory() })

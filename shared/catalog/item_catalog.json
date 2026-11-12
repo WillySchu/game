@@ -5,6 +5,7 @@
       "def_id": "ammo_545_ps",
       "display_name": "5.45x39 PS",
       "max_stack": 60,
+      "value": 120,
       "tags": [
         "ammo_545"
       ]
@@ -13,6 +14,7 @@
       "def_id": "ammo_9x18_pst",
       "display_name": "9x18 PST",
       "max_stack": 50,
+      "value": 60,
       "tags": [
         "ammo_9x18"
       ]
@@ -23,6 +25,7 @@
       "width": 3,
       "height": 3,
       "has_durability": true,
+      "value": 18000,
       "tags": [
         "armor"
       ]
@@ -32,6 +35,7 @@
       "display_name": "Small backpack",
       "width": 3,
       "height": 3,
+      "value": 8000,
       "tags": [
         "backpack"
       ],
@@ -94,6 +98,7 @@
       "def_id": "currency_credits",
       "display_name": "Credits",
       "max_stack": 500000,
+      "value": 1,
       "tags": [
         "currency"
       ]
@@ -112,6 +117,7 @@
     {
       "def_id": "loot_fuse",
       "display_name": "Fuse",
+      "value": 4000,
       "tags": [
         "barter"
       ]
@@ -120,6 +126,7 @@
       "def_id": "loot_gpu",
       "display_name": "Graphics card",
       "width": 2,
+      "value": 90000,
       "tags": [
         "valuable"
       ]
@@ -128,6 +135,7 @@
       "def_id": "mag_ak_30",
       "display_name": "AK 30-round magazine",
       "height": 2,
+      "value": 2500,
       "tags": [
         "mag_ak"
       ],
@@ -144,6 +152,7 @@
     {
       "def_id": "mag_pm_8",
       "display_name": "PM 8-round magazine",
+      "value": 900,
       "tags": [
         "mag_pm"
       ],
@@ -159,13 +168,15 @@
     },
     {
       "def_id": "medkit_basic",
-      "display_name": "Medkit"
+      "display_name": "Medkit",
+      "value": 3000
     },
     {
       "def_id": "pistol_pm",
       "display_name": "PM Pistol",
       "width": 2,
       "has_durability": true,
+      "value": 9000,
       "tags": [
         "weapon_short"
       ],
@@ -184,6 +195,7 @@
       "width": 4,
       "height": 2,
       "has_durability": true,
+      "value": 30000,
       "tags": [
         "weapon_long"
       ],
@@ -201,6 +213,7 @@
       "display_name": "Chest rig",
       "width": 2,
       "height": 2,
+      "value": 6000,
       "tags": [
         "rig"
       ],

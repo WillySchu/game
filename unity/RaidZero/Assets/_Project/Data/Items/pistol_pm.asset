@@ -19,6 +19,7 @@ MonoBehaviour:
   _height: 1
   _maxStack: 1
   _hasDurability: 1
+  _value: 9000
   _tags:
   - weapon_short
   _grids: []

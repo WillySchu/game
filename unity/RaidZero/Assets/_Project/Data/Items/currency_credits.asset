@@ -19,6 +19,7 @@ MonoBehaviour:
   _height: 1
   _maxStack: 500000
   _hasDurability: 0
+  _value: 1
   _tags:
   - currency
   _grids: []

@@ -17,6 +17,9 @@ public sealed class BackendOptions
     /// <summary>The gear new players start with.</summary>
     public string StarterKitPath { get; set; } = "starter_kit.json";
 
+    /// <summary>The traders: what they sell, for how much, and what share of an item's value they pay.</summary>
+    public string TradersPath { get; set; } = "traders.json";
+
     /// <summary>
     /// Maps POST /v1/auth/dev-login, which logs anyone in by name with no password. On in Development only;
     /// the endpoint doesn't exist at all when this is off.

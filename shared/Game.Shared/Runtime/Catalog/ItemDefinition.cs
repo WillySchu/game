@@ -25,6 +25,13 @@ namespace RaidZero.Shared.Catalog
         /// <summary>Durability is stored per instance as 0..1. Only non-stackable items can have it.</summary>
         public bool HasDurability { get; set; }
 
+        /// <summary>
+        /// What one is worth in credits (one round, for ammo): traders pay a share of it. 0 for things nobody buys.
+        /// Not part of the catalog version hash: prices are the backend's business, so changing one needs no game
+        /// server redeploy.
+        /// </summary>
+        public int Value { get; set; }
+
         /// <summary>Tags decide which named slots accept this item, e.g. "weapon_long" or "ammo_545".</summary>
         public List<string> Tags { get; set; } = new List<string>();
 
@@ -116,5 +123,8 @@ namespace RaidZero.Shared.Catalog
         /// the largest item. Raid servers need it; the backend never sees one.
         /// </summary>
         public const string Ground = "ground";
+
+        /// <summary>Money: a stackable item, so it's looted and lost like anything else, and what traders pay in.</summary>
+        public const string Credits = "currency_credits";
     }
 }

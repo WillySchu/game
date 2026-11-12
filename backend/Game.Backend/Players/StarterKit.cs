@@ -6,8 +6,8 @@ using RaidZero.Shared.Inventory;
 namespace RaidZero.Backend.Players;
 
 /// <summary>
-/// The gear every new player starts with, read from starter_kit.json. Entries use the item tree shape
-/// without IDs; grid items may leave out x and y to take the first free spot.
+/// The gear every new player starts with, read from starter_kit.json. Entries are item specs (see
+/// <see cref="ItemSpecs"/>): the item tree shape without IDs; grid items may leave out x and y.
 ///
 /// The kit is checked against the catalog at startup: if an item rule changes and the kit no longer
 /// fits, the backend refuses to start rather than handing out gear that fails validation later.
@@ -76,8 +76,16 @@ public sealed class StarterKit
         newId ??= Uuid7.NewId;
         var stash = new ItemNode { Id = newId(), DefId = WellKnownDefs.Stash };
         var character = new ItemNode { Id = newId(), DefId = WellKnownDefs.Character };
-        AddChildren(stash, _document.Stash, newId);
-        AddChildren(character, _document.Character, newId);
+        try
+        {
+            ItemSpecs.AddChildren(_catalog, stash, _document.Stash, newId);
+            ItemSpecs.AddChildren(_catalog, character, _document.Character, newId);
+        }
+        catch (ItemSpecException ex)
+        {
+            throw new StarterKitException(ex.Message, ex);
+        }
+
         return (stash, character);
     }
 
@@ -88,51 +96,6 @@ public sealed class StarterKit
         {
             var (stash, character) = Instantiate();
             return stash.Walk().Count() + character.Walk().Count();
-        }
-    }
-
-    private void AddChildren(ItemNode parent, List<ItemNode>? specs, Func<string> newId)
-    {
-        foreach (var spec in specs ?? [])
-        {
-            if (!_catalog.TryGet(spec.DefId, out var def))
-            {
-                throw new StarterKitException($"unknown def_id '{spec.DefId}'.");
-            }
-
-            var child = new ItemNode
-            {
-                Id = newId(),
-                DefId = spec.DefId,
-                Slot = spec.Slot,
-                X = spec.X,
-                Y = spec.Y,
-                Rotated = spec.Rotated,
-                Quantity = spec.Quantity,
-                Durability = spec.Durability,
-            };
-
-            // "grid" with no position: the first free spot in any of the parent's grids. A pocket's name with no
-            // position: the first free spot in that pocket.
-            if (child.X is null && child.Y is null && _catalog.TryGet(parent.DefId, out var parentDef)
-                && (child.Slot == SlotNames.Grid || parentDef.FindGrid(child.Slot) is not null))
-            {
-                string? grid = child.Slot;
-                int x, y;
-                bool rotated;
-                var found = child.Slot == SlotNames.Grid
-                    ? GridPlacement.TryFindFreeSpot(_catalog, parent, def, out grid, out x, out y, out rotated)
-                    : GridPlacement.TryFindFreeSpot(_catalog, parent, child.Slot, def, out x, out y, out rotated);
-                if (!found)
-                {
-                    throw new StarterKitException($"no room for {spec.DefId} in {parent.DefId}.");
-                }
-
-                (child.Slot, child.X, child.Y, child.Rotated) = (grid, x, y, rotated);
-            }
-
-            parent.Children.Add(child);
-            AddChildren(child, spec.Children, newId);
         }
     }
 

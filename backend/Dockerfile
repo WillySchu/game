@@ -32,7 +32,8 @@ COPY shared/catalog/item_catalog.json catalog/item_catalog.json
 ENV ASPNETCORE_HTTP_PORTS=8080 \
     Backend__DatabasePath=/data/raidzero.db \
     Backend__CatalogPath=/app/catalog/item_catalog.json \
-    Backend__StarterKitPath=/app/starter_kit.json
+    Backend__StarterKitPath=/app/starter_kit.json \
+    Backend__TradersPath=/app/traders.json
 
 # The image's built-in non-root user owns the data folder; the app never runs as root.
 RUN mkdir /data && chown "$APP_UID" /data

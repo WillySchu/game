@@ -1,5 +1,6 @@
 using Game.Backend.Tests;
 using RaidZero.Backend.Catalog;
+using RaidZero.Shared.Catalog;
 
 namespace RaidZero.BackendApi.Tests;
 
@@ -58,7 +59,22 @@ public class CatalogJsonTests
 
         Assert.Equal(forwards, backwards);
         var fuse = Newtonsoft.Json.Linq.JObject.Parse(forwards)["items"]!.Single(i => (string?)i["def_id"] == "loot_fuse");
-        Assert.Equal(new[] { "def_id", "display_name", "tags" }, ((Newtonsoft.Json.Linq.JObject)fuse).Properties().Select(p => p.Name));
+        Assert.Equal(new[] { "def_id", "display_name", "value", "tags" }, ((Newtonsoft.Json.Linq.JObject)fuse).Properties().Select(p => p.Name));
+        var stash = Newtonsoft.Json.Linq.JObject.Parse(forwards)["items"]!.Single(i => (string?)i["def_id"] == "stash");
+        Assert.Null(stash["value"]); // worth nothing, so left out
+    }
+
+    [Fact]
+    public void Values_AreReadByUnityAndTheBackend_ButDontChangeTheVersion()
+    {
+        var definitions = CatalogJson.LoadFile(TestPaths.CatalogPath).All.ToList();
+        var version = new ItemCatalog(definitions).Version;
+        Assert.Equal(30000, definitions.Single(d => d.DefId == "rifle_ak_basic").Value);
+        Assert.Equal(30000, CatalogLoader.LoadFile(TestPaths.CatalogPath).Get("rifle_ak_basic").Value);
+
+        definitions.Single(d => d.DefId == "rifle_ak_basic").Value = 1;
+
+        Assert.Equal(version, new ItemCatalog(definitions).Version);
     }
 
     [Fact]

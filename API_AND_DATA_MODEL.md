@@ -1,18 +1,19 @@
 # Raid Zero: Backend API & Data Model
 
-Will & John · first written Oct 26, 2026 · last updated Nov 2, 2026
+Will & John · first written Oct 26, 2026 · last updated Nov 11, 2026
 
 ## Status
 
 | Area | State |
 | --- | --- |
-| Data model, migrations 0001 to 0006 | Done |
+| Data model, migrations 0001 to 0007 | Done |
 | Client API (dev login, profile, stash edits, tickets, raid results) | Done |
+| Traders: buying and selling, stock that restocks | Done in the backend and `PlayerSession`; the Hideout screen is next |
 | Game server API (ready, join, heartbeat, outcomes, close) and lease expiry | Done |
 | Several game servers: ready reports, raids routed by map and network code | Done |
 | Admin API and page | Done |
 | Integrity rules | Done, each with tests |
-| Steam login, matchmaking queue, traders, insurance | Not started (the queue is proposed below) |
+| Steam login, matchmaking queue, insurance | Not started (the queue is proposed below) |
 
 Everything in Milestone 1's scope is built and tested. This doc is the design: what each piece does and why. For
 how to run, configure and deploy it, see the README and `deploy/README.md`.
@@ -24,8 +25,8 @@ client owns nothing. A raid takes up to four players (`MaxPlayersPerRaid`), and 
 already supports squads, so co-op and PvPvE need no schema rewrite.
 
 **Scope for Milestone 1:** dev login, stash and equipment management, raid tickets, loadout checkout,
-extraction and death reports, raid close, and admin tooling. Out of scope: real accounts, matchmaking, traders,
-crafting, insurance, wipes.
+extraction and death reports, raid close, and admin tooling. Out of scope: real accounts, matchmaking,
+crafting, insurance, wipes. Traders came after it (see Traders below).
 
 **Stack:** ASP.NET Core on .NET 10, SQLite through Dapper, and a shared C# library (`shared/Game.Shared`) that
 holds the inventory rules the backend, the game server and the client all run.
@@ -101,6 +102,7 @@ database.
 | `ledger_entries` | Append-only audit of every item change | Your best friend when chasing a dupe bug |
 | `idempotency_keys` | Responses to already-processed server reports | Lets the game server retry safely |
 | `game_servers` | Each game server's last ready report | Keyed by the server's id in `Servers`; the settings still say which servers exist |
+| `trader_purchases` | How much of each limited trader offer each player bought this restock period | The offers themselves live in `traders.json` |
 
 ### Item catalog (not a table)
 
@@ -111,11 +113,14 @@ servers load it at startup. Each definition has:
 - a stable string `def_id` (`rifle_ak_basic`, `ammo_545_ps`, `currency_credits`), never changed once an item
   has been in anyone's stash;
 - a footprint (`width`, `height`), `max_stack`, `has_durability`, and `tags` (`weapon_long`, `ammo_545`);
+- a `value` in credits, per unit (per round for ammo), which traders pay a share of; 0 or absent for things
+  nobody buys;
 - named `slots`, each accepting items by tag and optionally capping a quantity (a magazine's `rounds` slot takes
   30 rounds of `ammo_545`);
 - zero or more named `grids`: one called `grid` for a backpack, crate or the stash, or one per pocket for a rig.
 
-The catalog carries a `catalog_version`, a hash of its contents (grids included, in order). The game server
+The catalog carries a `catalog_version`, a hash of its rules (grids included, in order; display names and values
+left out, so renaming or repricing an item needs no game server redeploy). The game server
 sends its version on every call and the backend refuses a mismatch (`catalog_mismatch`), so a stale build can't
 commit items it doesn't understand. CI checks that the committed version matches the file's contents.
 
@@ -135,7 +140,7 @@ as everything else; revisit if traders make a separate balance column simpler.
 
 ### Schema
 
-As of migration 0006. The migrations in `backend/Game.Backend/Migrations` are the source of truth; this is the
+As of migration 0007. The migrations in `backend/Game.Backend/Migrations` are the source of truth; this is the
 shape they add up to.
 
 ```sql
@@ -206,7 +211,7 @@ CREATE TABLE ledger_entries (
   id          INTEGER PRIMARY KEY,            -- autoincrement / BIGSERIAL
   player_id   TEXT,
   raid_id     TEXT,
-  kind        TEXT NOT NULL,                  -- 'grant' | 'inventory' | 'checkout' | 'extract' | 'death' | 'raid_close' | 'raid_abort' | 'refund'
+  kind        TEXT NOT NULL,                  -- 'grant' | 'inventory' | 'purchase' | 'sell' | 'checkout' | 'extract' | 'death' | 'raid_close' | 'raid_abort' | 'refund'
   detail      TEXT NOT NULL,                  -- JSON: item ids and before/after states
   created_at  TIMESTAMP NOT NULL
 );
@@ -225,6 +230,15 @@ CREATE TABLE game_servers (
   network_code    TEXT,                       -- fingerprint of its networked code
   catalog_version TEXT NOT NULL,
   reported_at     TIMESTAMP                   -- NULL once its raid closes or aborts (the process exits)
+);
+
+CREATE TABLE trader_purchases (
+  player_id TEXT NOT NULL REFERENCES players(id),
+  trader_id TEXT NOT NULL,
+  offer_id  TEXT NOT NULL,
+  period    INTEGER NOT NULL,                 -- the restock period: minutes since 1970 UTC / the offer's restock_minutes
+  bought    INTEGER NOT NULL CHECK (bought >= 0),  -- in that period; a row from an earlier period counts as 0
+  PRIMARY KEY (player_id, trader_id, offer_id)
 );
 ```
 
@@ -247,6 +261,9 @@ this API.
 | POST | `/v1/me/inventory/ops` | Move, split, merge or discard items in the stash and character |
 | POST | `/v1/me/raid-tickets` | Reserve a raid slot; returns server address and join token |
 | GET | `/v1/me/raids/{raid_id}` | Raid result: outcome, items gained, returned and lost |
+| GET | `/v1/me/traders` | The traders, what each sells, and how many this player can still buy |
+| POST | `/v1/me/traders/{trader_id}/buy` | Buy one or more of an offer with credits from the stash |
+| POST | `/v1/me/traders/{trader_id}/sell` | Sell items from the stash or gear for credits |
 
 The first dev login under a name creates the player with the starter kit (`backend/Game.Backend/starter_kit.json`).
 
@@ -275,6 +292,54 @@ POST /v1/me/inventory/ops
 
 A merge's `quantity` is optional: 0 or absent moves as many as fit. `PlayerSession` checks every edit locally
 before sending it, and on a version conflict refreshes and sends it once more if it still fits.
+
+### Traders
+
+Traders are set up in `backend/Game.Backend/traders.json`, which is checked against the catalog at startup like
+the starter kit: an offer naming an unknown item, or one whose item breaks a rule or doesn't fit a stash, stops
+the backend with a message saying which. Each trader has a `buys_at` share, and offers: an item spec (as in the
+starter kit, with whatever comes inside it, such as a pistol with its magazine), a price, and optionally a
+`stock` per player that comes back every `restock_minutes`, on the clock (every 240 minutes is at 00:00, 04:00,
+08:00 UTC and so on).
+
+Money is the `currency_credits` item, anywhere in the stash (in a case in the stash counts too). A purchase is
+paid from the smallest stacks first, so change collects into fewer; the money from a sale tops up existing stacks,
+then starts new ones. What's bought, and new money stacks, go in the first free spots in the stash's top level.
+The rules are the shared `TradePlanner` and `TraderPrices` (`Game.Shared`), so the Hideout can show exactly what
+the backend will do.
+
+A sale pays `buys_at` times the value of the item and everything in it (a rifle sells with its magazine and its
+rounds), less for worn gear: from the full price when new down to a quarter at no durability. Traders don't buy
+money, the stash or character, things worth nothing, or anything with money inside it (it would sell for half).
+Equipped gear can be sold.
+
+```json
+GET /v1/me/traders
+200 { "traders": [{ "trader_id": "general_store", "display_name": "General Store", "buys_at": 0.5, "offers": [
+  { "offer_id": "pistol_pm", "price": 14000, "stock": 2, "left": 1, "restocks_at": "2026-11-12T04:00:00+00:00",
+    "item": { "def_id": "pistol_pm", "quantity": 1, "durability": 1.0, "children": [{ "def_id": "mag_pm_8", "slot": "magazine", "quantity": 1 }] } }
+] }] }
+
+POST /v1/me/traders/general_store/buy
+{ "expected_version": 41, "offer_id": "pistol_pm", "count": 1 }      // count is optional: 1, at most 20
+200 { "profile_version": 42, "price": 14000, "created": ["0192...p1"] }
+
+POST /v1/me/traders/general_store/sell
+{ "expected_version": 42, "item_ids": ["0192...a1", "0192...b7"] }    // at most 50
+200 { "profile_version": 43, "credits": 18050, "sold": ["0192...a1", "0192...m2", "0192...r3", "0192...b7"] }
+
+404 { "error": "unknown_trader", "message": "..." }
+409 { "error": "version_conflict", "profile_version": 43 }
+409 { "error": "in_raid", "raid_id": "0192...r0", "message": "..." }
+422 { "error": "invalid_trade", "reason": "not_enough_money", "message": "That costs 14000 credits; you have 9000.", "item_id": null }
+```
+
+The reasons are `TradeErrorCodes`: `unknown_offer`, `invalid_count`, `out_of_stock`, `not_enough_money`,
+`no_space`, `item_not_found`, `not_for_sale`, `money_inside` and `listed_twice`. A trade is one transaction, like
+a stash edit: bought items get `origin = 'purchase'` (so does the money from a sale), sold items the state `sold`,
+spent money `consumed`, and the ledger records a `purchase` or `sell` entry. Like stash edits, trades carry the
+profile version, so a trade sent twice is done once, and the stash is locked while the player holds a raid ticket.
+`PlayerSession.GetTradersAsync`, `BuyAsync` and `SellAsync` call these, refreshing the profile afterwards.
 
 ### Raid ticket
 
@@ -475,9 +540,11 @@ These are the invariants that keep items from duplicating or vanishing. Each one
    response instead of committing twice.
 4. **Same key, same body.** A reused `Idempotency-Key` with a different request hash returns `409`. That
    catches server bugs that would otherwise silently drop data.
-5. **New items only from raids.** Unknown item IDs are accepted only in an extraction report, only for a raid
-   that is `active`, and are stored with `origin = 'raid_loot'` and `origin_raid_id`. Clients can never create
-   items.
+5. **New items only from raids, and from the backend's own rules.** Unknown item IDs are accepted only in an
+   extraction report, only for a raid that is `active`, and are stored with `origin = 'raid_loot'` and
+   `origin_raid_id`. Otherwise items are created only by the backend: the starter kit, admin grants, and trader
+   purchases (whose items come from `traders.json`, paid for in the same transaction). Clients can never name
+   new items.
 6. **Refunds never clone.** An abort refunds only snapshot items that are still in the raid pool. Anything
    another player already extracted stays with them.
 7. **Catalog validation on every commit.** `def_id` exists, `quantity` is within max stack, children fit their
@@ -558,7 +625,8 @@ Each later feature lands as new rows, columns or ledger kinds, not a redesign.
 | PvPvE | Already works: a dead player's gear stays in the raid pool and another player's extraction claims it |
 | Player-like bots | Bots get loadouts from the server, not the backend; their gear joins the pool as raid loot when they die |
 | Insurance | An `insured_by` column; at close, unclaimed insured items return to their owner after a delay instead of becoming lost |
-| Traders and crafting | New ledger kinds (`purchase`, `sell`, `craft`) and client endpoints, using the same transaction pattern |
+| Traders | Done: `traders.json`, `trader_purchases`, ledger kinds `purchase` and `sell` (see Traders) |
+| More traders, trader levels, crafting | More entries in `traders.json`; a level per player and trader; a `craft` ledger kind, using the same transaction pattern |
 | Wipes | A `season_id` on players and items, or archive and reset the tables |
 | Real auth | Swap dev login for Steam session tickets; the player token shape stays the same |
 | Multiple servers | Done as far as M1 needs: servers report in and tickets go to a fresh one (see Raid ticket) |
@@ -589,7 +657,8 @@ raids should start full and all at once, or when players need sorting (squads, r
 
 ### Open questions
 
-- [ ] Currency as an item, or a separate balance once traders exist?
+- [x] Currency as an item, or a separate balance once traders exist? An item: money stays lootable and losable,
+  at the cost of stash space.
 - [x] Disconnects: a disconnected player's character leaves the world but its gear stays in the raid. They can
   rejoin with the same ticket until the raid ends; still out at the end means missing in action.
 - [x] Aborted raids: only players still inside are refunded; those who died stay dead, as designed.

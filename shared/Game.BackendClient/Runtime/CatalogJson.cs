@@ -59,6 +59,7 @@ namespace RaidZero.BackendApi
                     Height = (int?)item["height"] ?? 1,
                     MaxStack = (int?)item["max_stack"] ?? 1,
                     HasDurability = (bool?)item["has_durability"] ?? false,
+                    Value = (int?)item["value"] ?? 0,
                     Tags = Strings(item["tags"]),
                 };
 
@@ -151,6 +152,11 @@ namespace RaidZero.BackendApi
                 if (definition.HasDurability)
                 {
                     item["has_durability"] = true;
+                }
+
+                if (definition.Value != 0)
+                {
+                    item["value"] = definition.Value;
                 }
 
                 if (definition.Tags != null && definition.Tags.Count > 0)

@@ -74,6 +74,7 @@ Settings live under `Backend` in `appsettings.json`, with Development overrides 
 | `DatabasePath` | `App_Data/raidzero.db` | Relative to the project folder; git ignores `App_Data/` |
 | `CatalogPath` | `../../shared/catalog/item_catalog.json` | |
 | `StarterKitPath` | `starter_kit.json` | Validated against the catalog at startup |
+| `TradersPath` | `traders.json` | What traders sell and pay. Validated against the catalog at startup |
 | `DevLoginEnabled` | `false` (`true` in Development) | When off, `/v1/auth/dev-login` doesn't exist |
 | `TokenSigningKey` | none (a dev-only key in Development) | Base64, 32+ bytes: `openssl rand -base64 32`. Required |
 | `TokenLifetimeHours` | `72` | Tokens can't be revoked early, short of rotating the key |
@@ -155,6 +156,15 @@ The key in `appsettings.Development.json` is for local runs only. Real deploymen
   before any final position is written, because the one-item-per-slot index is checked after every statement.
   Keep that two-phase write if you touch this code; `SwappingMagazines_SavesWhateverOrderTheChangesComeIn` fails
   without it.
+
+**Traders**
+- `traders.json` sets them up: each trader's share of value paid (`buys_at`) and offers (an item spec, a price,
+  and optionally a per-player stock that restocks on the clock). Item values come from the catalog (`value`, set
+  on each item asset in Unity). Change prices or stock in the file and restart: no game rebuild needed.
+- `TraderService` runs a trade like a stash edit: one transaction with the version check and raid lock, the
+  change worked out by the shared `TradePlanner`, then a `purchase` or `sell` ledger entry. `trader_purchases`
+  counts limited stock per player and restock period.
+- Players who run out of gear can be helped with the admin page's grants, or by buying basic gear.
 
 **Raids**
 - Flow: `POST /v1/me/raid-tickets` → the game server calls `/v1/server/raids/{id}/join` when the player connects

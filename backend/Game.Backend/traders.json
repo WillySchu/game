@@ -1,0 +1,49 @@
+{
+  // The traders and what they sell. Checked against the item catalog at startup: the backend won't start if
+  // an offer names an unknown item, or its item doesn't fit together.
+  //
+  // buys_at: the share of an item's catalog value the trader pays for it (less for worn gear).
+  // Each offer sells one "item" (an item spec, as in starter_kit.json, with whatever comes inside it) for
+  // "price" credits. "stock" is how many each player can buy before it restocks, every "restock_minutes"
+  // (on the clock: every 240 minutes is at 00:00, 04:00, 08:00 UTC and so on). Leave stock out for no limit.
+  // Never reuse an offer_id for something else: what players have bought is counted by it.
+  "traders": [
+    {
+      "trader_id": "general_store",
+      "display_name": "General Store",
+      "buys_at": 0.5,
+      "offers": [
+        {
+          "offer_id": "pistol_pm",
+          "price": 14000,
+          "stock": 2,
+          "restock_minutes": 240,
+          "item": {
+            "def_id": "pistol_pm",
+            "durability": 1.0,
+            "children": [{ "def_id": "mag_pm_8", "slot": "magazine" }]
+          }
+        },
+        {
+          "offer_id": "rifle_ak_basic",
+          "price": 45000,
+          "stock": 1,
+          "restock_minutes": 360,
+          "item": {
+            "def_id": "rifle_ak_basic",
+            "durability": 1.0,
+            "children": [{ "def_id": "mag_ak_30", "slot": "magazine" }]
+          }
+        },
+        { "offer_id": "mag_ak_30", "price": 3800, "stock": 4, "restock_minutes": 120, "item": { "def_id": "mag_ak_30" } },
+        { "offer_id": "mag_pm_8", "price": 1400, "stock": 4, "restock_minutes": 120, "item": { "def_id": "mag_pm_8" } },
+        { "offer_id": "ammo_545_ps", "price": 9000, "stock": 10, "restock_minutes": 120, "item": { "def_id": "ammo_545_ps", "quantity": 60 } },
+        { "offer_id": "ammo_9x18_pst", "price": 4500, "stock": 10, "restock_minutes": 120, "item": { "def_id": "ammo_9x18_pst", "quantity": 50 } },
+        { "offer_id": "medkit_basic", "price": 4500, "stock": 5, "restock_minutes": 120, "item": { "def_id": "medkit_basic" } },
+        { "offer_id": "rig_chest_basic", "price": 9000, "stock": 2, "restock_minutes": 240, "item": { "def_id": "rig_chest_basic" } },
+        { "offer_id": "armor_vest_light", "price": 27000, "stock": 1, "restock_minutes": 360, "item": { "def_id": "armor_vest_light", "durability": 1.0 } },
+        { "offer_id": "backpack_small", "price": 12000, "stock": 2, "restock_minutes": 240, "item": { "def_id": "backpack_small" } }
+      ]
+    }
+  ]
+}

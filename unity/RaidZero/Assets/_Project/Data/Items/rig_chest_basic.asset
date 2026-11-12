@@ -19,6 +19,7 @@ MonoBehaviour:
   _height: 2
   _maxStack: 1
   _hasDurability: 0
+  _value: 6000
   _tags:
   - rig
   _grids:

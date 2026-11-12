@@ -11,8 +11,8 @@ using RaidZero.Shared.Inventory;
 namespace RaidZero.BackendApi
 {
     /// <summary>
-    /// The Hideout's connection to the backend for one logged-in player: their profile, stash edits, deploying
-    /// into a raid, and the result afterwards.
+    /// The Hideout's connection to the backend for one logged-in player: their profile, stash edits, trading,
+    /// deploying into a raid, and the result afterwards.
     ///
     /// Stash edits are checked locally with the same rules the backend uses before anything is sent, so most
     /// mistakes never cost a round trip. After the backend accepts an edit, the session applies it to its own
@@ -203,6 +203,61 @@ namespace RaidZero.BackendApi
             return new PlayerResult<RaidTicketInfo>(ticket, null, null, null);
         }
 
+        /// <summary>The traders, with what each sells and how many of each this player can still buy.</summary>
+        public async Task<PlayerResult<IReadOnlyList<TraderInfo>>> GetTradersAsync(CancellationToken cancellationToken = default)
+        {
+            var reply = await SendAsync("GET", "/v1/me/traders", null, authenticated: true, cancellationToken);
+            if (!reply.Ok)
+            {
+                return Fail<IReadOnlyList<TraderInfo>>(reply);
+            }
+
+            var traders = new List<TraderInfo>();
+            foreach (var trader in (JArray)reply.Json["traders"] ?? new JArray())
+            {
+                var offers = ((JArray)trader["offers"] ?? new JArray())
+                    .Select(o => new TraderOfferInfo(
+                        (string)o["offer_id"],
+                        (long?)o["price"] ?? 0,
+                        Wire.ToItemNode(o["item"]),
+                        (int?)o["stock"],
+                        (int?)o["left"],
+                        (DateTimeOffset?)o["restocks_at"]))
+                    .ToList();
+                traders.Add(new TraderInfo((string)trader["trader_id"], (string)trader["display_name"], (double?)trader["buys_at"] ?? 0, offers));
+            }
+
+            return new PlayerResult<IReadOnlyList<TraderInfo>>(traders, null, null, null);
+        }
+
+        /// <summary>Buys <paramref name="count"/> of an offer. The items land in the first free spots in the stash.</summary>
+        public Task<TradeOutcome> BuyAsync(string traderId, string offerId, int count = 1, CancellationToken cancellationToken = default) =>
+            TradeAsync(
+                "/v1/me/traders/" + Uri.EscapeDataString(traderId ?? "") + "/buy",
+                version => new JObject { ["expected_version"] = version, ["offer_id"] = offerId, ["count"] = count },
+                "price",
+                "created",
+                cancellationToken);
+
+        /// <summary>
+        /// Sells items from the stash or gear, each with everything inside it. The money goes onto stacks already
+        /// in the stash, then into new ones.
+        /// </summary>
+        public Task<TradeOutcome> SellAsync(string traderId, IReadOnlyList<string> itemIds, CancellationToken cancellationToken = default)
+        {
+            if (itemIds == null || itemIds.Count == 0)
+            {
+                throw new ArgumentException("A sale needs at least one item.", nameof(itemIds));
+            }
+
+            return TradeAsync(
+                "/v1/me/traders/" + Uri.EscapeDataString(traderId ?? "") + "/sell",
+                version => new JObject { ["expected_version"] = version, ["item_ids"] = new JArray(itemIds) },
+                "credits",
+                "sold",
+                cancellationToken);
+        }
+
         /// <summary>What a raid did to the player's gear so far. Check <see cref="RaidOutcome.IsFinished"/>.</summary>
         public async Task<PlayerResult<RaidOutcome>> GetRaidResultAsync(string raidId, CancellationToken cancellationToken = default)
         {
@@ -264,6 +319,60 @@ namespace RaidZero.BackendApi
         }
 
         // ---- Internals ----
+
+        // A trade, sent with the profile version it's based on. If the stash changed elsewhere first, refresh and
+        // send it once more: the backend checks everything again, so a trade that no longer works is refused then.
+        private async Task<TradeOutcome> TradeAsync(string path, Func<long, JObject> body, string creditsField, string itemsField, CancellationToken cancellationToken)
+        {
+            await _profileLock.WaitAsync(cancellationToken);
+            try
+            {
+                for (int attempt = 1; ; attempt++)
+                {
+                    if (_token == null || Profile == null)
+                    {
+                        return new TradeOutcome("not_logged_in", "Log in first.", null, null, 0, null);
+                    }
+
+                    var reply = await SendAsync("POST", path, body(Profile.Version), authenticated: true, cancellationToken);
+                    if (reply.Ok)
+                    {
+                        var items = ((JArray)reply.Json[itemsField] ?? new JArray()).Select(t => (string)t).ToList();
+                        long credits = (long?)reply.Json[creditsField] ?? 0;
+                        await RefreshLockedAsync(cancellationToken);
+                        return new TradeOutcome(null, null, null, null, credits, items);
+                    }
+
+                    if (reply.Error == "version_conflict" && attempt == 1)
+                    {
+                        var refreshed = await RefreshLockedAsync(cancellationToken);
+                        if (!refreshed.Succeeded)
+                        {
+                            return new TradeOutcome(refreshed.Error, refreshed.Message, null, refreshed.RaidId, 0, null);
+                        }
+
+                        continue;
+                    }
+
+                    if (reply.Error != "logged_out")
+                    {
+                        await RefreshLockedAsync(cancellationToken);
+                    }
+
+                    return new TradeOutcome(
+                        reply.Error == "invalid_trade" ? (string)reply.Json?["reason"] ?? reply.Error : reply.Error,
+                        reply.Message,
+                        (string)reply.Json?["item_id"],
+                        (string)reply.Json?["raid_id"],
+                        0,
+                        null);
+                }
+            }
+            finally
+            {
+                _profileLock.Release();
+            }
+        }
 
         private async Task<PlayerResult<PlayerProfile>> RefreshLockedAsync(CancellationToken cancellationToken)
         {

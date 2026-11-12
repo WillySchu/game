@@ -111,6 +111,11 @@ namespace RaidZero.Shared.Catalog
                     errors.Add(where + ": stackable items cannot have durability");
                 }
 
+                if (def.Value < 0)
+                {
+                    errors.Add(where + ": value can't be negative");
+                }
+
                 foreach (var tag in def.Tags ?? new List<string>())
                 {
                     if (!IsIdentifier(tag))

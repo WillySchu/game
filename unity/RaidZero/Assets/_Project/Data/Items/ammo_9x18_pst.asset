@@ -19,6 +19,7 @@ MonoBehaviour:
   _height: 1
   _maxStack: 50
   _hasDurability: 0
+  _value: 60
   _tags:
   - ammo_9x18
   _grids: []

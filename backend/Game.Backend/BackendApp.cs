@@ -7,6 +7,7 @@ using RaidZero.Backend.Catalog;
 using RaidZero.Backend.Data;
 using RaidZero.Backend.Players;
 using RaidZero.Backend.Raids;
+using RaidZero.Backend.Trading;
 using RaidZero.Shared.Catalog;
 
 namespace RaidZero.Backend;
@@ -33,6 +34,8 @@ public static class BackendApp
         builder.Services.AddSingleton(_ => new Database(Resolve(options.DatabasePath)));
         builder.Services.AddSingleton(_ => CatalogLoader.LoadFile(Resolve(options.CatalogPath)));
         builder.Services.AddSingleton(sp => StarterKit.LoadFile(Resolve(options.StarterKitPath), sp.GetRequiredService<ItemCatalog>()));
+        builder.Services.AddSingleton(sp => TraderList.LoadFile(Resolve(options.TradersPath), sp.GetRequiredService<ItemCatalog>()));
+        builder.Services.AddSingleton<TraderService>();
         builder.Services.AddSingleton(sp => PlayerTokens.FromOptions(options, sp.GetRequiredService<TimeProvider>()));
         builder.Services.AddSingleton<PlayerStore>();
         builder.Services.AddSingleton<StashInventory>();
@@ -64,19 +67,21 @@ public static class BackendApp
         });
         app.MapPlayerEndpoints(options);
         app.MapRaidEndpoints();
+        app.MapTraderEndpoints();
         app.MapAdminEndpoints(options);
 
         return app;
     }
 
     /// <summary>
-    /// Fails fast before accepting traffic: a bad catalog, a kit that no longer fits it, a missing signing
+    /// Fails fast before accepting traffic: a bad catalog, a kit or trader offer that no longer fits it, a missing signing
     /// key or an unexpected schema all stop startup here, with a message saying what to fix.
     /// </summary>
     public static async Task InitializeAsync(WebApplication app, CancellationToken ct = default)
     {
         var catalog = app.Services.GetRequiredService<ItemCatalog>();
         var kit = app.Services.GetRequiredService<StarterKit>();
+        var traders = app.Services.GetRequiredService<TraderList>();
         app.Services.GetRequiredService<PlayerTokens>();
         var servers = app.Services.GetRequiredService<GameServerRegistry>();
 
@@ -86,8 +91,8 @@ public static class BackendApp
 
         var devLogin = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<BackendOptions>>().Value.DevLoginEnabled;
         app.Logger.LogInformation(
-            "Ready: {ItemCount} item definitions (catalog {CatalogVersion}), starter kit of {KitItems} items, schema version {SchemaVersion}, {ServerCount} game server(s), dev login {DevLogin}, database {DatabasePath}",
-            catalog.Count, catalog.Version, kit.ItemCount, schemaVersion, servers.All.Count, devLogin ? "ON" : "off", database.FilePath);
+            "Ready: {ItemCount} item definitions (catalog {CatalogVersion}), starter kit of {KitItems} items, {TraderCount} trader(s) with {OfferCount} offers, schema version {SchemaVersion}, {ServerCount} game server(s), dev login {DevLogin}, database {DatabasePath}",
+            catalog.Count, catalog.Version, kit.ItemCount, traders.All.Count, traders.All.Sum(t => t.Offers.Count), schemaVersion, servers.All.Count, devLogin ? "ON" : "off", database.FilePath);
         var adminToken = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<BackendOptions>>().Value.AdminToken;
         if (adminToken.Length is > 0 and < AdminTokenHandler.MinTokenLength)
         {

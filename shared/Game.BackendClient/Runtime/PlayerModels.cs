@@ -67,6 +67,96 @@ namespace RaidZero.BackendApi
         public DateTimeOffset ExpiresAt { get; }
     }
 
+    /// <summary>A trader, and what they sell to this player.</summary>
+    public sealed class TraderInfo
+    {
+        public TraderInfo(string traderId, string displayName, double buysAt, IReadOnlyList<TraderOfferInfo> offers)
+        {
+            TraderId = traderId;
+            DisplayName = displayName;
+            BuysAt = buysAt;
+            Offers = offers ?? new TraderOfferInfo[0];
+        }
+
+        public string TraderId { get; }
+
+        public string DisplayName { get; }
+
+        /// <summary>The share of an item's value they pay for it: give it to TraderPrices.SellPrice to show an offer.</summary>
+        public double BuysAt { get; }
+
+        public IReadOnlyList<TraderOfferInfo> Offers { get; }
+    }
+
+    public sealed class TraderOfferInfo
+    {
+        public TraderOfferInfo(string offerId, long price, ItemNode item, int? stock, int? left, DateTimeOffset? restocksAt)
+        {
+            OfferId = offerId;
+            Price = price;
+            Item = item;
+            Stock = stock;
+            Left = left;
+            RestocksAt = restocksAt;
+        }
+
+        public string OfferId { get; }
+
+        /// <summary>Credits for one.</summary>
+        public long Price { get; }
+
+        /// <summary>What one purchase gives, with whatever comes in it. The items have no IDs: it's a description.</summary>
+        public ItemNode Item { get; }
+
+        /// <summary>How many per restock; null for no limit.</summary>
+        public int? Stock { get; }
+
+        /// <summary>How many this player can still buy before it restocks; null for no limit.</summary>
+        public int? Left { get; }
+
+        /// <summary>When more come in; null for no limit.</summary>
+        public DateTimeOffset? RestocksAt { get; }
+    }
+
+    /// <summary>How a purchase or sale went. Either way, the session's profile is now the backend's current one.</summary>
+    public sealed class TradeOutcome
+    {
+        internal TradeOutcome(string error, string message, string itemId, string raidId, long credits, IReadOnlyList<string> itemIds)
+        {
+            Error = error;
+            Message = message;
+            ItemId = itemId;
+            RaidId = raidId;
+            Credits = credits;
+            ItemIds = itemIds ?? new string[0];
+        }
+
+        public bool Succeeded => Error == null;
+
+        /// <summary>
+        /// Why it was refused: a trade reason (TradeErrorCodes, such as not_enough_money or out_of_stock), in_raid,
+        /// version_conflict (the stash changed underneath twice running), unknown_trader, or one of the session's own codes.
+        /// </summary>
+        public string Error { get; }
+
+        /// <summary>A sentence to show the player.</summary>
+        public string Message { get; }
+
+        /// <summary>The item a refusal is about, when there is one.</summary>
+        public string ItemId { get; }
+
+        /// <summary>For in_raid: the raid holding the stash.</summary>
+        public string RaidId { get; }
+
+        /// <summary>Credits spent on a purchase, or paid for a sale.</summary>
+        public long Credits { get; }
+
+        /// <summary>A purchase: the items bought. A sale: the items sold, with everything that was in them.</summary>
+        public IReadOnlyList<string> ItemIds { get; }
+
+        public override string ToString() => Succeeded ? "ok, " + Credits + " credits" : Error + ": " + Message;
+    }
+
     /// <summary>What a raid did to the player's gear, for the post-raid screen.</summary>
     public sealed class RaidOutcome
     {
