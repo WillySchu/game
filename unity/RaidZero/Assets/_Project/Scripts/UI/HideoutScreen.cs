@@ -6,6 +6,7 @@ using RaidZero.Net;
 using RaidZero.Shared.Catalog;
 using RaidZero.Shared.Inventory;
 using RaidZero.Shared.InventoryUi;
+using RaidZero.Shared.Trading;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.UIElements;
@@ -16,7 +17,8 @@ namespace RaidZero.UI
     /// <summary>
     /// The Hideout: log in, sort your gear and stash, deploy, and see what a raid did. The gear and stash are the
     /// same inventory screen as in a raid (InventoryView) over HideoutInventorySource, so edits go to the backend
-    /// with the same rules; nothing can be dropped here.
+    /// with the same rules; nothing can be dropped here. The Trader button opens the trader (TraderPanel) as a third
+    /// column, to buy gear and sell loot.
     ///
     /// Put it on any GameObject in the scene the game starts in. By default it shows whenever this game isn't in
     /// a raid (no client or server running on the scene's NetworkManager) and hides while it is, so it works in a
@@ -30,7 +32,7 @@ namespace RaidZero.UI
     {
         private const string NamePref = "raidzero.hideout_name";
         private const string ResultSeenPref = "raidzero.result_seen.";
-        private const string Help = "drag to move   ·   R rotate while dragging   ·   Shift+drag split   ·   Ctrl+click quick move   ·   double-click open";
+        private const string Help = "drag to move   ·   R rotate while dragging   ·   Shift+drag split   ·   Ctrl+click quick move   ·   double-click open   ·   right-click sell (trader open)";
 
         [SerializeField]
         [Tooltip("The map Deploy asks for. Tickets only group players asking for the same map, and the server refuses a raid on a map it hasn't loaded.")]
@@ -50,12 +52,15 @@ namespace RaidZero.UI
         private HideoutInventorySource _source;
         private InventoryModel _model;
         private NetworkManager _networkManager;
+        private TraderPanel _trader;
 
         private VisualElement _loginRow;
         private TextField _nameField;
         private VisualElement _playerRow;
         private Label _playerName;
         private Label _playerState;
+        private Label _playerMoney;
+        private Button _traderButton;
         private Label _mapLabel;
         private Button _deployButton;
         private VisualElement _result;
@@ -132,6 +137,8 @@ namespace RaidZero.UI
             }
 
             _view.Root.AddToClassList("hideout");
+            _trader = new TraderPanel(_view);
+            _trader.NeedsRedraw += () => _dirty = true;
             BuildHeader();
             BuildFooter();
             BuildResult();
@@ -203,6 +210,7 @@ namespace RaidZero.UI
             }
 
             _view.HandleKeys(Keyboard.current);
+            _trader.Tick();
             if (_dirty)
             {
                 _dirty = false;
@@ -227,8 +235,12 @@ namespace RaidZero.UI
             _playerRow = new VisualElement().WithClass("hideout-row");
             _playerName = new Label().WithClass("hideout-player");
             _playerState = new Label().WithClass("hideout-state");
+            _playerMoney = new Label().WithClass("hideout-money");
+            _traderButton = new Button(() => _trader.Toggle()) { text = "Trader" }.WithClass("hideout-button");
             _playerRow.Add(_playerName);
             _playerRow.Add(_playerState);
+            _playerRow.Add(_playerMoney);
+            _playerRow.Add(_traderButton);
             _playerRow.Add(new Button(Refresh) { text = "Refresh" }.WithClass("hideout-button"));
             _playerRow.Add(new Button(LogOut) { text = "Log out" }.WithClass("hideout-button"));
 
@@ -301,6 +313,7 @@ namespace RaidZero.UI
             _model.Changed += OnModelChanged;
             _model.Refused += _view.ShowMessage;
             _view.SetModel(_model);
+            _trader.SetSession(_session, _catalog);
             _dirty = true;
         }
 
@@ -324,6 +337,7 @@ namespace RaidZero.UI
             _source?.Dispose();
             _source = null;
             _view?.SetModel(null);
+            _trader?.SetSession(null, null);
         }
 
         private void OnModelChanged() => _dirty = true;
@@ -347,12 +361,22 @@ namespace RaidZero.UI
                 _playerState.text = _waitingFor != null ? "Waiting for the raid's result..."
                     : profile.IsInRaid ? "Your gear is in a raid. Deploy to rejoin it if you can, or wait for it to end."
                     : "";
+                _playerMoney.text = TraderText.Credits(TradePlanner.Money(profile.Stash));
             }
+
+            if (profile == null && _trader.IsOpen)
+            {
+                _trader.Close();
+            }
+
+            _traderButton.text = _trader.IsOpen ? "Close trader" : "Trader";
+            _traderButton.SetEnabled(profile != null);
 
             _mapLabel.text = "Map: " + _mapId;
             _deployButton.text = _busy ? "Deploying..." : profile != null && profile.IsInRaid ? "Rejoin" : "Deploy";
             _deployButton.SetEnabled(profile != null && !_busy && _waitingFor == null);
             _view.Rebuild(profile == null ? "Log in to see your gear and stash." : "Loading your gear...");
+            _trader.Redraw();
         }
 
         // ---- Actions ----

@@ -165,6 +165,10 @@ The key in `appsettings.Development.json` is for local runs only. Real deploymen
   change worked out by the shared `TradePlanner`, then a `purchase` or `sell` ledger entry. `trader_purchases`
   counts limited stock per player and restock period.
 - Players who run out of gear can be helped with the admin page's grants, or by buying basic gear.
+- In the Hideout, `TraderPanel` (Trader on the player bar) is the screen: offers with Buy, and a sell list you drag
+  items onto or right-click them into (`TraderSellList` in `Game.BackendClient` keeps it, checked with the same
+  rules as the backend). Drop zones (`DropZoneRef` in `InventoryDrag`) are how anything outside the inventory
+  takes a dragged item.
 
 **Raids**
 - Flow: `POST /v1/me/raid-tickets` → the game server calls `/v1/server/raids/{id}/join` when the player connects

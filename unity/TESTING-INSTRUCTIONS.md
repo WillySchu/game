@@ -129,6 +129,29 @@ fills the screen whenever you're not in a raid.
 Scene flow can take over Deploy: anything listening to `HideoutScreen.DeployRequested` gets the map ID and the
 screen doesn't connect by itself. Untick **Show When Not In A Raid** to show and hide it from code instead.
 
+### Trader
+
+The backend needs the trader endpoints (the backend from the "Traders" commit or later). Prices and stock are
+in `backend/Game.Backend/traders.json`; item values are each item asset's **Value**.
+
+1. **Open it:** the player bar shows your money; **Trader** opens the General Store as a third column (the button
+   then closes it). Its header shows your money too.
+2. **Buy:** each offer shows its picture, what comes with it ("with PM magazine"), how many are left, and the
+   price. Stacks and limited offers get − and +. The price goes red when you can't afford it; sold-out offers
+   dim and say when more come. **Buy** puts it in the first free spot in your stash (the status line says so),
+   takes the money, and the stock left goes down. Try buying more pistols than the stock (2): the third is refused
+   with how long until more.
+3. **Sell:** drag an item onto the Sell list (it switches tabs by itself on right-click; dragging needs the Sell
+   tab showing). Its border goes green, or red with the reason in the status line for money, an item with money
+   in it, or something the trader doesn't buy. Right-click an item to list it, and again to take it off. Listed
+   items stay where they are, with a gold border; the list shows each one's price and the total. Listing a rifle
+   takes its magazine off the list if it was on it (it sells with the rifle). **Sell for ...** sells them all;
+   the money tops up your money stack.
+4. **Tooltips:** while the trader is open, an item's tooltip ends with what the trader pays for it, contents
+   included, less for worn gear.
+5. **Locked in a raid:** with your gear in a raid, Buy and Sell are off.
+6. **Stock is per player:** log in under another name and the trader shows that player's stock.
+
 ## Icons
 
 An item's icon is its asset's **Icon** if you've drawn one, else the one **Raid Zero > Items > Render Icons**

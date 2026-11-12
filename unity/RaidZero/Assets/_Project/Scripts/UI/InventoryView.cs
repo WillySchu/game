@@ -29,7 +29,7 @@ namespace RaidZero.UI
             Root = root;
             Window = new VisualElement().WithClass("inv-window");
             Header = new VisualElement().WithClass("inv-header");
-            var columns = new VisualElement().WithClass("inv-columns");
+            var columns = Columns = new VisualElement().WithClass("inv-columns");
             var gear = new ScrollView(ScrollViewMode.Vertical).WithClass("inv-column").WithClass("inv-column--gear");
             var loot = new ScrollView(ScrollViewMode.Vertical).WithClass("inv-column").WithClass("inv-column--loot");
             gear.style.width = (InventoryPanels.GearColumnCells + 1) * InventoryPanels.Cell;
@@ -54,6 +54,27 @@ namespace RaidZero.UI
             _drag.SplitRequested += (itemId, rotated, target) => _split.Show(_model, itemId, rotated, target);
             _tooltip = new InventoryTooltip(Root, Panels, _drag);
             Panels.CloseClicked += OnCloseClicked;
+            Panels.ItemPressed += (evt, element) =>
+            {
+                if (evt.button == 1 && element.userData is ItemRef item)
+                {
+                    evt.StopPropagation();
+                    ItemRightClicked?.Invoke(item.ItemId);
+                }
+            };
+        }
+
+        /// <summary>An item was right-clicked. Nothing happens unless the owner listens (the Hideout's trader does).</summary>
+        public event System.Action<string> ItemRightClicked;
+
+        /// <summary>The row of columns: gear, then the second column. The owner may add more (the Hideout's trader).</summary>
+        public VisualElement Columns { get; }
+
+        /// <summary>One more line for item tooltips, or null for none.</summary>
+        public System.Func<RaidZero.Shared.Inventory.ItemNode, TooltipLine> TooltipExtraLine
+        {
+            get => _tooltip.ExtraLine;
+            set => _tooltip.ExtraLine = value;
         }
 
         /// <summary>Fills the screen; the dimmed backdrop around the window is what "outside" means for drops.</summary>

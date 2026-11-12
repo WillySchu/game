@@ -8,7 +8,7 @@ Will & John · first written Oct 26, 2026 · last updated Nov 11, 2026
 | --- | --- |
 | Data model, migrations 0001 to 0007 | Done |
 | Client API (dev login, profile, stash edits, tickets, raid results) | Done |
-| Traders: buying and selling, stock that restocks | Done in the backend and `PlayerSession`; the Hideout screen is next |
+| Traders: buying and selling, stock that restocks | Done, with the Hideout's trader screen |
 | Game server API (ready, join, heartbeat, outcomes, close) and lease expiry | Done |
 | Several game servers: ready reports, raids routed by map and network code | Done |
 | Admin API and page | Done |

@@ -17,7 +17,7 @@ Will & John · first written Oct 26, 2026 · last updated Nov 6, 2026
 | Interaction, items on the ground, loose loot | Done | Will |
 | Bodies in the world | Done (dying itself waits for damage; F1 has a Die button) | Will |
 | Hideout screen: login, gear and stash, deploy, raid results | Done | Will |
-| Traders: backend, prices and `PlayerSession` calls | Done; the Hideout's trader screen is next | Will |
+| Traders: backend, prices, `PlayerSession` calls and the Hideout's trader screen | Done | Will |
 | Raid HUD: clock, extraction countdown, the card as you leave | Done | Will |
 | Several game servers: ready reports, raids routed by map and network code | Done | Will |
 | Scene flow: Boot, Hideout and raid scenes, joining | Not started | John |

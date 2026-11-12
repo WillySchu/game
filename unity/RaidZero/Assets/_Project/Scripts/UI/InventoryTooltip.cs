@@ -1,4 +1,7 @@
+using System;
+using System.Collections.Generic;
 using RaidZero.Items;
+using RaidZero.Shared.Inventory;
 using RaidZero.Shared.InventoryUi;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -59,6 +62,9 @@ namespace RaidZero.UI
             _root.schedule.Execute(Tick).Every(50);
         }
 
+        /// <summary>One more line for an item's tooltip (the trader's price, in the Hideout), or null for none.</summary>
+        public Func<ItemNode, TooltipLine> ExtraLine { get; set; }
+
         public void SetModel(InventoryModel model)
         {
             _model = model;
@@ -104,18 +110,24 @@ namespace RaidZero.UI
             }
 
             var description = ItemLibrary.Instance != null ? ItemLibrary.Instance.Find(node.DefId)?.Description : null;
-            Fill(ItemTooltip.Build(_model.Catalog, node, description));
+            Fill(ItemTooltip.Build(_model.Catalog, node, description), ExtraLine?.Invoke(node));
             _box.style.display = DisplayStyle.Flex;
             _box.BringToFront();
             Place();
         }
 
-        private void Fill(ItemTooltipContent content)
+        private void Fill(ItemTooltipContent content, TooltipLine extra)
         {
             _title.text = content.Title;
             _category.text = content.Category;
             _lines.Clear();
-            foreach (var line in content.Lines)
+            var lines = new List<TooltipLine>(content.Lines);
+            if (extra != null)
+            {
+                lines.Add(extra);
+            }
+
+            foreach (var line in lines)
             {
                 var row = new VisualElement { pickingMode = PickingMode.Ignore }.WithClass("inv-tooltip__line");
                 row.Add(new Label(line.Label) { pickingMode = PickingMode.Ignore }.WithClass("inv-tooltip__label"));
@@ -123,7 +135,7 @@ namespace RaidZero.UI
                 _lines.Add(row);
             }
 
-            _lines.style.display = content.Lines.Count > 0 ? DisplayStyle.Flex : DisplayStyle.None;
+            _lines.style.display = lines.Count > 0 ? DisplayStyle.Flex : DisplayStyle.None;
             _description.text = content.Description ?? "";
             _description.style.display = content.Description != null ? DisplayStyle.Flex : DisplayStyle.None;
         }

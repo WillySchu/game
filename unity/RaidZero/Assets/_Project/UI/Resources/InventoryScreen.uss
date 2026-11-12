@@ -430,6 +430,222 @@
     border-color: rgb(120, 150, 104);
 }
 
+/* The player's money, in the player bar. */
+.hideout-money {
+    font-size: 14px;
+    -unity-font-style: bold;
+    color: rgb(220, 200, 130);
+    margin-left: 12px;
+}
+
+/* The trader (TraderPanel): a third column next to the stash, opened from the player bar. */
+.trader {
+    width: 460px;
+}
+
+.trader__panel {
+    flex-grow: 1;
+    margin-bottom: 0;
+}
+
+.trader__money-row {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 2px 8px 2px;
+}
+
+.trader__money-label {
+    font-size: 12px;
+    color: rgb(160, 164, 150);
+}
+
+.trader__money {
+    font-size: 16px;
+    -unity-font-style: bold;
+    color: rgb(220, 200, 130);
+}
+
+.trader__tabs {
+    flex-direction: row;
+    margin-bottom: 8px;
+}
+
+.trader__tab {
+    flex-grow: 1;
+    margin: 0 2px;
+    padding: 5px 0;
+    font-size: 13px;
+    color: rgb(170, 170, 160);
+    background-color: rgb(40, 43, 39);
+    border-color: rgb(64, 68, 60);
+}
+
+.trader__tab--on {
+    -unity-font-style: bold;
+    color: rgb(240, 236, 220);
+    background-color: rgb(58, 66, 52);
+    border-color: rgb(120, 150, 104);
+}
+
+.trader__page {
+    flex-grow: 1;
+}
+
+/* One thing for sale: its picture, name and stock, then price, count and Buy. */
+.trader-offer {
+    flex-direction: row;
+    align-items: center;
+    padding: 6px 4px;
+    border-bottom-width: 1px;
+    border-color: rgba(255, 255, 255, 0.06);
+}
+
+.trader-offer--sold-out {
+    opacity: 0.55;
+}
+
+.trader-offer__icon {
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-right: 8px;
+}
+
+.trader-offer__info {
+    flex-grow: 1;
+    flex-shrink: 1;
+}
+
+.trader-offer__name {
+    font-size: 13px;
+    -unity-font-style: bold;
+    color: rgb(232, 228, 214);
+    white-space: normal;
+}
+
+.trader-offer__contents {
+    font-size: 11px;
+    color: rgb(170, 172, 160);
+    white-space: normal;
+}
+
+.trader-offer__stock {
+    font-size: 11px;
+    color: rgb(214, 180, 110);
+}
+
+.trader-offer__buy {
+    align-items: flex-end;
+    flex-shrink: 0;
+}
+
+.trader-offer__price {
+    font-size: 13px;
+    -unity-font-style: bold;
+    color: rgb(220, 200, 130);
+    margin-bottom: 3px;
+}
+
+/* More than the player has. */
+.trader-offer__price--short {
+    color: rgb(220, 110, 96);
+}
+
+.trader-offer__controls {
+    flex-direction: row;
+    align-items: center;
+}
+
+.trader-offer__step {
+    width: 22px;
+    height: 22px;
+    margin: 0 1px;
+    padding: 0;
+    font-size: 14px;
+}
+
+.trader-offer__count {
+    min-width: 22px;
+    font-size: 12px;
+    color: rgb(232, 228, 214);
+    -unity-text-align: middle-center;
+}
+
+.trader-offer__button {
+    min-width: 56px;
+}
+
+/* The sell list: drag items onto it. Its border goes green or red like any drop target. */
+.trader__sell-zone {
+    flex-grow: 1;
+    padding: 8px;
+    background-color: rgb(18, 20, 18);
+    border-width: 1px;
+    border-color: rgb(64, 68, 60);
+    border-radius: 3px;
+}
+
+.trader__hint {
+    font-size: 12px;
+    color: rgb(150, 154, 140);
+    white-space: normal;
+    margin: 8px 4px;
+}
+
+.trader__sell-rows {
+    flex-grow: 1;
+}
+
+.trader-sell {
+    flex-direction: row;
+    align-items: center;
+    padding: 3px 2px;
+    border-bottom-width: 1px;
+    border-color: rgba(255, 255, 255, 0.06);
+}
+
+.trader-sell__name {
+    flex-grow: 1;
+    flex-shrink: 1;
+    font-size: 12px;
+    color: rgb(232, 228, 214);
+    white-space: normal;
+}
+
+.trader-sell__price {
+    font-size: 12px;
+    color: rgb(220, 200, 130);
+    margin: 0 8px;
+}
+
+.trader__sell-footer {
+    flex-direction: row;
+    align-items: center;
+    margin-top: 8px;
+}
+
+.trader__sell-total {
+    flex-grow: 1;
+    font-size: 14px;
+    -unity-font-style: bold;
+    color: rgb(220, 200, 130);
+}
+
+.trader__sell-button {
+    -unity-font-style: bold;
+    color: rgb(240, 236, 220);
+    background-color: rgb(70, 92, 62);
+    border-color: rgb(120, 150, 104);
+}
+
+/* An item on the sell list, where it lies in the stash or gear. */
+.inv-item--selling {
+    border-width: 2px;
+    border-color: rgb(220, 200, 130);
+    opacity: 0.7;
+}
+
 /* The result of the last raid, shown once when you're back. */
 .hideout-result {
     width: 440px;

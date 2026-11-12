@@ -8,13 +8,27 @@ using UnityEngine.UIElements;
 namespace RaidZero.UI
 {
     /// <summary>
+    /// Put on an element's userData to make it somewhere items can be dragged to that isn't part of the
+    /// inventory, such as the trader's sell list. Dropping there hands over the item's ID instead of moving it.
+    /// </summary>
+    internal sealed class DropZoneRef
+    {
+        /// <summary>Why the item can't go here, as a sentence; null if it can. Asked as the drag passes over.</summary>
+        public Func<string, string> Check;
+
+        /// <summary>The item was let go here, and Check had no objection.</summary>
+        public Action<string> Dropped;
+    }
+
+    /// <summary>
     /// Dragging items around the inventory screen. Press on an item and a ghost of it follows the pointer;
     /// whatever's under the pointer is turned into a DropTarget and checked with InventoryModel.Plan, the
     /// same rules the server applies, so the ghost and the spot it would land on go green or red as you move.
     /// Letting go sends the plan if it's good. If it isn't, nothing is sent: the item never left, so it simply
     /// stays put, and the reason goes to the status line. Ctrl+click (Cmd+click on a Mac) quick-moves instead,
     /// and a double-click opens a container that's inside another. Shift-dragging a stack splits it: the drag
-    /// is checked as if moving half, and letting go somewhere good asks how many (SplitRequested).
+    /// is checked as if moving half, and letting go somewhere good asks how many (SplitRequested). Elements
+    /// marked with a DropZoneRef take the item's ID instead (the whole item, even when splitting).
     /// </summary>
     internal sealed class InventoryDrag
     {
@@ -219,8 +233,41 @@ namespace RaidZero.UI
                 return;
             }
 
+            var zone = ZoneAt(position);
+            if (zone != null)
+            {
+                HighlightZone(zone, ((DropZoneRef)zone.userData).Check?.Invoke(_itemId));
+                return;
+            }
+
             var target = TargetAt(position);
             Highlight(_model.Plan(_itemId, _rotated, target, _splitting ? _splitPreview : 0), target);
+        }
+
+        // A drop zone under the pointer, or null.
+        private VisualElement ZoneAt(Vector2 position)
+        {
+            for (var e = _root.panel?.Pick(position); e != null && e != _root; e = e.parent)
+            {
+                if (e.userData is DropZoneRef)
+                {
+                    return e;
+                }
+            }
+
+            return null;
+        }
+
+        private void HighlightZone(VisualElement zone, string problem)
+        {
+            ClearHighlight();
+            bool good = problem == null;
+            _ghost.EnableInClassList("inv-ghost--ok", good);
+            _ghost.EnableInClassList("inv-ghost--bad", !good);
+            _ghost.RemoveFromClassList("inv-ghost--drop");
+            _highlighted = zone;
+            zone.EnableInClassList("inv-target--ok", good);
+            zone.EnableInClassList("inv-target--bad", !good);
         }
 
         // What's under the pointer, as the drop rules see it. The ghost ignores picking, so this finds what's
@@ -318,7 +365,8 @@ namespace RaidZero.UI
             var itemId = _itemId;
             var rotated = _rotated;
             var splitting = _splitting;
-            var target = drop && _model != null ? TargetAt(_pointer) : null;
+            var zone = drop ? ZoneAt(_pointer) : null;
+            var target = drop && _model != null && zone == null ? TargetAt(_pointer) : null;
             var plan = target != null ? _model.Plan(itemId, rotated, target, splitting ? _splitPreview : 0) : null;
             _itemId = null; // first, so the capture-out event that releasing raises is ignored
             _splitting = false;
@@ -332,6 +380,22 @@ namespace RaidZero.UI
             }
 
             _pointerId = -1;
+            if (zone != null)
+            {
+                var hand = (DropZoneRef)zone.userData;
+                var problem = hand.Check?.Invoke(itemId);
+                if (problem == null)
+                {
+                    hand.Dropped?.Invoke(itemId);
+                }
+                else
+                {
+                    Message?.Invoke(problem);
+                }
+
+                return;
+            }
+
             if (plan == null)
             {
                 return;
