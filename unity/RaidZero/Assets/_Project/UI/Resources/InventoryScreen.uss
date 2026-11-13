@@ -791,3 +791,62 @@
 .hud-card--extracted .hud-card__title { color: rgb(150, 220, 130); }
 .hud-card--lost .hud-card__title { color: rgb(226, 108, 88); }
 .hud-card--aborted .hud-card__title { color: rgb(220, 190, 110); }
+
+/* The escape menu (EscapeMenu): a dimmed backdrop over everything, and the menu in the middle. */
+.esc-root {
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(0, 0, 0, 0.6);
+}
+
+.esc-panel {
+    width: 380px;
+    padding: 24px 28px 28px 28px;
+    background-color: rgb(28, 30, 27);
+    border-width: 1px;
+    border-color: rgb(78, 82, 72);
+    border-radius: 4px;
+}
+
+.esc-title {
+    font-size: 22px;
+    -unity-font-style: bold;
+    color: rgb(232, 228, 214);
+    -unity-text-align: middle-center;
+    margin-bottom: 20px;
+}
+
+.esc-buttons {
+    align-items: stretch;
+}
+
+.esc-text {
+    font-size: 13px;
+    color: rgb(200, 198, 186);
+    white-space: normal;
+    -unity-text-align: middle-center;
+    margin-bottom: 14px;
+}
+
+.esc-button {
+    height: 40px;
+    margin: 5px 0;
+    font-size: 16px;
+    color: rgb(232, 228, 214);
+    background-color: rgb(52, 56, 49);
+    border-color: rgb(92, 98, 86);
+    border-radius: 3px;
+}
+
+.esc-button:hover {
+    background-color: rgb(66, 72, 61);
+}
+
+.esc-button--danger {
+    background-color: rgb(110, 46, 40);
+    border-color: rgb(160, 72, 62);
+}
+
+.esc-button--danger:hover {
+    background-color: rgb(132, 56, 48);
+}

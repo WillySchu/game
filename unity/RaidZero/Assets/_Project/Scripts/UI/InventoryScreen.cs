@@ -10,8 +10,8 @@ using Cursor = UnityEngine.Cursor; // UI Toolkit has a Cursor type too
 namespace RaidZero.UI
 {
     /// <summary>
-    /// The raid inventory screen. Tab opens and closes it; while it's open the mouse is free and the player's
-    /// input is off, so moving the mouse doesn't turn the camera.
+    /// The raid inventory screen. Tab opens and closes it, and so does Escape (before the escape menu gets it);
+    /// while it's open the mouse is free and the player's input is off, so moving the mouse doesn't turn the camera.
     ///
     /// Drag items between grids, slots and containers; R turns the item you're dragging; let go over another
     /// item to stack, load or put it inside; let go outside the window to drop it on the ground. Ctrl+click
@@ -129,7 +129,7 @@ namespace RaidZero.UI
                 EnsureModel();
             }
 
-            var keyboard = Keyboard.current;
+            var keyboard = EscapeMenu.IsShowing ? null : Keyboard.current;
             if (_open && _view.HandleKeys(keyboard))
             {
                 // The view used the key (the split dialog, or turning or cancelling a drag).
@@ -147,8 +147,9 @@ namespace RaidZero.UI
                         Open();
                     }
                 }
-                else if (keyboard.escapeKey.wasPressedThisFrame && _open)
+                else if (EscapeKey.Pressed && _open)
                 {
+                    EscapeKey.Use(); // closing this is what Escape does here, not the escape menu
                     Close();
                 }
             }

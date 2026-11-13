@@ -132,6 +132,7 @@ GameObject:
   - component: {fileID: 957679371}
   - component: {fileID: 957679373}
   - component: {fileID: 957679374}
+  - component: {fileID: 957679375}
   m_Layer: 0
   m_Name: ClientPersistentScripts
   m_TagString: Persistent
@@ -206,6 +207,18 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Game.UI::RaidZero.UI.WorldInteraction
   _reach: 2.5
+--- !u!114 &957679375
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 957679368}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 75bf21516f24419e924dd5bab8520b25, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Game.UI::RaidZero.UI.EscapeMenu
 --- !u!1 &1402998376
 GameObject:
   m_ObjectHideFlags: 0

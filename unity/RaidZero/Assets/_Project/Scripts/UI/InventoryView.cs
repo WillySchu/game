@@ -230,6 +230,7 @@ namespace RaidZero.UI
                 if (keyboard.escapeKey.wasPressedThisFrame)
                 {
                     _split.Hide();
+                    EscapeKey.Use();
                     return true;
                 }
 
@@ -240,6 +241,7 @@ namespace RaidZero.UI
             if (keyboard.escapeKey.wasPressedThisFrame && _drag.IsDragging)
             {
                 _drag.Cancel();
+                EscapeKey.Use();
                 return true;
             }
 

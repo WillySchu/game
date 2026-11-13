@@ -299,6 +299,17 @@ What to check:
    editor.
 3. Restarting the client keeps the backend address.
 
+## Escape menu
+
+Escape closes what's open first, one press at a time: the split dialog, a drag, the raid inventory (all of it,
+as before), or in the Hideout the newest container window, then the trader. With nothing left open, it opens
+the escape menu over everything; Escape or **Resume** closes it.
+
+1. In a raid: the mouse is free and the player doesn't move or turn while it's up, but the raid goes on. Tab and F
+   do nothing until it's closed. **Resume** gives the mouse back to the game.
+2. **Quit** in a raid asks first (your gear stays in the raid); **Back** or Escape returns to the menu. In the
+   Hideout it quits straight away. In the editor, Quit stops play mode.
+
 ## Items on the ground
 
 Dropping (drag an item out of the inventory window) and loose loot both put items on the ground, where anyone

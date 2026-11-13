@@ -32,7 +32,7 @@ namespace RaidZero.UI
     {
         private const string NamePref = "raidzero.hideout_name";
         private const string ResultSeenPref = "raidzero.result_seen.";
-        private const string Help = "drag to move   ·   R rotate while dragging   ·   Shift+drag split   ·   Ctrl+click quick move   ·   double-click open   ·   right-click sell (trader open)";
+        private const string Help = "drag to move   ·   R rotate while dragging   ·   Shift+drag split   ·   Ctrl+click quick move   ·   double-click open   ·   right-click sell (trader open)   ·   Esc close / menu";
 
         [SerializeField]
         [Tooltip("The map Deploy asks for. Tickets only group players asking for the same map, and the server refuses a raid on a map it hasn't loaded.")]
@@ -209,7 +209,22 @@ namespace RaidZero.UI
                 Cursor.visible = true;
             }
 
-            _view.HandleKeys(Keyboard.current);
+            if (!EscapeMenu.IsShowing && !_view.HandleKeys(Keyboard.current) && EscapeKey.Pressed)
+            {
+                // Escape closes the newest container window, then the trader. With nothing open, it's the
+                // escape menu's.
+                if (_model != null && _model.OpenedItems.Count > 0)
+                {
+                    EscapeKey.Use();
+                    _model.CloseItem(_model.OpenedItems[_model.OpenedItems.Count - 1]);
+                }
+                else if (_trader.IsOpen)
+                {
+                    EscapeKey.Use();
+                    _trader.Close();
+                }
+            }
+
             _trader.Tick();
             if (_dirty)
             {

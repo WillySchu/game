@@ -69,7 +69,7 @@ namespace RaidZero.UI
                 _screen = FindAnyObjectByType<InventoryScreen>();
             }
 
-            if (_screen != null && _screen.IsOpen)
+            if ((_screen != null && _screen.IsOpen) || EscapeMenu.IsShowing)
             {
                 return;
             }
