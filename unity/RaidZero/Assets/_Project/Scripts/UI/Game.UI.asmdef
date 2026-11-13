@@ -4,6 +4,7 @@
     "references": [
         "Game.Net",
         "Game.Items",
+        "Game.World",
         "RaidZero.Shared",
         "RaidZero.BackendClient",
         "FishNet.Runtime",

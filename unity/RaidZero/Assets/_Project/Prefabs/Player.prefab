@@ -670,7 +670,5 @@ MonoBehaviour:
   gravity: -9.81
   friction: 0.1
   airFriction: 1
-  lookSensitivity: 0.5
-  invertLook: 0
   _cameraMount: {fileID: 6836104931731487076}
   _characterController: {fileID: -2104167914209987083}

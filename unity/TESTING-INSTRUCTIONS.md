@@ -309,6 +309,11 @@ the escape menu over everything; Escape or **Resume** closes it.
    do nothing until it's closed. **Resume** gives the mouse back to the game.
 2. **Quit** in a raid asks first (your gear stays in the raid); **Back** or Escape returns to the menu. In the
    Hideout it quits straight away. In the editor, Quit stops play mode.
+3. **Settings:** **Mouse sensitivity** (0.1 to 3, 1 is normal; drag or type) and **Invert look**. They apply as
+   you change them: open the menu in a raid, change one, Resume and look around. **Reset to defaults** puts both
+   back; **Back** or Escape returns to the menu and saves them, and they're there next time you play. Against a
+   separate server, turning must not snap back at any sensitivity: the client sends the turn already scaled, so
+   the server needs a build from this change or later (an older one scales it again).
 
 ## Items on the ground
 

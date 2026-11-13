@@ -15,7 +15,7 @@ namespace RaidZero.World
         public struct PlayerReplicatedData : IReplicateData
         {
             public Vector2 moveInput;
-            public Vector2 lookInput;
+            public Vector2 lookInput; // degrees to turn this tick (x right, y up), the player's settings already applied
             public bool jumpInput;
             public bool sprintInput;
             private uint _tick;
@@ -71,8 +71,8 @@ namespace RaidZero.World
         public float friction = 0.1f; // Friction factor to slow down the player when no input is given. (0= full stop, 1= no friction)
         public float airFriction = 1f; // Friction factor to slow down the player when in the air and no input is given. (0= full stop, 1= no friction)
 
-        public float lookSensitivity = 0.5f;
-        public bool invertLook = false;
+        // Mouse sensitivity and invert look are the player's settings (GameSettings), applied on the client
+        // before the look input is sent, so the server turns the player just as far.
 
         [SerializeField] private Transform _cameraMount;
         private Camera _heldCamera;
@@ -160,11 +160,7 @@ namespace RaidZero.World
         
         private PlayerReplicatedData GetReplicatedData()
         {
-            if (invertLook)
-            {
-                currentLookInput.y = -currentLookInput.y;
-            }
-            PlayerReplicatedData data = new PlayerReplicatedData(currentMoveInput, currentLookInput, isJumping, isRunning);
+            PlayerReplicatedData data = new PlayerReplicatedData(currentMoveInput, GameSettings.LookDegrees(currentLookInput), isJumping, isRunning);
             // Any accumulated inputs should be reset after sending to the server to avoid sending the same input multiple times.
             isJumping = false;
             currentLookInput = Vector2.zero;
@@ -213,8 +209,8 @@ namespace RaidZero.World
                 data.sprintInput = false;
             }
 
-            transform.Rotate(Vector3.up, data.lookInput.x * lookSensitivity);
-            xRotation -= data.lookInput.y * lookSensitivity;
+            transform.Rotate(Vector3.up, data.lookInput.x);
+            xRotation -= data.lookInput.y;
             xRotation = Mathf.Clamp(xRotation, -90f, 90f);
 
             _cameraMount.localRotation = Quaternion.Euler(xRotation, 0f, 0f);

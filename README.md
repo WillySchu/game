@@ -311,8 +311,10 @@ The key in `appsettings.Development.json` is for local runs only. Real deploymen
   plan. `InventoryItemLook` draws an item (its icon, or the plain look) for the panels and the drag ghost alike;
   `InventoryTooltip` shows the tooltip when the pointer rests on one. `InventoryView` holds the parts both screens
   share (the window, columns, status line, dragging, splitting, tooltips).
-- `EscapeMenu` is Escape when nothing else wants it: Resume and Quit (asking first in a raid; the raid goes on
-  meanwhile). Escape is first come, first served through `EscapeKey`: the split dialog, a drag, the raid
+- `EscapeMenu` is Escape when nothing else wants it: Resume, Settings and Quit (asking first in a raid; the raid
+  goes on meanwhile). Settings are `GameSettings` (in `Game.World`), kept in PlayerPrefs on this machine: mouse
+  sensitivity and invert look, applied on the client before the look input is sent, so the server turns the
+  player exactly as far. Escape is first come, first served through `EscapeKey`: the split dialog, a drag, the raid
   inventory, and the Hideout's container windows and trader use it first and mark it used.
 - `HideoutScreen` is the Hideout: dev login by name, gear and stash over `HideoutInventorySource`, Deploy (or
   `DeployRequested` for scene flow to handle), and a result panel after each raid (`RaidResultSummary`, in
