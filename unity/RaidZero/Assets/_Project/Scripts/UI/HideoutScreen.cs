@@ -374,7 +374,7 @@ namespace RaidZero.UI
             {
                 _playerName.text = profile.DisplayName;
                 _playerState.text = _waitingFor != null ? "Waiting for the raid's result..."
-                    : profile.IsInRaid ? "Your gear is in a raid. Deploy to rejoin it if you can, or wait for it to end."
+                    : profile.IsInRaid ? "Your gear is still in a raid. Rejoin to get back to it."
                     : "";
                 _playerMoney.text = TraderText.Credits(TradePlanner.Money(profile.Stash));
             }
@@ -522,7 +522,10 @@ namespace RaidZero.UI
             switch (deployed.Error)
             {
                 case "already_in_raid":
-                    return "Your gear is still in a raid this game can't rejoin. It comes back (or doesn't) when that raid ends.";
+                    // The raid is ending as we speak (a backend that rejoins), or an older backend that can't.
+                    return string.IsNullOrEmpty(deployed.Message) || deployed.Message.StartsWith("Finish or wait")
+                        ? "Your gear is still in a raid that can't be rejoined. It comes back (or doesn't) when that raid ends."
+                        : deployed.Message;
                 case "no_server_available":
                     // The backend says whether servers are busy or haven't reported in.
                     return string.IsNullOrEmpty(deployed.Message) ? "No raid server is free right now. Try again in a moment." : deployed.Message;

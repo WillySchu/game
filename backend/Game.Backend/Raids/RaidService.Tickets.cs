@@ -11,7 +11,8 @@ public sealed partial class RaidService
 {
     public sealed record ServerAddress(string Host, int Port);
 
-    public sealed record TicketResponse(string RaidId, ServerAddress Server, string JoinToken, DateTimeOffset ExpiresAt);
+    /// <param name="Rejoin">True when it's a way back into a raid the player is already in (see <see cref="ReissueTicketAsync"/>).</param>
+    public sealed record TicketResponse(string RaidId, ServerAddress Server, string JoinToken, DateTimeOffset ExpiresAt, bool Rejoin = false);
 
     /// <summary>
     /// POST /v1/me/raid-tickets. Reserves a place in a raid; no gear moves until the game server confirms the
@@ -26,6 +27,9 @@ public sealed partial class RaidService
     /// to one that reported within <see cref="RaidOptions.ReadyTtlSeconds"/> with the ticket's map, and when the
     /// request names its network code, only to a server running the same. A server that has never reported is
     /// treated as before, as idle whenever it has no raid.
+    ///
+    /// A player whose gear is already in a live raid gets a ticket back into that raid instead (Rejoin), so a
+    /// client that crashed, restarted or runs on another computer can get back in.
     /// </summary>
     /// <param name="networkCode">The client's network code fingerprint, if it sends one.</param>
     public Task<ServerResponse> CreateTicketAsync(string playerId, string? mapId, CancellationToken ct = default) =>
@@ -58,7 +62,7 @@ public sealed partial class RaidService
             var live = await LiveRaidIdAsync(c, tx, playerId, now);
             if (live is not null)
             {
-                return ServerResponse.Error(409, "already_in_raid", "Finish or wait out your current raid first.", new { RaidId = live });
+                return await ReissueTicketAsync(c, tx, playerId, live, nowValue);
             }
 
             // Tickets that ran out still hold a row under the one-live-raid index until they're marked expired.
@@ -104,6 +108,43 @@ public sealed partial class RaidService
 
             return ServerResponse.Json(200, new TicketResponse(raidId, new ServerAddress(server.Host, server.Port), token, expires));
         }, ct);
+    }
+
+    /// <summary>
+    /// A fresh join token for the raid the player is already in: one they joined and dropped out of (a crash,
+    /// quitting, a lost connection), or one they hold an unused ticket for. The client that had the old ticket
+    /// may be gone, and only a hash of each token is kept, so the old one can't be handed out again. The new one
+    /// replaces it; it lasts as long as any ticket. For a player inside, the server lets them back in without
+    /// moving gear again (<see cref="JoinAsync"/>). A client still holding a redeemed ticket gets back in too:
+    /// presenting it again replays the stored answer.
+    /// </summary>
+    private async Task<ServerResponse> ReissueTicketAsync(SqliteConnection c, SqliteTransaction tx, string playerId, string raidId, DateTimeOffset nowValue)
+    {
+        var raid = await GetRaidAsync(c, tx, raidId);
+        var server = raid is not null ? _servers.Find(raid.ServerId) : null;
+        if (raid is null || !IsLive(raid.State) || server is null)
+        {
+            // Settling as we speak (or its server left the configuration): the gear comes back when it's resolved.
+            return ServerResponse.Error(409, "already_in_raid", "Your gear is in a raid that's ending. It comes back, or doesn't, once that's settled.", new { RaidId = raidId });
+        }
+
+        var participant = (await GetParticipantAsync(c, tx, raidId, playerId))!;
+        var token = Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(32));
+        var expires = nowValue.AddSeconds(_options.TicketSeconds);
+        await c.ExecuteAsync(
+            "UPDATE raid_participants SET join_token_hash = @hash, ticket_expires_at = @expires WHERE raid_id = @raidId AND player_id = @playerId",
+            new { hash = HashJoinToken(token), expires = Timestamps.Format(expires), raidId, playerId }, transaction: tx);
+
+        if (participant.State == ParticipantStates.Ticketed)
+        {
+            // Nobody may have joined yet: keep the raid alive for the new ticket, as for any ticket.
+            await c.ExecuteAsync(
+                "UPDATE raids SET lease_expires_at = @lease WHERE id = @raidId AND state = 'pending' AND lease_expires_at < @lease",
+                new { raidId, lease = Timestamps.Format(expires.AddSeconds(_options.LeaseSeconds)) }, transaction: tx);
+        }
+
+        _log.LogInformation("Player {PlayerId} got a new ticket back into raid {RaidId} ({State}).", playerId, raidId, participant.State);
+        return ServerResponse.Json(200, new TicketResponse(raidId, new ServerAddress(server.Host, server.Port), token, expires, Rejoin: true));
     }
 
     private async Task<(string RaidId, GameServerOptions Server, bool Rejoining)?> FindOrOpenRaidAsync(

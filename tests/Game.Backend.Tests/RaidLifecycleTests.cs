@@ -36,21 +36,72 @@ public sealed class RaidLifecycleTests : IDisposable
     }
 
     [Fact]
-    public async Task Ticket_LocksTheStashAndRefusesASecondTicket()
+    public async Task Ticket_LocksTheStash_AndASecondOneIsForTheSameRaid()
     {
         await _f.StartAsync();
         var sam = await _f.PlayerAsync("Sam");
-        var (raidId, _) = await _f.TicketAsync(sam);
+        var (raidId, firstToken) = await _f.TicketAsync(sam);
         var profile = await _f.ProfileAsync(sam);
 
         var second = await _f.Raids.CreateTicketAsync(sam, Map);
         var edit = await _f.Stash.ApplyAsync(sam, profile.ProfileVersion, [InventoryOp.Discard(profile.Stash.Children[0].Id)]);
 
-        Assert.Equal(409, second.StatusCode);
-        Assert.Equal("already_in_raid", Error(second));
+        Assert.Equal(200, second.StatusCode);
         Assert.Equal(raidId, Body(second).GetProperty("raid_id").GetString());
+        Assert.True(Body(second).GetProperty("rejoin").GetBoolean());
         Assert.Equal(StashOpsStatus.InRaid, edit.Status);
         Assert.Equal(raidId, edit.RaidId);
+
+        // The client that asked first may be gone: the new ticket replaces its one.
+        Assert.Equal("invalid_join_token", Error(await _f.JoinAsync(raidId, firstToken)));
+        Assert.Equal(200, (await _f.JoinAsync(raidId, Body(second).GetProperty("join_token").GetString()!)).StatusCode);
+        Assert.Equal(1, await _f.Db.ReadAsync(c => c.ExecuteScalarAsync<long>("SELECT COUNT(*) FROM ledger_entries WHERE kind = 'checkout'")));
+    }
+
+    [Fact]
+    public async Task APlayerInsideARaid_CanGetBackIn_WithoutTheirGearMovingAgain()
+    {
+        await _f.StartAsync();
+        var sam = await _f.PlayerAsync("Sam");
+        var (raidId, token) = await _f.TicketAsync(sam);
+        Assert.Equal(200, (await _f.JoinAsync(raidId, token)).StatusCode);
+        var inside = await _f.ProfileAsync(sam);
+
+        // Their game crashed: a new ticket, for the same raid, from a client that never saw the first.
+        _f.Time.Now = _f.Time.Now.AddMinutes(5);
+        var again = await _f.Raids.CreateTicketAsync(sam, Map);
+        Assert.Equal(200, again.StatusCode);
+        Assert.Equal(raidId, Body(again).GetProperty("raid_id").GetString());
+        Assert.True(Body(again).GetProperty("rejoin").GetBoolean());
+        var newToken = Body(again).GetProperty("join_token").GetString()!;
+        Assert.NotEqual(token, newToken);
+
+        var back = await _f.JoinAsync(raidId, newToken);
+
+        Assert.Equal(200, back.StatusCode);
+        Assert.Equal(sam, Body(back).GetProperty("player_id").GetString());
+        Assert.Equal(1, await _f.Db.ReadAsync(c => c.ExecuteScalarAsync<long>("SELECT COUNT(*) FROM ledger_entries WHERE kind = 'checkout'")));
+        Assert.Equal(inside.ProfileVersion, (await _f.ProfileAsync(sam)).ProfileVersion); // nothing moved
+        Assert.Equal("in_raid", await _f.Db.ReadAsync(c => c.ExecuteScalarAsync<string>("SELECT state FROM raid_participants WHERE raid_id = @raidId", new { raidId })));
+
+        // Each ticket gets them in once, and the new one replaced the old.
+        Assert.Equal("already_joined", Error(await _f.JoinAsync(raidId, newToken, key: "another-key")));
+        Assert.Equal("invalid_join_token", Error(await _f.JoinAsync(raidId, token, key: "and-another")));
+    }
+
+    [Fact]
+    public async Task ARejoinTicket_RunsOutLikeAnyOther()
+    {
+        await _f.StartAsync();
+        var sam = await _f.PlayerAsync("Sam");
+        var (raidId, token) = await _f.TicketAsync(sam);
+        Assert.Equal(200, (await _f.JoinAsync(raidId, token)).StatusCode);
+        var again = await _f.Raids.CreateTicketAsync(sam, Map);
+
+        _f.Time.Now = _f.Time.Now.AddSeconds(61);
+
+        Assert.Equal("already_joined", Error(await _f.JoinAsync(raidId, Body(again).GetProperty("join_token").GetString()!)));
+        Assert.Equal(200, (await _f.Raids.CreateTicketAsync(sam, Map)).StatusCode); // and another can be had
     }
 
     [Fact]

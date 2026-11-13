@@ -161,7 +161,15 @@ namespace RaidZero.Net
 
                 if (_connectionOf.TryGetValue(joined.PlayerId, out var existing) && existing != connection && existing.IsActive)
                 {
-                    return (false, "already_connected", "This player is already connected to the raid.");
+                    // Their game crashed or lost its connection and came back before the old one timed out. The
+                    // ticket proves it's them, so the new connection takes over and the old one goes (its
+                    // character with it; they spawn afresh, as on any rejoin).
+                    Debug.Log("[raid] " + joined.PlayerId + " came back on a new connection; closing the old one.");
+                    _playerOf.Remove(existing);
+                    _welcome.Remove(existing);
+                    _disconnectAt.Remove(existing);
+                    _extraction?.Forget(joined.PlayerId);
+                    existing.Disconnect(true);
                 }
 
                 _playerOf[connection] = joined.PlayerId;

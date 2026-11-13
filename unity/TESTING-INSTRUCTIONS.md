@@ -247,6 +247,13 @@ right shows the same as text):
 3. With two clients, the raid keeps going after one extracts, and ends once the other extracts too.
 4. Letting the clock run out with a client inside shows the "Missing in action" card, and the server stops.
 5. Disconnecting every client (and not coming back) ends the raid after 3 minutes.
+6. **Rejoining after a crash:** in a raid, pick something up, then kill the game (stop play mode, or end the
+   `.exe` from Task Manager) and start it again. The Hideout says your gear is still in a raid and the button
+   says **Rejoin**: it gets you back into the same raid ("Rejoining your raid at ..."), with what you picked up
+   and the raid clock where it was. The same works from the other computer as the same player, and after Quit
+   in the escape menu. If the old connection hadn't timed out yet, the server closes it as you come back
+   (`[raid] ... came back on a new connection` in its log). A raid that has already ended isn't rejoinable: its
+   outcome is what you get.
 
 In each case, `GET /v1/me/raids/{raid_id}` on the backend (or the admin tool) shows the outcome: extracted,
 or died for missing in action.

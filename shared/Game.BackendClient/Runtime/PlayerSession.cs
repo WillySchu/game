@@ -207,7 +207,8 @@ namespace RaidZero.BackendApi
                 (string)json["join_token"],
                 (string)json["server"]?["host"],
                 (int?)json["server"]?["port"] ?? 0,
-                (DateTimeOffset?)json["expires_at"] ?? DateTimeOffset.UtcNow);
+                (DateTimeOffset?)json["expires_at"] ?? DateTimeOffset.UtcNow,
+                (bool?)json["rejoin"] ?? false);
             await RefreshAsync(cancellationToken);
             return new PlayerResult<RaidTicketInfo>(ticket, null, null, null);
         }

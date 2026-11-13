@@ -46,14 +46,21 @@ namespace RaidZero.BackendApi
     /// <summary>A place in a raid: which server to connect to, and the token to present when connecting.</summary>
     public sealed class RaidTicketInfo
     {
-        public RaidTicketInfo(string raidId, string joinToken, string serverHost, int serverPort, DateTimeOffset expiresAt)
+        public RaidTicketInfo(string raidId, string joinToken, string serverHost, int serverPort, DateTimeOffset expiresAt, bool rejoin = false)
         {
             RaidId = raidId;
             JoinToken = joinToken;
             ServerHost = serverHost;
             ServerPort = serverPort;
             ExpiresAt = expiresAt;
+            Rejoin = rejoin;
         }
+
+        /// <summary>
+        /// A way back into a raid the player is already in (they dropped out: a crash, quitting, a lost connection),
+        /// rather than into a new one. Their gear is still in it, wherever they left it.
+        /// </summary>
+        public bool Rejoin { get; }
 
         public string RaidId { get; }
 

@@ -354,12 +354,22 @@ POST /v1/me/raid-tickets
   "raid_id": "0192...r1",
   "server": { "host": "100.64.0.7", "port": 7770 },
   "join_token": "opaque-random-string",
-  "expires_at": "2026-10-26T20:15:00Z"
+  "expires_at": "2026-10-26T20:15:00Z",
+  "rejoin": false                         // true: a way back into the raid the player's gear is already in
 }
-409 { "error": "already_in_raid", "raid_id": "0192...r0" }
+409 { "error": "already_in_raid", "raid_id": "0192...r0" }   // their raid is ending: nothing to rejoin
 409 { "error": "version_mismatch", "servers": ["8d21...07"], "message": "..." }  // update the game
 503 { "error": "no_server_available", "message": "..." }
 ```
+
+**Rejoining.** A player whose gear is already in a live raid (they joined and dropped out: a crash, quitting, a
+lost connection; or they hold an unused ticket) gets a ticket back into that raid, with `rejoin: true`, from any
+client. Only a hash of each join token is kept, so the old token can't be handed out again: the new one replaces
+it, and lasts as long as any ticket. When the game server redeems it for a player already inside, nothing moves:
+the answer is who they are, and the server puts them back with their gear as they left it (a connection of
+theirs still open, from before a crash, is closed). Joining uses a ticket up, so each ticket gets a player in
+once; a client still holding a redeemed ticket gets back in too, as presenting it again replays the stored
+answer. Only a raid that's already ending answers `already_in_raid`.
 
 The backend picks a configured game server (`Servers` in its settings) and creates or joins the raid row
 itself. A matchmaking queue can later sit behind this same idea without the game server changing (see the
@@ -660,7 +670,8 @@ raids should start full and all at once, or when players need sorting (squads, r
 - [x] Currency as an item, or a separate balance once traders exist? An item: money stays lootable and losable,
   at the cost of stash space.
 - [x] Disconnects: a disconnected player's character leaves the world but its gear stays in the raid. They can
-  rejoin with the same ticket until the raid ends; still out at the end means missing in action.
+  rejoin until the raid ends, from any client (a new ticket for the same raid); still out at the end means missing
+  in action.
 - [x] Aborted raids: only players still inside are refunded; those who died stay dead, as designed.
 - [x] Grid inventory or slots: Tarkov-style grids, plus named slots and named grids (pockets).
 - [x] Backend language and framework: ASP.NET Core on .NET 10, SQLite through Dapper.

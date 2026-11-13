@@ -170,8 +170,11 @@ public class PlayerSessionApiTests
 
         var locked = await session.ApplyAsync([InventoryOp.Move(StashItem(session, "medkit_basic").Id, InventoryTarget.Grid(session.Profile.Stash.Id, 9, 29))]);
         Assert.Equal(("in_raid", ticket.Value.RaidId), (locked.Error, locked.RaidId));
-        var again = await session.RequestTicketAsync("greybox_01");
-        Assert.Equal(("already_in_raid", ticket.Value.RaidId), (again.Error, again.RaidId));
+        Assert.False(ticket.Value.Rejoin);
+        var again = await session.RequestTicketAsync("greybox_01"); // as after a crash: the same raid, a new token
+        Assert.True(again.Succeeded, again.ToString());
+        Assert.Equal((ticket.Value.RaidId, true), (again.Value.RaidId, again.Value.Rejoin));
+        ticket = again;
 
         // The game server lets them in, and they die.
         var outbox = Path.Combine(Path.GetTempPath(), "raidzero-tests", "outbox-" + Guid.NewGuid().ToString("N"));
@@ -181,6 +184,16 @@ public class PlayerSessionApiTests
             server.Start();
             var joined = await server.JoinAsync(ticket.Value.RaidId, ticket.Value.JoinToken);
             Assert.True(joined.Succeeded, joined.ToString());
+            Assert.False(joined.IsReconnect);
+
+            // Their game crashes and starts again, knowing nothing of the ticket: a new one gets them back in.
+            var back = await session.RequestTicketAsync("greybox_01");
+            Assert.True(back.Succeeded && back.Value.Rejoin, back.ToString());
+            var rejoined = await server.JoinAsync(back.Value.RaidId, back.Value.JoinToken);
+            Assert.True(rejoined.Succeeded, rejoined.ToString());
+            Assert.True(rejoined.IsReconnect);
+            Assert.Equal(joined.PlayerId, rejoined.PlayerId);
+
             var pending = await session.GetRaidResultAsync(ticket.Value.RaidId);
             Assert.False(pending.Value.IsFinished);
 

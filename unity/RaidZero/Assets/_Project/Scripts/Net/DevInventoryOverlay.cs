@@ -231,8 +231,8 @@ namespace RaidZero.Net
 
                 var deployed = await Hideout.DeployAsync(networkManager, DevSettings.MapId);
 
-                // This dev player is still in a raid this client has no ticket for (the editor forgot it, or it
-                // was another machine's). Dev players are throwaway, so deploy as a fresh one instead of waiting.
+                // This dev player's gear is in a raid that's ending (or the backend is older and doesn't hand out
+                // rejoin tickets). Dev players are throwaway, so deploy as a fresh one instead of waiting.
                 if (deployed.Error == "already_in_raid")
                 {
                     Debug.Log("[raid] This dev player is still in raid " + deployed.RaidId + "; deploying as a new dev player.");

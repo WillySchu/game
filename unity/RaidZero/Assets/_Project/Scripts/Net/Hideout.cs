@@ -127,8 +127,9 @@ namespace RaidZero.Net
 
         /// <summary>
         /// Goes into a raid: asks the backend for a ticket on this map, then connects to the server the ticket
-        /// names, which redeems it (RaidAuthenticator). If the player is still in the raid this client last
-        /// deployed to (they disconnected), it rejoins that raid with the same ticket instead. Load the raid
+        /// names, which redeems it (RaidAuthenticator). If the player's gear is still in a raid (they disconnected,
+        /// their game crashed, or they quit), the backend's ticket is a way back into that raid, from any client.
+        /// An older backend refuses instead (already_in_raid); then the ticket this client last used rejoins. Load the raid
         /// scene however the game does it once the connection is up. If the server turns the ticket down,
         /// RaidAuthenticator.JoinAnswered says why. The ticket carries this build's network code, so the backend
         /// only picks a server running the same (version_mismatch if none does).
@@ -141,7 +142,7 @@ namespace RaidZero.Net
             if (requested.Succeeded)
             {
                 ticket = requested.Value;
-                rejoining = false;
+                rejoining = ticket.Rejoin; // still in a raid: the backend gave a way back into it
             }
             else if (requested.Error == "already_in_raid" && LastTicket != null && LastTicket.RaidId == requested.RaidId)
             {

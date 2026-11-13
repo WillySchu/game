@@ -18,6 +18,7 @@ public sealed partial class RaidService
     /// POST /v1/server/raids/{raid_id}/join. The game server redeems a player's join token when they connect,
     /// and this is when their gear actually leaves home. In one transaction: everything under the character
     /// moves into the raid's pool, the loadout is snapshotted for refunds, and the raid becomes active.
+    /// A fresh ticket for a player already inside (a rejoin) moves nothing and answers with who they are.
     /// </summary>
     public Task<ServerResponse> JoinAsync(string serverId, string raidId, string idempotencyKey, string requestHash, JoinRequest request, CancellationToken ct = default) =>
         Idempotency.RunAsync(_db, serverId, idempotencyKey, requestHash, _time, async (c, tx) =>
@@ -58,7 +59,22 @@ public sealed partial class RaidService
 
             if (participant.State == ParticipantStates.InRaid)
             {
-                return ServerResponse.Error(409, "already_joined", "This player already joined the raid.");
+                // Coming back (a crash, a restart): a ticket from CreateTicketAsync to a player already inside.
+                // Their gear is in the raid already, so nothing moves; the answer is who they are. The ticket
+                // they joined with is used up (joining ends it), so presenting that one again is refused.
+                if (string.CompareOrdinal(participant.TicketExpiresAt, now) <= 0)
+                {
+                    return ServerResponse.Error(409, "already_joined", "This player already joined the raid with that ticket. A new one gets them back in.");
+                }
+
+                var returning = (await GetPlayerAsync(c, tx, participant.PlayerId))!;
+                var snapshot = string.IsNullOrEmpty(participant.LoadoutSnapshot)
+                    ? null
+                    : JsonSerializer.Deserialize<ItemNode>(participant.LoadoutSnapshot, JsonDefaults.Options);
+                await c.ExecuteAsync(
+                    "UPDATE raid_participants SET ticket_expires_at = @now WHERE raid_id = @raidId AND player_id = @playerId",
+                    new { now, raidId, playerId = returning.Id }, transaction: tx);
+                return ServerResponse.Json(200, new JoinResponse(returning.Id, returning.DisplayName, snapshot ?? new ItemNode { Id = returning.CharacterRootId, DefId = "character" }));
             }
 
             if (participant.State != ParticipantStates.Ticketed || string.CompareOrdinal(participant.TicketExpiresAt, now) <= 0)
@@ -88,8 +104,9 @@ public sealed partial class RaidService
                     new { topLevel }, transaction: tx);
             }
 
+            // Joining uses the ticket up (ticket_expires_at = now): only a new one gets them back in.
             await c.ExecuteAsync(
-                "UPDATE raid_participants SET state = 'in_raid', joined_at = @now, loadout_snapshot = @snapshot WHERE raid_id = @raidId AND player_id = @playerId",
+                "UPDATE raid_participants SET state = 'in_raid', joined_at = @now, ticket_expires_at = @now, loadout_snapshot = @snapshot WHERE raid_id = @raidId AND player_id = @playerId",
                 new { now, snapshot = JsonSerializer.Serialize(character, JsonDefaults.Options), raidId, playerId = player.Id }, transaction: tx);
 
             // From the first join on, the server owns the raid and its lease runs on heartbeats. The longer lease
