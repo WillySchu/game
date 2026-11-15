@@ -33,6 +33,9 @@ namespace RaidZero.Shared.Raid
 
         /// <summary>The client sent requests faster than the server accepts them. Nothing was done.</summary>
         public const string RateLimited = "rate_limited";
+
+        /// <summary>The server tried to fire a gun with nothing loaded, or no gun. Never sent to a client.</summary>
+        public const string NoRoundsLoaded = "no_rounds_loaded";
     }
 
     /// <summary>

@@ -245,7 +245,10 @@ The key in `appsettings.Development.json` is for local runs only. Real deploymen
   pile, which disappears once someone empties it. `Kill` turns a character into a body anyone can open.
   `Extract` hands back the tree for `BackendClient.ReportExtracted`.
 - `Consume` uses up rounds and medkits. It's a method on `InventoryTree`, not an op, so no client request can
-  ever ask for it, and it changes the node in place because it runs on every shot.
+  ever ask for it, and it changes the node in place because it runs on every shot. For guns, `LoadedRounds`
+  counts the rounds in the gun in a slot (magazine plus chamber) and `FireRound` fires one: from the magazine
+  while it has any, then the chambered round, which counts the same as chambering each round without moving
+  one on every shot.
 - Every change returns updates: for each player who can see a changed container, its new contents. Send
   whole containers to clients rather than item diffs; they're small, and clients just replace their view.
 
@@ -338,7 +341,10 @@ The key in `appsettings.Development.json` is for local runs only. Real deploymen
   `RaidInventoryClient` is the client's end, with the `View` the inventory screen draws from.
 - Fish-Net's latency simulator (100 ms, 2% loss) is on the NetworkManager's Transport Manager. Its Enabled box
   (ticked in the prefab) decides in the editor; `NetworkConditions` turns it off in builds unless they're started with `--simulate-lag`.
-- Gameplay calls `RaidServer.PlayerDied`, `Consume` and `InterruptExtraction` (on damage). Levels place
+- Gameplay calls `RaidServer.PlayerDied`, `LoadedRounds`, `FireRound`, `Consume` and `InterruptExtraction` (on
+  damage), through `RaidServer.Instance` (on the server only). The player controller counts what's loaded from
+  the server's inventory every tick and fires with `FireRound`; clients only predict the count from the
+  reconcile, as their copy of the gear lags up to a second behind shots. Levels place
   `ExtractionZone`s, and crates carry a `LootContainer`; bodies register in `ContainerRegistry` so the server
   can check reach.
 - Items on the ground are `GroundItem`s (on the `DroppedItem` prefab, one per pile, carrying the pile, item and

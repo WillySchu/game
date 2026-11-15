@@ -119,15 +119,17 @@ namespace RaidZero.Shared
 
         // Locking this to primary but at some point will implement weapon switching.
         private string _heldSlot = SlotNames.Primary;
-        // Ammo count derived from chambered round + magazine count.
+        // What's loaded: the magazine's rounds plus the chambered one. The server counts it from its own inventory
+        // every tick; clients only predict from it (counting down as they fire), and the reconcile corrects them.
         private ItemNode _heldWeaponItem;
         private int ammoCount;
         private int selectedFireMode = 0;
         private float timeSinceLastShot = Mathf.Infinity;
 
         private WeaponStats heldWeaponStats;
-        private AmmoStats chamberedAmmoStats;
+        private AmmoStats chamberedAmmoStats; // the round the next shot fires: the magazine's, then the chamber's
         private MagazineStats loadedMagazineStats;
+        private bool _listeningToInventory;
         private PlayerReplicatedData lastReplicatedData = default;
         private uint predictionLimit = 3;
         
@@ -140,9 +142,13 @@ namespace RaidZero.Shared
         public override void OnStartServer()
         {
             _baseSeed.Value = (uint)Random.Range(int.MinValue, int.MaxValue);
+            ResetRandom();
         }
+
         public override void OnStartClient()
         {
+            // Every copy of the player needs the same random numbers as the server's, not just the owner's.
+            ResetRandom();
             if (!IsOwner) return;
             // Enable the PlayerInput component for the local player
             GetComponent<PlayerInput>().enabled = true;
@@ -156,17 +162,32 @@ namespace RaidZero.Shared
             Cursor.lockState = CursorLockMode.Locked;
             currentMoveSpeed = walkSpeed;
 
-            _random = new Utils.SyncedRandom(_baseSeed.Value);
-
-            RaidInventoryClient.Instance.View.ContainerChanged += OnContainerChanged;
+            // The gun in hand, for its stats; the server reads its own inventory instead (RefreshFromServer).
+            var inventory = RaidInventoryClient.Instance;
+            if (inventory != null)
+            {
+                inventory.View.ContainerChanged += OnContainerChanged;
+                _listeningToInventory = true;
+                if (!IsServerStarted && inventory.View.Character != null)
+                {
+                    ReadHeldWeapon(inventory.View.Character.Root);
+                }
+            }
         }
+
+        private void ResetRandom() => _random = new Utils.SyncedRandom(_baseSeed.Value);
 
         // The camera is the scene's, borrowed while this player is ours. Give it back before the player is
         // destroyed (extracting, dying, disconnecting) so the client still has a camera even if their player has died.
         public override void OnStopClient()
         {
             base.OnStopClient();
-            RaidInventoryClient.Instance.View.ContainerChanged -= OnContainerChanged;
+            if (_listeningToInventory && RaidInventoryClient.Instance != null)
+            {
+                RaidInventoryClient.Instance.View.ContainerChanged -= OnContainerChanged;
+            }
+
+            _listeningToInventory = false;
             if (_heldCamera != null && _heldCamera.transform.IsChildOf(transform))
             {
                 _heldCamera.transform.SetParent(null, true);
@@ -179,8 +200,6 @@ namespace RaidZero.Shared
         {
             base.TimeManager.OnTick += OnTick;
             base.TimeManager.OnPostTick += OnPostTick;
-
-            UpdateHeldItemStats();
         }
 
         public override void OnStopNetwork()
@@ -240,70 +259,50 @@ namespace RaidZero.Shared
 
         private void OnContainerChanged(ContainerView changed)
         {
-            if(changed.Kind != RootKind.Character) return;
-            // Have the client grab a fresh copy of the held item stats when we recieve a change.
-            // Not strictly needed until we have visuals to change on inventory swap.
-            UpdateHeldItemStats();
+            // Not on a host, whose server side reads the live inventory every tick anyway.
+            if (changed.Kind != RootKind.Character || IsServerStarted) return;
+            // A fresh copy of the gun's stats when our gear changes. Not the ammo count: the copy lags up to a
+            // second behind shots, so the count comes from the reconcile.
+            ReadHeldWeapon(changed.Root);
         }
-        // Pull stats from the weapon held in hands.
-        private void UpdateHeldItemStats()
+
+        // Server only, each tick: the gun in hand and what's loaded, from the server's own inventory, so reloads,
+        // swapped magazines and spent rounds count straight away. The reconcile then carries the count to the client.
+        private void RefreshFromServer()
         {
-            ammoCount = 0;
-            ItemNode character = null;
-            if (IsOwner)
+            var raid = RaidServer.Instance;
+            if (raid == null || !raid.IsRunning)
             {
-                if(RaidInventoryClient.Instance.View.Character != null)
-                {
-                    character = RaidInventoryClient.Instance.View.Character.Root;
-                }
+                ReadHeldWeapon(null);
+                ammoCount = 0;
+                return;
             }
-            else if (IsServerStarted)
+
+            ReadHeldWeapon(raid.Inventory.Find(raid.CharacterIdOf(Owner)));
+            ammoCount = raid.LoadedRounds(Owner, _heldSlot);
+        }
+
+        // The stats of the gun in hand, its magazine and the round it fires next. Everything is cleared first, so
+        // nothing lingers from a gun that's no longer in hand. Null character: no gun.
+        private void ReadHeldWeapon(ItemNode character)
+        {
+            _heldWeaponItem = character?.ChildInSlot(_heldSlot);
+            heldWeaponStats = StatsOf<WeaponStats>(_heldWeaponItem);
+            var magazine = _heldWeaponItem?.ChildInSlot(SlotNames.Magazine);
+            loadedMagazineStats = StatsOf<MagazineStats>(magazine);
+            chamberedAmmoStats = StatsOf<AmmoStats>(magazine?.ChildInSlot(SlotNames.Rounds) ?? _heldWeaponItem?.ChildInSlot(SlotNames.Chamber));
+        }
+
+        // An item's stats from its asset, or null: no item, no asset, no stats, or stats of another kind.
+        private static T StatsOf<T>(ItemNode item) where T : class, IItemStats
+        {
+            if (item == null || ItemLibrary.Instance == null)
             {
-                // Grab directly from the RaidServer inventory. Added an Instance variable to RaidServer for this, we can remove it if we don't want to do that.
-                string characterInventoryId = RaidServer.Instance.CharacterIdOf(Owner);
-                character = RaidServer.Instance.Inventory.Find(characterInventoryId);
+                return null;
             }
-            if (character != null)
-            {
-                ItemNode heldItem = character.ChildInSlot(_heldSlot);
-                if (heldItem != null)
-                {
-                    _heldWeaponItem = heldItem;
-                    ItemDefinitionAsset itemDef = ItemLibrary.Instance.Find(heldItem.DefId);
-                    if(itemDef.Stats.itemType == ItemTags.Weapon)
-                    {
-                        heldWeaponStats = (WeaponStats) itemDef.Stats;
-                    }
 
-                    // Replace with SlotNames reference once that's updated on backend.
-                    ItemNode chamber = heldItem.ChildInSlot("chamber");
-                    if(chamber != null)
-                    {
-                        ItemDefinitionAsset chamberDef = ItemLibrary.Instance.Find(chamber.DefId);
-                        if(chamberDef.Stats.itemType == ItemTags.Ammo)
-                        {
-                            chamberedAmmoStats = (AmmoStats) chamberDef.Stats;
-                            ammoCount++;
-                        }
-                    }
-                    ItemNode magazine = heldItem.ChildInSlot(SlotNames.Magazine);
-                    if(magazine != null)
-                    {
-                        ItemDefinitionAsset magazineDef = ItemLibrary.Instance.Find(magazine.DefId);
-                        if(magazineDef.Stats.itemType == ItemTags.Magazine)
-                        {
-                            loadedMagazineStats = (MagazineStats) magazineDef.Stats;
-                        }
-
-                        ItemNode magazineAmmo = magazine.ChildInSlot(SlotNames.Rounds);
-                        if(magazineAmmo != null)
-                        {
-                            ammoCount += magazineAmmo.Quantity;
-                        }
-
-                    }
-                }
-            }
+            var asset = ItemLibrary.Instance.Find(item.DefId);
+            return asset != null ? asset.Stats as T : null;
         }
 
         private PlayerReplicatedData GetReplicatedData()
@@ -326,7 +325,11 @@ namespace RaidZero.Shared
             float deltaTime = (float)base.TimeManager.TickDelta;
             _random.Sync(data.GetTick());
             timeSinceLastShot += deltaTime;
-        
+            if (IsServerStarted)
+            {
+                RefreshFromServer();
+            }
+
             bool skipUpdate = false;
 
             // Collect data and run predictions if you are a client but not the owner.
@@ -449,15 +452,16 @@ namespace RaidZero.Shared
             wasGroundedLastFrame = _characterController.isGrounded;
 
             // Gun Handling
-            if(data.fireModeInput)
+            int fireModeCount = heldWeaponStats?.fireModes?.Count ?? 0;
+            if (data.fireModeInput && fireModeCount > 0)
             {
-                selectedFireMode = (selectedFireMode + 1) % heldWeaponStats.fireModes.Count;
-                Debug.Log("Switched fire mode to " + heldWeaponStats.fireModes[selectedFireMode]);
+                selectedFireMode = (selectedFireMode + 1) % fireModeCount;
+                if (!state.IsReplayed()) Debug.Log("Switched fire mode to " + heldWeaponStats.fireModes[selectedFireMode]);
             }
 
             if (data.fireInput)
             {
-                Fire();
+                Fire(state, deltaTime);
             }
             else
             {
@@ -465,47 +469,51 @@ namespace RaidZero.Shared
             }
         }
 
-        private void Fire()
+        private void Fire(ReplicateState state, float deltaTime)
         {
-            // Make sure our weapon stats are up to date:
-            UpdateHeldItemStats();
-            // If there isn't a weapon in hand, can't shoot.
-            if (heldWeaponStats == null) return;
+            // No gun in hand, or one whose stats aren't filled in: nothing to fire.
+            int fireModeCount = heldWeaponStats?.fireModes?.Count ?? 0;
+            if (fireModeCount == 0 || heldWeaponStats.roundsPerMinute <= 0f) return;
+            // A gun with fewer fire modes than the last one.
+            if (selectedFireMode < 0 || selectedFireMode >= fireModeCount) selectedFireMode = 0;
+
             FireMode fireMode = heldWeaponStats.fireModes[selectedFireMode];
             float shotInterval = 60f / heldWeaponStats.roundsPerMinute;
             // Handle Single shot mode
             if (fireMode == FireMode.Single)
             {
                 if (!triggerReleasedSinceFire) return;
-                shotInterval = 60f / semiAutoRoundsPerMinute;
-            }
-            if (timeSinceLastShot > shotInterval)
-            {
-                timeSinceLastShot = 0f;
-                
-                if (ammoCount <= 0) return;
-                ammoCount--;
-
-                // Server actually attempts to consume ammo.
-                if (IsServerStarted)
-                {
-                    // Consume ammo from magazine or chamber, fail if none (though ammoCount should be up to date and should have stopped us from getting here).
-                    // TODO: Replace this directly calling Consume with new functions.
-                    ItemNode ammoStack = _heldWeaponItem.ChildInSlot(SlotNames.Magazine)?.ChildInSlot(SlotNames.Rounds) ?? _heldWeaponItem.ChildInSlot("chamber");
-                    if(ammoStack == null) return;
-                    RaidServer.Instance.Consume(Owner, ammoStack.Id, 1);
-                }
-                // Pew Pew
-                Debug.Log("Pew Pew! " + ammoCount + " left.");
-                triggerReleasedSinceFire = false;
-                
-            }
-            else
-            {
-                Debug.Log("Not ready to fire");
+                // No faster than a finger can go, and no faster than the gun itself fires.
+                shotInterval = Mathf.Max(shotInterval, 60f / semiAutoRoundsPerMinute);
             }
 
+            if (timeSinceLastShot < shotInterval)
+            {
+                if (!state.IsReplayed()) Debug.Log("Not ready to fire");
+                return;
+            }
+
+            // Keep the time left over, so the rate isn't rounded to whole ticks (650 RPM at 60 ticks a second is a
+            // shot every 5.5 ticks, not 6). More than a tick left over means the trigger wasn't held: start afresh,
+            // so time spent not firing isn't banked as a burst.
+            float leftOver = timeSinceLastShot - shotInterval;
+            timeSinceLastShot = leftOver < deltaTime ? leftOver : 0f;
+
+            if (ammoCount <= 0) return;
+
+            // The server fires the real round, from its own inventory: the magazine's, then the chambered one.
+            if (IsServerStarted && (RaidServer.Instance == null || RaidServer.Instance.FireRound(Owner, _heldSlot) == null))
+            {
+                ammoCount = 0; // nothing there after all; it's counted again next tick
+                return;
+            }
+
+            ammoCount--;
+            triggerReleasedSinceFire = false;
+            // Pew Pew. Only the first time a tick runs: a client replays ticks after each reconcile.
+            if (!state.IsReplayed()) Debug.Log("Pew Pew! " + ammoCount + " left.");
         }
+
         public void OnPostTick()
         {
             

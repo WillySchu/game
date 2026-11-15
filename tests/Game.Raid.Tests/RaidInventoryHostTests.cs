@@ -241,6 +241,24 @@ public class RaidInventoryHostTests
     }
 
     [Fact]
+    public void FiringRounds_HoldsTheViewBackLikeConsuming()
+    {
+        var (sam, loadout) = Join("sam");
+        var rounds = loadout.Children[0].Children[0].Children[0].Id;
+
+        Assert.Equal("ammo", _host.FireRound("sam", "primary", 1.0));
+        Assert.Equal("ammo", _host.FireRound("sam", "primary", 1.1));
+        Assert.Equal(28, _host.LoadedRounds("sam", "primary"));   // the server's count is current at once
+        Assert.Empty(_host.Tick(1.5).Messages);
+
+        Deliver(_host.Tick(2.0));
+
+        Assert.Equal(28, sam.Character.Root.Walk().Single(n => n.Id == rounds).Quantity);
+        Assert.Null(_host.FireRound("sam", "backpack", 3.0));      // not a gun: nothing fired, nothing held back
+        Assert.Empty(_host.Tick(10.0).Messages);
+    }
+
+    [Fact]
     public void ARequestAfterShooting_CarriesTheLatestGear_SoNothingWaits()
     {
         var (sam, loadout) = Join("sam");

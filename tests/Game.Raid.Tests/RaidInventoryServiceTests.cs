@@ -357,6 +357,76 @@ public class RaidInventoryServiceTests
         AssertRefused(_raid.Consume("sam", gpu.Id, 1), InventoryErrorCodes.ItemNotFound);
     }
 
+    private ItemNode JoinWithChamberedRound(string playerId)
+    {
+        var loadout = Loadout();
+        loadout.Children[0].Children.Add(Node("ammo", "chamber"));
+        Assert.True(_raid.AddPlayer(playerId, loadout));
+        return loadout;
+    }
+
+    [Fact]
+    public void LoadedRounds_CountsTheMagazineAndTheChamber()
+    {
+        JoinWithChamberedRound("sam");
+        Join("alex");
+
+        Assert.Equal(30, _raid.LoadedRounds("alex", SlotNames.Primary));
+        Assert.Equal(31, _raid.LoadedRounds("sam", SlotNames.Primary));
+        Assert.Equal(0, _raid.LoadedRounds("sam", SlotNames.Backpack));   // not a gun: nothing loaded
+        Assert.Equal(0, _raid.LoadedRounds("sam", "nonsense"));
+        Assert.Equal(0, _raid.LoadedRounds("sam", null!));
+        Assert.Equal(0, _raid.LoadedRounds("nobody", SlotNames.Primary));
+    }
+
+    [Fact]
+    public void FiringRounds_EmptiesTheMagazine_ThenTheChamber_ThenStops()
+    {
+        var sam = JoinWithChamberedRound("sam");
+        var rifle = sam.Children[0];
+        var rounds = rifle.Children[0].Children[0].Id;
+        var chambered = rifle.Children[1].Id;
+
+        var first = _raid.FireRound("sam", SlotNames.Primary, out var fired);
+
+        AssertOk(first);
+        Assert.Equal("ammo", fired);
+        Assert.Equal(sam.Id, Assert.Single(first.Updates).RootId);
+        Assert.Equal(29, _raid.Find(rounds)!.Quantity);
+        Assert.NotNull(_raid.Find(chambered));           // the chamber waits for the magazine to run dry
+
+        for (int shot = 0; shot < 29; shot++)
+        {
+            AssertOk(_raid.FireRound("sam", SlotNames.Primary, out _));
+        }
+
+        Assert.Null(_raid.Find(rounds));
+        Assert.Equal(1, _raid.LoadedRounds("sam", SlotNames.Primary));
+        AssertOk(_raid.FireRound("sam", SlotNames.Primary, out fired));
+        Assert.Equal("ammo", fired);
+        Assert.Null(_raid.Find(chambered));
+        Assert.Equal(0, _raid.LoadedRounds("sam", SlotNames.Primary));
+
+        AssertRefused(_raid.FireRound("sam", SlotNames.Primary, out fired), RaidInventoryErrorCodes.NoRoundsLoaded);
+        Assert.Null(fired);
+        Assert.NotNull(_raid.Find(rifle.Id));            // the gun and its magazine stay
+        Assert.NotNull(_raid.Find(rifle.Children[0].Id));
+    }
+
+    [Fact]
+    public void FiringRounds_WithoutAGun_OrOnceOut_IsRefused()
+    {
+        Join("sam");
+        Join("alex");
+        _raid.Kill("alex");
+
+        AssertRefused(_raid.FireRound("sam", SlotNames.Backpack, out var fired), RaidInventoryErrorCodes.NoRoundsLoaded);
+        AssertRefused(_raid.FireRound("sam", "nonsense", out fired), RaidInventoryErrorCodes.NoRoundsLoaded);
+        AssertRefused(_raid.FireRound("alex", SlotNames.Primary, out fired), RaidInventoryErrorCodes.PlayerNotActive);
+        AssertRefused(_raid.FireRound("nobody", SlotNames.Primary, out fired), RaidInventoryErrorCodes.PlayerNotActive);
+        Assert.Null(fired);
+    }
+
     // ---- Death and extraction ----
 
     [Fact]

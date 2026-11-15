@@ -86,9 +86,13 @@ namespace RaidZero.Shared.Inventory
 
             return copy;
         }
+        /// <summary>
+        /// The item in one of this item's named slots ("primary", "magazine", "chamber"), or null if it's empty.
+        /// Named slots hold one item at most; a grid holds many, and this returns only the first of them.
+        /// </summary>
         public ItemNode ChildInSlot(string slot)
         {
-            foreach(var node in Children)
+            foreach (var node in Children)
             {
                 if (node.Slot == slot)
                 {
@@ -99,8 +103,6 @@ namespace RaidZero.Shared.Inventory
             return null;
         }
     }
-
-    
 
     /// <summary>
     /// Slot names used across Unity and the backend. Change these only in a pull request that
@@ -117,5 +119,8 @@ namespace RaidZero.Shared.Inventory
         public const string Backpack = "backpack";
         public const string Magazine = "magazine";
         public const string Rounds = "rounds";
+
+        /// <summary>A gun's chambered round, fired after the magazine's.</summary>
+        public const string Chamber = "chamber";
     }
 }

@@ -154,9 +154,22 @@ namespace RaidZero.Raid
         /// <see cref="Tick"/> sends it within <see cref="RaidInventoryHostOptions.ConsumeViewDelay"/>, sooner
         /// if a request touches the same gear first. Show ammo counts from the weapon, not from the view.
         /// </summary>
-        public bool Consume(string playerId, string itemId, int quantity, double now)
+        public bool Consume(string playerId, string itemId, int quantity, double now) =>
+            HoldBack(_service.Consume(playerId, itemId, quantity), now);
+
+        /// <summary>How many rounds the gun in one of the player's slots has loaded (RaidInventoryService.LoadedRounds).</summary>
+        public int LoadedRounds(string playerId, string weaponSlot) => _service.LoadedRounds(playerId, weaponSlot);
+
+        /// <summary>
+        /// Fires one round from the gun in one of the player's slots (RaidInventoryService.FireRound), holding
+        /// back the view as <see cref="Consume"/> does. Returns what was fired, or null if nothing was.
+        /// </summary>
+        public string FireRound(string playerId, string weaponSlot, double now) =>
+            HoldBack(_service.FireRound(playerId, weaponSlot, out var ammoDefId), now) ? ammoDefId : null;
+
+        // A server decision's views wait for Tick, so firing doesn't resend the gear many times a second.
+        private bool HoldBack(RaidInventoryResult result, double now)
         {
-            var result = _service.Consume(playerId, itemId, quantity);
             if (!result.Success)
             {
                 return false;

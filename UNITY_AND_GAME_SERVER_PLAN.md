@@ -220,7 +220,7 @@ Hit markers are server-confirmed in Milestone 1. They arrive one round trip late
 
 ### Ammo and reloads
 
-Ammo is real inventory: the round count lives in the ammo stack inside the magazine item inside the weapon. A reload swaps the weapon's magazine for a loaded one from the rig. That ties gunplay to the economy from day one, and the extraction report already carries the result. `RaidServer.Consume` uses up rounds (or a medkit) from the player's raid inventory on the server.
+Ammo is real inventory: the round count lives in the ammo stack inside the magazine item inside the weapon. A reload swaps the weapon's magazine for a loaded one from the rig. That ties gunplay to the economy from day one, and the extraction report already carries the result. `RaidServer.Consume` uses up rounds (or a medkit) from the player's raid inventory on the server; for guns, `RaidServer.LoadedRounds` counts what the gun in a slot has loaded (magazine plus chamber) and `RaidServer.FireRound` fires one (the magazine's, then the chambered one), which the player controller calls on the server each shot.
 
 ### AI shooting
 
@@ -425,7 +425,7 @@ These must match exactly across Unity and the backend. Change them in one pull r
 - **IDs:** UUIDv7 strings. The server mints them for raid loot; the backend mints them for everything else.
   (Crates and other raid-only roots get name-derived IDs, the same on every machine, and never leave the raid.)
 - **Slot names:** one shared constants file (`SlotNames`: `primary`, `secondary`, `armor`, `rig`, `backpack`,
-  `magazine`, `rounds`). An item in a grid has the grid's name as its slot; a container's only grid is `grid`.
+  `magazine`, `rounds`, `chamber`). An item in a grid has the grid's name as its slot; a container's only grid is `grid`.
 - **`defId` values:** stable forever once an item has existed in anyone's stash. Rename the display name, never
   the ID.
 

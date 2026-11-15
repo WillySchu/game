@@ -389,6 +389,64 @@ namespace RaidZero.Raid
         }
 
         /// <summary>
+        /// How many rounds the gun in one of the player's slots ("primary") can fire before it needs reloading:
+        /// the rounds in its magazine plus the chambered one. 0 with no gun there, or nothing loaded.
+        /// </summary>
+        public int LoadedRounds(string playerId, string weaponSlot)
+        {
+            var gun = GunOf(playerId, weaponSlot);
+            if (gun == null)
+            {
+                return 0;
+            }
+
+            var magazineRounds = gun.ChildInSlot(SlotNames.Magazine)?.ChildInSlot(SlotNames.Rounds);
+            var chambered = gun.ChildInSlot(SlotNames.Chamber);
+            return (magazineRounds?.Quantity ?? 0) + (chambered?.Quantity ?? 0);
+        }
+
+        /// <summary>
+        /// Fires one round from the gun in one of the player's slots: from the magazine while it has any, then
+        /// the chambered one. That gives the same count as chambering each round from the magazine, without
+        /// moving one into the chamber on every shot. <paramref name="ammoDefId"/> says what was fired, for its
+        /// damage; null, changing nothing, if there was nothing to fire (<see cref="RaidInventoryErrorCodes.NoRoundsLoaded"/>).
+        /// </summary>
+        public RaidInventoryResult FireRound(string playerId, string weaponSlot, out string ammoDefId)
+        {
+            ammoDefId = null;
+            if (FindActive(playerId) == null)
+            {
+                return NotActive(playerId);
+            }
+
+            var gun = GunOf(playerId, weaponSlot);
+            var round = gun?.ChildInSlot(SlotNames.Magazine)?.ChildInSlot(SlotNames.Rounds) ?? gun?.ChildInSlot(SlotNames.Chamber);
+            if (round == null)
+            {
+                return RaidInventoryResult.Failed(new InventoryError(gun?.Id, RaidInventoryErrorCodes.NoRoundsLoaded,
+                    gun == null ? "No gun in '" + weaponSlot + "'." : "Nothing loaded."));
+            }
+
+            var defId = round.DefId;
+            var result = Consume(playerId, round.Id, 1);
+            if (result.Success)
+            {
+                ammoDefId = defId;
+            }
+
+            return result;
+        }
+
+        // The item in one of the player's character slots, live; null if they're not active or it's empty.
+        private ItemNode GunOf(string playerId, string weaponSlot)
+        {
+            var player = FindActive(playerId);
+            return player != null && weaponSlot != null && _tree.TryGet(player.CharacterId, out var character)
+                ? character.ChildInSlot(weaponSlot)
+                : null;
+        }
+
+        /// <summary>
         /// The player died. Their gear stays where it is, as a body anyone can open; they can't act any more.
         /// Report the death to the backend separately (BackendClient.ReportDied).
         /// </summary>

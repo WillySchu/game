@@ -12,7 +12,7 @@ public static class RaidTestKit
         new() { DefId = "character", Slots = [Slot("primary", "weapon_long"), Slot("rig", "rig"), Slot("backpack", "backpack")] },
         new() { DefId = "ground", Grids = [GridSpec.Main(10, 10)] },
         new() { DefId = "crate", Grids = [GridSpec.Main(6, 4)] },
-        new() { DefId = "rifle", Width = 4, Height = 2, Tags = ["weapon_long"], Slots = [Slot("magazine", "mag")] },
+        new() { DefId = "rifle", Width = 4, Height = 2, Tags = ["weapon_long"], Slots = [Slot("magazine", "mag"), new() { Name = "chamber", Accepts = ["ammo"], MaxQuantity = 1 }] },
         new() { DefId = "mag", Width = 1, Height = 2, Tags = ["mag"], Slots = [new() { Name = "rounds", Accepts = ["ammo"], MaxQuantity = 30 }] },
         new() { DefId = "ammo", MaxStack = 60, Tags = ["ammo"] },
         new() { DefId = "rig", Width = 2, Height = 2, Tags = ["rig"], Grids = [GridSpec.Main(2, 1)] },

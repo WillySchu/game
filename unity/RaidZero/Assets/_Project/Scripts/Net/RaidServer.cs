@@ -28,7 +28,8 @@ namespace RaidZero.Net
     /// still inside is missing in action, the backend gets the close, and a dedicated server exits so its
     /// supervisor can start a fresh one.
     ///
-    /// Gameplay code calls <see cref="PlayerDied"/>, <see cref="Consume"/> and <see cref="InterruptExtraction"/>;
+    /// Gameplay code calls <see cref="PlayerDied"/>, <see cref="LoadedRounds"/>, <see cref="FireRound"/>,
+    /// <see cref="Consume"/> and <see cref="InterruptExtraction"/> (through <see cref="Instance"/>);
     /// <see cref="ExtractionZone"/>s in the level handle extraction. Items on the ground are this class's too:
     /// it rolls the level's <see cref="LooseLootSpot"/>s at raid start and spawns a <see cref="GroundItem"/> for
     /// each pile, from loose loot or a player's drop, and despawns it when the pile is emptied.
@@ -87,7 +88,6 @@ namespace RaidZero.Net
         private readonly Dictionary<string, ExtractionZone> _testZones = new Dictionary<string, ExtractionZone>(StringComparer.Ordinal);
 
         private NetworkManager _networkManager;
-        public static RaidServer Instance { get; private set; }
         private BackendClient _backend;
         private RaidInventoryHost _host;
         private RaidLifecycle _lifecycle;
@@ -109,6 +109,12 @@ namespace RaidZero.Net
 
         /// <summary>The raid moved to another phase. On Ending, gameplay can stop AI and spawning.</summary>
         public event Action<RaidPhase> PhaseChanged;
+
+        /// <summary>
+        /// The raid server, for gameplay code on the server (the player controller firing). Use it only where
+        /// the server is running (IsServerStarted): an editor client may have one that isn't.
+        /// </summary>
+        public static RaidServer Instance { get; private set; }
 
         public bool IsRunning => _host != null;
 
@@ -260,6 +266,27 @@ namespace RaidZero.Net
             return IsInside(playerId) && _host.Consume(playerId, itemId, quantity, Now);
         }
 
+        /// <summary>
+        /// How many rounds the player's gun in that slot (SlotNames.Primary) can fire before reloading: its
+        /// magazine's plus the chambered one, from the server's own inventory. 0 with no gun or nothing loaded.
+        /// </summary>
+        public int LoadedRounds(NetworkConnection connection, string weaponSlot)
+        {
+            var playerId = PlayerIdOf(connection);
+            return IsInside(playerId) ? _host.LoadedRounds(playerId, weaponSlot) : 0;
+        }
+
+        /// <summary>
+        /// Fires one round from the player's gun in that slot: the magazine's, then the chambered one. Returns the
+        /// round's DefId, for its damage, or null if there was nothing to fire. The client's view of their gear
+        /// follows within a second, as with <see cref="Consume"/>; show the count the player controller predicts.
+        /// </summary>
+        public string FireRound(NetworkConnection connection, string weaponSlot)
+        {
+            var playerId = PlayerIdOf(connection);
+            return IsInside(playerId) ? _host.FireRound(playerId, weaponSlot, Now) : null;
+        }
+
         /// <summary>Ends the raid now, as if the clock had run out: anyone still inside is missing in action.</summary>
         public void EndRaid()
         {
@@ -272,15 +299,19 @@ namespace RaidZero.Net
 
         // ---- Lifecycle ----
 
+        private void Awake()
+        {
+            if (Instance != null && Instance != this)
+            {
+                Debug.LogWarning("[raid] A second RaidServer; using the newer one.");
+            }
+
+            Instance = this;
+        }
+
         private void Start()
         {
             _networkManager = InstanceFinder.NetworkManager;
-            if (Instance != null)
-            {
-                Destroy(gameObject);
-                return;
-            }
-            Instance = this;
 
             // A dedicated server never runs the client's setup, so it turns a build's lag simulation off itself.
             NetworkConditions.Apply(_networkManager);
@@ -305,6 +336,10 @@ namespace RaidZero.Net
 
             SceneManager.sceneLoaded -= OnSceneLoaded;
             StopRaid();
+            if (Instance == this)
+            {
+                Instance = null;
+            }
         }
 
         private void Update()
