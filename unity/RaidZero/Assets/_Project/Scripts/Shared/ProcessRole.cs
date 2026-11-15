@@ -2,7 +2,7 @@
 using Unity.Multiplayer;
 #endif
 
-namespace RaidZero.World
+namespace RaidZero.Shared
 {
     /// <summary>
     /// Whether this process is a raid client, a raid server, or both, which decides the scenes it loads

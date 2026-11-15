@@ -1,6 +1,6 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
-namespace RaidZero.World
+namespace RaidZero.Shared
 {
     public class CoreLoader : MonoBehaviour
     {

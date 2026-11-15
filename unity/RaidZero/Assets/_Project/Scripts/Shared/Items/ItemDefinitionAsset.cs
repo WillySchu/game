@@ -52,7 +52,7 @@ namespace RaidZero.Items
         [SerializeField]
         private int _value;
 
-        [Tooltip("Decide which named slots accept this item, e.g. weapon_long or ammo_545.")]
+        [Tooltip("List of item tags. Determines item type and specific slots it fits in. e.g. weapon or ammo for overall type, and weapon_long or ammo_545 for specific slots.")]
         [SerializeField]
         private List<string> _tags = new List<string>();
 
@@ -63,6 +63,10 @@ namespace RaidZero.Items
         [Tooltip("Named slots, such as a rifle's magazine or a character's primary.")]
         [SerializeField]
         private List<Slot> _slots = new List<Slot>();
+
+        [Tooltip("Stats associated with this item.")]
+        [SerializeReference, SubclassSelector]
+        private IItemStats _stats;
 
         [Header("Presentation (not part of the rules)")]
         [Tooltip("A hand-made icon. Leave it empty to use the one rendered from the world model (Raid Zero > Items > Render Icons); set it for the odd item whose render doesn't read well.")]
@@ -98,6 +102,8 @@ namespace RaidZero.Items
         private Vector2Int _gridSize = new Vector2Int(1, 1);
 
         public string DefId => _defId;
+        public IItemStats Stats => _stats;
+        public List<string> Tags => _tags;
 
         public string DisplayName => string.IsNullOrEmpty(_displayName) ? _defId : _displayName;
 

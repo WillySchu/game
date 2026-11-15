@@ -25,6 +25,7 @@ namespace RaidZero.Items.Editor
         public const string LibraryFolder = "Assets/_Project/Data/Resources";
 
         private static readonly string[] RequiredDefIds = { WellKnownDefs.Stash, WellKnownDefs.Character, WellKnownDefs.Ground };
+        private static readonly string[] TagsWithItemStats = { ItemTags.Weapon, ItemTags.Magazine, ItemTags.Ammo, ItemTags.Armor, ItemTags.Medical };
 
         public static string CatalogPath => RepoPaths.CatalogFile;
 
@@ -33,6 +34,37 @@ namespace RaidZero.Items.Editor
 
         [MenuItem("Raid Zero/Items/Import Catalog")]
         private static void ImportFromMenu() => Import();
+        private static (bool result, string error) ValidateTags(ItemDefinitionAsset asset)
+        {
+            if (asset.Stats != null)
+            {
+                if (!asset.Tags.Contains(asset.Stats.itemType))
+                {
+                    // Item has stats for an item type that is not in its tags.
+                    return (false, "Item has stats for an item type that is not in its tags.");
+                }
+            }
+            int tagStatCount = 0;
+            foreach (string tag in asset.Tags)
+            {
+                if (TagsWithItemStats.Contains(tag))
+                {
+                    tagStatCount++;
+                    if (tagStatCount > 1)
+                    {
+                        // Item has more than one tag with required stats.
+                        return (false, "Item has more than one tag with required stats.");
+                    }
+                    if (asset.Stats == null)
+                    {
+                        // Item has a tag with required stats but no stats.
+                        return (false, "Item has a tag with required stats but no stats.");
+                    }
+                }
+            }
+
+            return (true, "");
+        }
 
         /// <summary>
         /// Validates the assets and writes the catalog if anything changed. Refuses, without writing anything,
@@ -58,6 +90,12 @@ namespace RaidZero.Items.Editor
                 else
                 {
                     paths[asset.DefId] = path;
+                }
+
+                var (valid, error) = ValidateTags(asset);
+                if (!valid)
+                {
+                    errors.Add("Invalid Tags for " +asset.DefId + ": " + error);
                 }
             }
 

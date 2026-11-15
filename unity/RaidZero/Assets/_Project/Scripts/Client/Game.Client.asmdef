@@ -4,6 +4,7 @@
     "references": [
         "FishNet.Runtime",
         "Game.Net",
+        "Game.Shared",
         "Game.World"
     ],
     "includePlatforms": [],
@@ -12,7 +13,9 @@
     "overrideReferences": false,
     "precompiledReferences": [],
     "autoReferenced": true,
-    "defineConstraints": ["BUILD_CLIENT || UNITY_EDITOR"],
+    "defineConstraints": [
+        "BUILD_CLIENT || UNITY_EDITOR"
+    ],
     "versionDefines": [],
     "noEngineReferences": false
 }

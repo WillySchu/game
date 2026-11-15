@@ -1,10 +1,7 @@
 {
     "name": "Game.World",
     "rootNamespace": "RaidZero.World",
-    "references": [
-        "FishNet.Runtime",
-        "Unity.InputSystem"
-    ],
+    "references": [],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,

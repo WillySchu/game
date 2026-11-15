@@ -7,7 +7,7 @@ using FishNet.Object.Prediction;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-namespace RaidZero.World
+namespace RaidZero.Shared
 {
     public class PlayerController : NetworkBehaviour
     {
@@ -18,14 +18,16 @@ namespace RaidZero.World
             public Vector2 lookInput; // degrees to turn this tick (x right, y up), the player's settings already applied
             public bool jumpInput;
             public bool sprintInput;
+            public bool fireInput;
             private uint _tick;
 
-            public PlayerReplicatedData(Vector2 moveInput, Vector2 lookInput, bool jumpInput, bool sprintInput) : this()
+            public PlayerReplicatedData(Vector2 moveInput, Vector2 lookInput, bool jumpInput, bool sprintInput, bool fireInput) : this()
             {
                 this.moveInput = moveInput;
                 this.lookInput = lookInput;
                 this.jumpInput = jumpInput;
                 this.sprintInput = sprintInput;
+                this.fireInput = fireInput;
             }
 
             public void Dispose() { }
@@ -42,8 +44,9 @@ namespace RaidZero.World
             public float xRotation;
             public bool wasGroundedLastFrame;
             public float horizontalFallVelocity;
+            public float currentMoveSpeed;
 
-            public PlayerReconcileData(Vector3 position, Quaternion rotation, Vector3 velocity, float xRotation, bool wasGroundedLastFrame, float horizontalFallVelocity) : this()
+            public PlayerReconcileData(Vector3 position, Quaternion rotation, Vector3 velocity, float xRotation, bool wasGroundedLastFrame, float horizontalFallVelocity, float currentMoveSpeed) : this()
             {
                 this.position = position;
                 this.rotation = rotation;
@@ -51,6 +54,7 @@ namespace RaidZero.World
                 this.xRotation = xRotation;
                 this.wasGroundedLastFrame = wasGroundedLastFrame;
                 this.horizontalFallVelocity = horizontalFallVelocity;
+                this.currentMoveSpeed = currentMoveSpeed;
             }
             
             private uint _tick;
@@ -84,10 +88,13 @@ namespace RaidZero.World
         private Vector3 currentVelocity = Vector3.zero;
         private bool isJumping = false;
         private bool isRunning = false;
+        private bool isFiring = false;
+    
         private float currentMoveSpeed = 0f;
         private bool wasGroundedLastFrame = true;
         private float horizontalFallVelocity = 0f;
         private PlayerReplicatedData lastReplicatedData = default;
+        private uint predictionLimit = 3;
         public override void OnStartClient()
         {
             if (!IsOwner) return;
@@ -105,7 +112,7 @@ namespace RaidZero.World
         }
 
         // The camera is the scene's, borrowed while this player is ours. Give it back before the player is
-        // destroyed (extracting, dying, disconnecting), or it goes too and the next player has none.
+        // destroyed (extracting, dying, disconnecting) so the client still has a camera even if their player has died.
         public override void OnStopClient()
         {
             base.OnStopClient();
@@ -149,8 +156,12 @@ namespace RaidZero.World
 
         public void OnSprint(InputValue value)
         {
-            Debug.Log("Sprint input received: " + value.isPressed);
             isRunning = value.isPressed;
+        }
+
+        public void OnFire(InputValue value)
+        {
+            isFiring = value.isPressed;
         }
         public void OnTick()
         {
@@ -160,9 +171,12 @@ namespace RaidZero.World
         
         private PlayerReplicatedData GetReplicatedData()
         {
-            PlayerReplicatedData data = new PlayerReplicatedData(currentMoveInput, GameSettings.LookDegrees(currentLookInput), isJumping, isRunning);
+            PlayerReplicatedData data = new PlayerReplicatedData(currentMoveInput, GameSettings.LookDegrees(currentLookInput), isJumping, isRunning, isFiring);
+            
             // Any accumulated inputs should be reset after sending to the server to avoid sending the same input multiple times.
             isJumping = false;
+
+            // If we eventually support gamepads, this will need to check if we're on a pad.
             currentLookInput = Vector2.zero;
             return data;
         }
@@ -184,7 +198,7 @@ namespace RaidZero.World
                 }
                 else if (state.IsFuture())
                 {
-                    if (data.GetTick() - lastReplicatedData.GetTick() > 1)
+                    if (data.GetTick() - lastReplicatedData.GetTick() > predictionLimit)
                     {
                         // Too far in the future, don't predict anything.
                         skipUpdate = true;
@@ -296,7 +310,7 @@ namespace RaidZero.World
 
         public override void CreateReconcile()
         {
-            PlayerReconcileData data = new PlayerReconcileData(transform.position, transform.rotation, currentVelocity, xRotation, wasGroundedLastFrame, horizontalFallVelocity);
+            PlayerReconcileData data = new PlayerReconcileData(transform.position, transform.rotation, currentVelocity, xRotation, wasGroundedLastFrame, horizontalFallVelocity, currentMoveSpeed);
             DoReconcile(data);
         }
 
@@ -310,6 +324,7 @@ namespace RaidZero.World
             xRotation = data.xRotation;
             wasGroundedLastFrame = data.wasGroundedLastFrame;
             horizontalFallVelocity = data.horizontalFallVelocity;
+            currentMoveSpeed = data.currentMoveSpeed;
             _cameraMount.localRotation = Quaternion.Euler(xRotation, 0f, 0f);
             _characterController.enabled = true;
         }

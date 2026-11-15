@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 using RaidZero.Net;
-using RaidZero.World;
+using RaidZero.Shared;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.UIElements;

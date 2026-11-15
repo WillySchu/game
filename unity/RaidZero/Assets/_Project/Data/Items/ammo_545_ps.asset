@@ -22,10 +22,24 @@ MonoBehaviour:
   _value: 120
   _tags:
   - ammo_545
+  - ammo
   _grids: []
   _slots: []
+  _stats:
+    rid: 6507252098175074389
   _icon: {fileID: 0}
   _worldPrefab: {fileID: 0}
+  _iconAngles: {x: 0, y: 0, z: 0}
+  _renderedIcon: {fileID: 0}
   _defaultLoot: {fileID: 0}
   _hasGrid: 0
   _gridSize: {x: 1, y: 1}
+  references:
+    version: 2
+    RefIds:
+    - rid: 6507252098175074389
+      type: {class: AmmoStats, ns: RaidZero.Items, asm: Game.Items}
+      data:
+        damage: 20
+        penetration: 2
+        velocity: 300

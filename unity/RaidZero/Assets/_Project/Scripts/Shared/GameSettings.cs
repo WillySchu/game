@@ -1,7 +1,7 @@
 using System;
 using UnityEngine;
 
-namespace RaidZero.World
+namespace RaidZero.Shared
 {
     /// <summary>
     /// The player's settings, kept on this machine (PlayerPrefs) and changed in the escape menu's Settings.

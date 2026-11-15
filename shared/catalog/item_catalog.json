@@ -1,5 +1,5 @@
 {
-  "catalog_version": "df2da967dc29bafe",
+  "catalog_version": "4ec41cce42181871",
   "items": [
     {
       "def_id": "ammo_545_ps",
@@ -7,7 +7,8 @@
       "max_stack": 60,
       "value": 120,
       "tags": [
-        "ammo_545"
+        "ammo_545",
+        "ammo"
       ]
     },
     {
@@ -16,7 +17,8 @@
       "max_stack": 50,
       "value": 60,
       "tags": [
-        "ammo_9x18"
+        "ammo_9x18",
+        "ammo"
       ]
     },
     {
@@ -137,7 +139,8 @@
       "height": 2,
       "value": 2500,
       "tags": [
-        "mag_ak"
+        "mag_ak",
+        "magazine"
       ],
       "slots": [
         {
@@ -154,7 +157,8 @@
       "display_name": "PM 8-round magazine",
       "value": 900,
       "tags": [
-        "mag_pm"
+        "mag_pm",
+        "magazine"
       ],
       "slots": [
         {
@@ -178,7 +182,8 @@
       "has_durability": true,
       "value": 9000,
       "tags": [
-        "weapon_short"
+        "weapon_short",
+        "weapon"
       ],
       "slots": [
         {
@@ -186,6 +191,13 @@
           "accepts": [
             "mag_pm"
           ]
+        },
+        {
+          "name": "chamber",
+          "accepts": [
+            "ammo_9x18"
+          ],
+          "max_quantity": 1
         }
       ]
     },
@@ -197,7 +209,8 @@
       "has_durability": true,
       "value": 30000,
       "tags": [
-        "weapon_long"
+        "weapon_long",
+        "weapon"
       ],
       "slots": [
         {
@@ -205,6 +218,13 @@
           "accepts": [
             "mag_ak"
           ]
+        },
+        {
+          "name": "chamber",
+          "accepts": [
+            "ammo_545"
+          ],
+          "max_quantity": 1
         }
       ]
     },

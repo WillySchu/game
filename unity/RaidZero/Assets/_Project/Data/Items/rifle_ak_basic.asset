@@ -22,14 +22,35 @@ MonoBehaviour:
   _value: 30000
   _tags:
   - weapon_long
+  - weapon
   _grids: []
   _slots:
   - Name: magazine
     Accepts:
     - mag_ak
     MaxQuantity: 0
+  - Name: chamber
+    Accepts:
+    - ammo_545
+    MaxQuantity: 1
+  _stats:
+    rid: 6507252098175074391
   _icon: {fileID: 0}
-  _worldPrefab: {fileID: 0}
+  _worldPrefab: {fileID: 8985417382802299072, guid: 6ba8d7f977f4977479f83dde179c2d14, type: 3}
+  _iconAngles: {x: 0, y: 90, z: 0}
+  _renderedIcon: {fileID: 21300000, guid: c1e7d73764c4b1f4eba9c442461ec7bd, type: 3}
   _defaultLoot: {fileID: 0}
   _hasGrid: 0
   _gridSize: {x: 1, y: 1}
+  references:
+    version: 2
+    RefIds:
+    - rid: 6507252098175074391
+      type: {class: WeaponStats, ns: RaidZero.Items, asm: Game.Items}
+      data:
+        fireModes: 0000000002000000i
+        fireRate: 0.092
+        recoilVertical: 10
+        recoilHorizontal: 2
+        accuracy: 1
+        reloadSpeed: 3

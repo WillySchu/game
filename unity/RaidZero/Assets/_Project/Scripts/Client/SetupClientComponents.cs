@@ -2,7 +2,7 @@ using UnityEngine;
 using FishNet;
 using FishNet.Managing;
 using RaidZero.Net;
-using RaidZero.World;
+using RaidZero.Shared;
 using UnityEngine.SceneManagement;
 
 namespace RaidZero.Client
