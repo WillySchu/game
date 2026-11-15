@@ -3,7 +3,11 @@
     "rootNamespace": "RaidZero.Shared",
     "references": [
         "FishNet.Runtime",
-        "Unity.InputSystem"
+        "Unity.InputSystem",
+        "Game.Net",
+        "Game.Items",
+        "RaidZero.Shared",
+        "RaidZero.Raid"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

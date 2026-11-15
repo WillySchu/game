@@ -42,4 +42,4 @@ MonoBehaviour:
       data:
         damage: 20
         penetration: 2
-        velocity: 300
+        velocity: 880

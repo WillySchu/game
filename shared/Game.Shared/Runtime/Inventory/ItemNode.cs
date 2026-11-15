@@ -86,7 +86,21 @@ namespace RaidZero.Shared.Inventory
 
             return copy;
         }
+        public ItemNode ChildInSlot(string slot)
+        {
+            foreach(var node in Children)
+            {
+                if (node.Slot == slot)
+                {
+                    return node;
+                }
+            }
+
+            return null;
+        }
     }
+
+    
 
     /// <summary>
     /// Slot names used across Unity and the backend. Change these only in a pull request that

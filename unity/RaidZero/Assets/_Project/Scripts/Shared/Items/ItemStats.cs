@@ -18,7 +18,7 @@ namespace RaidZero.Items
         public string itemType { get; }
     }
 
-    public enum FireModes
+    public enum FireMode
     {
         Single,
         Burst,
@@ -33,15 +33,15 @@ namespace RaidZero.Items
         
         
         [Tooltip("List of fire modes available for this weapon")]
-        public List<FireModes> fireModes = new List<FireModes> { FireModes.Single };
+        public List<FireMode> fireModes = new List<FireMode> { FireMode.Single };
 
-        [Tooltip("Delay in seconds between shots")]
-        public float fireRate;
+        [Tooltip("Rounds per minute")]
+        public float roundsPerMinute;
         public float recoilVertical;
         public float recoilHorizontal;
         public float accuracy;
-        [Tooltip("Reload speed in seconds")]
-        public float reloadSpeed;
+        [Tooltip("Reload time in seconds")]
+        public float reloadTime;
         
         
     }
@@ -51,7 +51,7 @@ namespace RaidZero.Items
     {
         public string itemType => ItemTags.Magazine;
 
-        [Tooltip("Multiplier on weapon's base reload speed")]
+        [Tooltip("Multiplier on weapon's base reload time")]
         public float reloadMult = 1f;
     }
 

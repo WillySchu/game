@@ -87,6 +87,7 @@ namespace RaidZero.Net
         private readonly Dictionary<string, ExtractionZone> _testZones = new Dictionary<string, ExtractionZone>(StringComparer.Ordinal);
 
         private NetworkManager _networkManager;
+        public static RaidServer Instance { get; private set; }
         private BackendClient _backend;
         private RaidInventoryHost _host;
         private RaidLifecycle _lifecycle;
@@ -274,6 +275,12 @@ namespace RaidZero.Net
         private void Start()
         {
             _networkManager = InstanceFinder.NetworkManager;
+            if (Instance != null)
+            {
+                Destroy(gameObject);
+                return;
+            }
+            Instance = this;
 
             // A dedicated server never runs the client's setup, so it turns a build's lag simulation off itself.
             NetworkConditions.Apply(_networkManager);

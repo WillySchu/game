@@ -6,6 +6,11 @@ using FishNet.Object;
 using FishNet.Object.Prediction;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using FishNet.Object.Synchronizing;
+using RaidZero.Net;
+using RaidZero.Items;
+using RaidZero.Shared.Inventory;
+using RaidZero.Shared.Raid;
 
 namespace RaidZero.Shared
 {
@@ -19,15 +24,20 @@ namespace RaidZero.Shared
             public bool jumpInput;
             public bool sprintInput;
             public bool fireInput;
+            public bool fireModeInput;
+            public bool reloadInput;
             private uint _tick;
 
-            public PlayerReplicatedData(Vector2 moveInput, Vector2 lookInput, bool jumpInput, bool sprintInput, bool fireInput) : this()
+            public PlayerReplicatedData(Vector2 moveInput, Vector2 lookInput, bool jumpInput, bool sprintInput, bool fireInput, bool fireModeInput, bool reloadInput) : this()
             {
                 this.moveInput = moveInput;
                 this.lookInput = lookInput;
                 this.jumpInput = jumpInput;
                 this.sprintInput = sprintInput;
                 this.fireInput = fireInput;
+                this.fireModeInput = fireModeInput;
+                this.reloadInput = reloadInput;
+                
             }
 
             public void Dispose() { }
@@ -45,8 +55,12 @@ namespace RaidZero.Shared
             public bool wasGroundedLastFrame;
             public float horizontalFallVelocity;
             public float currentMoveSpeed;
+            public bool triggerReleasedSinceFire;
+            public int selectedFireMode;
+            public int loadedRounds;
+            public float timeSinceLastShot;
 
-            public PlayerReconcileData(Vector3 position, Quaternion rotation, Vector3 velocity, float xRotation, bool wasGroundedLastFrame, float horizontalFallVelocity, float currentMoveSpeed) : this()
+            public PlayerReconcileData(Vector3 position, Quaternion rotation, Vector3 velocity, float xRotation, bool wasGroundedLastFrame, float horizontalFallVelocity, float currentMoveSpeed, bool triggerReleasedSinceFire, int selectedFireMode, int loadedRounds, float timeSinceLastShot) : this()
             {
                 this.position = position;
                 this.rotation = rotation;
@@ -55,6 +69,10 @@ namespace RaidZero.Shared
                 this.wasGroundedLastFrame = wasGroundedLastFrame;
                 this.horizontalFallVelocity = horizontalFallVelocity;
                 this.currentMoveSpeed = currentMoveSpeed;
+                this.triggerReleasedSinceFire = triggerReleasedSinceFire;
+                this.selectedFireMode = selectedFireMode;
+                this.loadedRounds = loadedRounds;
+                this.timeSinceLastShot = timeSinceLastShot;
             }
             
             private uint _tick;
@@ -74,6 +92,7 @@ namespace RaidZero.Shared
 
         public float friction = 0.1f; // Friction factor to slow down the player when no input is given. (0= full stop, 1= no friction)
         public float airFriction = 1f; // Friction factor to slow down the player when in the air and no input is given. (0= full stop, 1= no friction)
+        public float semiAutoRoundsPerMinute = 480f; // Maximum rounds per minute for semi-auto fire mode. Used in single shot fire mode if this is lower than the weapon's rounds per minute stat. Default value 480 is approximately the world record for semiauto shooting, so probably okay if players aren't allowed to exceed it.
 
         // Mouse sensitivity and invert look are the player's settings (GameSettings), applied on the client
         // before the look input is sent, so the server turns the player just as far.
@@ -89,12 +108,39 @@ namespace RaidZero.Shared
         private bool isJumping = false;
         private bool isRunning = false;
         private bool isFiring = false;
+        
+        private bool isFireMode = false;
+        private bool isReloading = false;
     
         private float currentMoveSpeed = 0f;
         private bool wasGroundedLastFrame = true;
+        private bool triggerReleasedSinceFire = true;
         private float horizontalFallVelocity = 0f;
+
+        // Locking this to primary but at some point will implement weapon switching.
+        private string _heldSlot = SlotNames.Primary;
+        // Ammo count derived from chambered round + magazine count.
+        private ItemNode _heldWeaponItem;
+        private int ammoCount;
+        private int selectedFireMode = 0;
+        private float timeSinceLastShot = Mathf.Infinity;
+
+        private WeaponStats heldWeaponStats;
+        private AmmoStats chamberedAmmoStats;
+        private MagazineStats loadedMagazineStats;
         private PlayerReplicatedData lastReplicatedData = default;
         private uint predictionLimit = 3;
+        
+
+        // Used in replicates to produce the same random values on clients and server. Base seed set on construction, and state is updated during each replicate.
+        private readonly SyncVar<uint> _baseSeed = new();
+        private Utils.SyncedRandom _random;
+
+
+        public override void OnStartServer()
+        {
+            _baseSeed.Value = (uint)Random.Range(int.MinValue, int.MaxValue);
+        }
         public override void OnStartClient()
         {
             if (!IsOwner) return;
@@ -109,6 +155,10 @@ namespace RaidZero.Shared
             }
             Cursor.lockState = CursorLockMode.Locked;
             currentMoveSpeed = walkSpeed;
+
+            _random = new Utils.SyncedRandom(_baseSeed.Value);
+
+            RaidInventoryClient.Instance.View.ContainerChanged += OnContainerChanged;
         }
 
         // The camera is the scene's, borrowed while this player is ours. Give it back before the player is
@@ -116,6 +166,7 @@ namespace RaidZero.Shared
         public override void OnStopClient()
         {
             base.OnStopClient();
+            RaidInventoryClient.Instance.View.ContainerChanged -= OnContainerChanged;
             if (_heldCamera != null && _heldCamera.transform.IsChildOf(transform))
             {
                 _heldCamera.transform.SetParent(null, true);
@@ -128,6 +179,8 @@ namespace RaidZero.Shared
         {
             base.TimeManager.OnTick += OnTick;
             base.TimeManager.OnPostTick += OnPostTick;
+
+            UpdateHeldItemStats();
         }
 
         public override void OnStopNetwork()
@@ -163,18 +216,104 @@ namespace RaidZero.Shared
         {
             isFiring = value.isPressed;
         }
+
+        public void OnFireMode(InputValue value)
+        {
+            if (value.isPressed)
+            {
+                isFireMode = true;
+            }
+        }
+
+        public void OnReload(InputValue value)
+        {
+            if (value.isPressed)
+            {
+                isReloading = true;
+            }
+        }
+
         public void OnTick()
         {
             DoReplicate( IsOwner ? GetReplicatedData() : default);
         }
 
-        
+        private void OnContainerChanged(ContainerView changed)
+        {
+            if(changed.Kind != RootKind.Character) return;
+            // Have the client grab a fresh copy of the held item stats when we recieve a change.
+            // Not strictly needed until we have visuals to change on inventory swap.
+            UpdateHeldItemStats();
+        }
+        // Pull stats from the weapon held in hands.
+        private void UpdateHeldItemStats()
+        {
+            ammoCount = 0;
+            ItemNode character = null;
+            if (IsOwner)
+            {
+                if(RaidInventoryClient.Instance.View.Character != null)
+                {
+                    character = RaidInventoryClient.Instance.View.Character.Root;
+                }
+            }
+            else if (IsServerStarted)
+            {
+                // Grab directly from the RaidServer inventory. Added an Instance variable to RaidServer for this, we can remove it if we don't want to do that.
+                string characterInventoryId = RaidServer.Instance.CharacterIdOf(Owner);
+                character = RaidServer.Instance.Inventory.Find(characterInventoryId);
+            }
+            if (character != null)
+            {
+                ItemNode heldItem = character.ChildInSlot(_heldSlot);
+                if (heldItem != null)
+                {
+                    _heldWeaponItem = heldItem;
+                    ItemDefinitionAsset itemDef = ItemLibrary.Instance.Find(heldItem.DefId);
+                    if(itemDef.Stats.itemType == ItemTags.Weapon)
+                    {
+                        heldWeaponStats = (WeaponStats) itemDef.Stats;
+                    }
+
+                    // Replace with SlotNames reference once that's updated on backend.
+                    ItemNode chamber = heldItem.ChildInSlot("chamber");
+                    if(chamber != null)
+                    {
+                        ItemDefinitionAsset chamberDef = ItemLibrary.Instance.Find(chamber.DefId);
+                        if(chamberDef.Stats.itemType == ItemTags.Ammo)
+                        {
+                            chamberedAmmoStats = (AmmoStats) chamberDef.Stats;
+                            ammoCount++;
+                        }
+                    }
+                    ItemNode magazine = heldItem.ChildInSlot(SlotNames.Magazine);
+                    if(magazine != null)
+                    {
+                        ItemDefinitionAsset magazineDef = ItemLibrary.Instance.Find(magazine.DefId);
+                        if(magazineDef.Stats.itemType == ItemTags.Magazine)
+                        {
+                            loadedMagazineStats = (MagazineStats) magazineDef.Stats;
+                        }
+
+                        ItemNode magazineAmmo = magazine.ChildInSlot(SlotNames.Rounds);
+                        if(magazineAmmo != null)
+                        {
+                            ammoCount += magazineAmmo.Quantity;
+                        }
+
+                    }
+                }
+            }
+        }
+
         private PlayerReplicatedData GetReplicatedData()
         {
-            PlayerReplicatedData data = new PlayerReplicatedData(currentMoveInput, GameSettings.LookDegrees(currentLookInput), isJumping, isRunning, isFiring);
+            PlayerReplicatedData data = new PlayerReplicatedData(currentMoveInput, GameSettings.LookDegrees(currentLookInput), isJumping, isRunning, isFiring, isFireMode, isReloading);
             
             // Any accumulated inputs should be reset after sending to the server to avoid sending the same input multiple times.
             isJumping = false;
+            isFireMode = false;
+            isReloading = false;
 
             // If we eventually support gamepads, this will need to check if we're on a pad.
             currentLookInput = Vector2.zero;
@@ -185,7 +324,9 @@ namespace RaidZero.Shared
         private void DoReplicate(PlayerReplicatedData data, ReplicateState state = ReplicateState.Invalid, Channel channel = Channel.Unreliable)
         {
             float deltaTime = (float)base.TimeManager.TickDelta;
-
+            _random.Sync(data.GetTick());
+            timeSinceLastShot += deltaTime;
+        
             bool skipUpdate = false;
 
             // Collect data and run predictions if you are a client but not the owner.
@@ -210,6 +351,8 @@ namespace RaidZero.Shared
 
                         // Any inputs that a player is unlikely to repeat should be unset.
                         data.jumpInput = false;
+                        data.fireModeInput = false;
+                        data.reloadInput = false;
                         data.lookInput = Vector2.zero;
                     }
                 }
@@ -221,6 +364,9 @@ namespace RaidZero.Shared
                 data.lookInput = Vector2.zero;
                 data.jumpInput = false;
                 data.sprintInput = false;
+                data.fireInput = false;
+                data.reloadInput = false;
+                data.fireModeInput = false;
             }
 
             transform.Rotate(Vector3.up, data.lookInput.x);
@@ -301,6 +447,64 @@ namespace RaidZero.Shared
                 OnTouchedGround();
             }
             wasGroundedLastFrame = _characterController.isGrounded;
+
+            // Gun Handling
+            if(data.fireModeInput)
+            {
+                selectedFireMode = (selectedFireMode + 1) % heldWeaponStats.fireModes.Count;
+                Debug.Log("Switched fire mode to " + heldWeaponStats.fireModes[selectedFireMode]);
+            }
+
+            if (data.fireInput)
+            {
+                Fire();
+            }
+            else
+            {
+                triggerReleasedSinceFire = true;
+            }
+        }
+
+        private void Fire()
+        {
+            // Make sure our weapon stats are up to date:
+            UpdateHeldItemStats();
+            // If there isn't a weapon in hand, can't shoot.
+            if (heldWeaponStats == null) return;
+            FireMode fireMode = heldWeaponStats.fireModes[selectedFireMode];
+            float shotInterval = 60f / heldWeaponStats.roundsPerMinute;
+            // Handle Single shot mode
+            if (fireMode == FireMode.Single)
+            {
+                if (!triggerReleasedSinceFire) return;
+                shotInterval = 60f / semiAutoRoundsPerMinute;
+            }
+            if (timeSinceLastShot > shotInterval)
+            {
+                timeSinceLastShot = 0f;
+                
+                if (ammoCount <= 0) return;
+                ammoCount--;
+
+                // Server actually attempts to consume ammo.
+                if (IsServerStarted)
+                {
+                    // Consume ammo from magazine or chamber, fail if none (though ammoCount should be up to date and should have stopped us from getting here).
+                    // TODO: Replace this directly calling Consume with new functions.
+                    ItemNode ammoStack = _heldWeaponItem.ChildInSlot(SlotNames.Magazine)?.ChildInSlot(SlotNames.Rounds) ?? _heldWeaponItem.ChildInSlot("chamber");
+                    if(ammoStack == null) return;
+                    RaidServer.Instance.Consume(Owner, ammoStack.Id, 1);
+                }
+                // Pew Pew
+                Debug.Log("Pew Pew! " + ammoCount + " left.");
+                triggerReleasedSinceFire = false;
+                
+            }
+            else
+            {
+                Debug.Log("Not ready to fire");
+            }
+
         }
         public void OnPostTick()
         {
@@ -310,7 +514,7 @@ namespace RaidZero.Shared
 
         public override void CreateReconcile()
         {
-            PlayerReconcileData data = new PlayerReconcileData(transform.position, transform.rotation, currentVelocity, xRotation, wasGroundedLastFrame, horizontalFallVelocity, currentMoveSpeed);
+            PlayerReconcileData data = new PlayerReconcileData(transform.position, transform.rotation, currentVelocity, xRotation, wasGroundedLastFrame, horizontalFallVelocity, currentMoveSpeed, triggerReleasedSinceFire, selectedFireMode, ammoCount, timeSinceLastShot);
             DoReconcile(data);
         }
 
@@ -325,6 +529,10 @@ namespace RaidZero.Shared
             wasGroundedLastFrame = data.wasGroundedLastFrame;
             horizontalFallVelocity = data.horizontalFallVelocity;
             currentMoveSpeed = data.currentMoveSpeed;
+            triggerReleasedSinceFire = data.triggerReleasedSinceFire;
+            selectedFireMode = data.selectedFireMode;
+            ammoCount = data.loadedRounds;
+            timeSinceLastShot = data.timeSinceLastShot;
             _cameraMount.localRotation = Quaternion.Euler(xRotation, 0f, 0f);
             _characterController.enabled = true;
         }

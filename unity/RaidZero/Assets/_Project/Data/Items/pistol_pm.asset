@@ -49,8 +49,8 @@ MonoBehaviour:
       type: {class: WeaponStats, ns: RaidZero.Items, asm: Game.Items}
       data:
         fireModes: 00000000i
-        fireRate: 0.13
+        roundsPerMinute: 600
         recoilVertical: 0
         recoilHorizontal: 0
         accuracy: 1
-        reloadSpeed: 0
+        reloadTime: 0
