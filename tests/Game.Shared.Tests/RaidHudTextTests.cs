@@ -26,6 +26,18 @@ public class RaidHudTextTests
         Assert.Equal(expected, RaidHudText.ExtractionProgress(left, total), 3);
 
     [Fact]
+    public void Ammo_ShowsTheRoundsAndFireMode()
+    {
+        Assert.Equal("28", RaidHudText.Rounds(28));
+        Assert.Equal("0", RaidHudText.Rounds(0));
+        Assert.Equal("0", RaidHudText.Rounds(-1));
+        Assert.Equal("SEMI", RaidHudText.FireMode("Single"));
+        Assert.Equal("AUTO", RaidHudText.FireMode("Auto"));
+        Assert.Equal("BURST", RaidHudText.FireMode("Burst"));
+        Assert.Equal("", RaidHudText.FireMode(null!));
+    }
+
+    [Fact]
     public void ExtractionLine_NamesThePoint_AndCountsWholeSeconds()
     {
         Assert.Equal("Extracting at north gate: 5", RaidHudText.ExtractionLine("north_gate", 4.2));

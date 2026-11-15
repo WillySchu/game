@@ -1,5 +1,6 @@
 using FishNet.Managing;
 using RaidZero.Net;
+using RaidZero.Shared;
 using RaidZero.Shared.Raid;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -8,7 +9,8 @@ namespace RaidZero.UI
 {
     /// <summary>
     /// What's on screen during a raid: the raid clock at the top, the extraction countdown while you stand in an
-    /// extraction zone, and a card when you leave (Extracted, Killed, Missing in action, Raid called off) that
+    /// extraction zone, the rounds loaded and fire mode of the gun in hand (bottom right, from the local
+    /// PlayerController), and a card when you leave (Extracted, Killed, Missing in action, Raid called off) that
     /// stays up for a few seconds over the Hideout coming back. Everything comes from RaidSessionClient; the
     /// wording is in RaidHudText.
     ///
@@ -38,6 +40,9 @@ namespace RaidZero.UI
         private VisualElement _prompt;
         private Label _promptKey;
         private Label _promptText;
+        private VisualElement _ammo;
+        private Label _ammoRounds;
+        private Label _ammoMode;
 
         private string _lastPoint;
         private float _extractionTotal;
@@ -100,6 +105,15 @@ namespace RaidZero.UI
             _prompt.Add(_promptText);
             _root.Add(_prompt);
 
+            // The gun in hand, bottom right: the rounds loaded, as the player controller predicts them, and the
+            // fire mode.
+            _ammo = new VisualElement { pickingMode = PickingMode.Ignore }.WithClass("hud-ammo");
+            _ammoRounds = new Label { pickingMode = PickingMode.Ignore }.WithClass("hud-ammo__rounds");
+            _ammoMode = new Label { pickingMode = PickingMode.Ignore }.WithClass("hud-ammo__mode");
+            _ammo.Add(_ammoRounds);
+            _ammo.Add(_ammoMode);
+            _root.Add(_ammo);
+
             _card = new VisualElement { pickingMode = PickingMode.Ignore }.WithClass("hud-card");
             _cardTitle = new Label { pickingMode = PickingMode.Ignore }.WithClass("hud-card__title");
             _cardDetail = new Label { pickingMode = PickingMode.Ignore }.WithClass("hud-card__detail");
@@ -110,6 +124,7 @@ namespace RaidZero.UI
             _clock.style.display = DisplayStyle.None;
             _extraction.style.display = DisplayStyle.None;
             _prompt.style.display = DisplayStyle.None;
+            _ammo.style.display = DisplayStyle.None;
             _card.style.display = DisplayStyle.None;
             document.rootVisualElement.Add(_root);
         }
@@ -132,6 +147,7 @@ namespace RaidZero.UI
             ShowClock(inRaid);
             ShowExtraction(inRaid);
             ShowPrompt(inRaid);
+            ShowAmmo(inRaid);
 
             if (_cardUntil > 0 && Time.unscaledTime > _cardUntil)
             {
@@ -198,6 +214,22 @@ namespace RaidZero.UI
             var left = _session.SecondsRemaining;
             _clock.text = RaidHudText.Clock(left);
             _clock.EnableInClassList("hud-clock--late", left <= LateSeconds);
+        }
+
+        // The local player's gun, while they have one in hand.
+        private void ShowAmmo(bool inRaid)
+        {
+            var player = inRaid ? PlayerController.Local : null;
+            var show = player != null && player.HasGun;
+            _ammo.style.display = show ? DisplayStyle.Flex : DisplayStyle.None;
+            if (!show)
+            {
+                return;
+            }
+
+            _ammoRounds.text = RaidHudText.Rounds(player.LoadedRounds);
+            _ammoRounds.EnableInClassList("hud-ammo__rounds--empty", player.LoadedRounds <= 0);
+            _ammoMode.text = RaidHudText.FireMode(player.FireModeName);
         }
 
         // The prompt when there's something to use; otherwise, for a moment, what happened when F was pressed.

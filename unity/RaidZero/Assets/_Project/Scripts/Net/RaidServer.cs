@@ -28,7 +28,7 @@ namespace RaidZero.Net
     /// still inside is missing in action, the backend gets the close, and a dedicated server exits so its
     /// supervisor can start a fresh one.
     ///
-    /// Gameplay code calls <see cref="PlayerDied"/>, <see cref="LoadedRounds"/>, <see cref="FireRound"/>,
+    /// Gameplay code calls <see cref="PlayerDied"/>, <see cref="LoadedRounds"/>, <see cref="FireRound"/>, <see cref="Reload"/>,
     /// <see cref="Consume"/> and <see cref="InterruptExtraction"/> (through <see cref="Instance"/>);
     /// <see cref="ExtractionZone"/>s in the level handle extraction. Items on the ground are this class's too:
     /// it rolls the level's <see cref="LooseLootSpot"/>s at raid start and spawns a <see cref="GroundItem"/> for
@@ -285,6 +285,24 @@ namespace RaidZero.Net
         {
             var playerId = PlayerIdOf(connection);
             return IsInside(playerId) ? _host.FireRound(playerId, weaponSlot, Now) : null;
+        }
+
+        /// <summary>
+        /// Reloads the player's gun in that slot: swaps its magazine for the fullest one that fits in their rig,
+        /// then backpack, putting the old one where there's room. False, changing nothing, if there's no gun, no
+        /// fuller magazine or no room. Their client sees the change straight away.
+        /// </summary>
+        public bool Reload(NetworkConnection connection, string weaponSlot)
+        {
+            var playerId = PlayerIdOf(connection);
+            if (!IsInside(playerId))
+            {
+                return false;
+            }
+
+            var output = _host.Reload(playerId, weaponSlot, out bool reloaded);
+            Dispatch(output, connection);
+            return reloaded;
         }
 
         /// <summary>Ends the raid now, as if the clock had run out: anyone still inside is missing in action.</summary>

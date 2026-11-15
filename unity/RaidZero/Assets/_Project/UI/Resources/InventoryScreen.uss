@@ -760,6 +760,35 @@
     color: rgb(236, 190, 120);
 }
 
+/* The gun in hand, bottom right: rounds loaded over the fire mode. */
+.hud-ammo {
+    position: absolute;
+    right: 28px;
+    bottom: 22px;
+    align-items: flex-end;
+    padding: 4px 12px;
+    background-color: rgba(0, 0, 0, 0.35);
+    border-radius: 3px;
+}
+
+.hud-ammo__rounds {
+    font-size: 30px;
+    -unity-font-style: bold;
+    color: rgb(232, 228, 214);
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.9);
+}
+
+.hud-ammo__rounds--empty {
+    color: rgb(236, 120, 96);
+}
+
+.hud-ammo__mode {
+    font-size: 13px;
+    -unity-font-style: bold;
+    letter-spacing: 2px;
+    color: rgb(170, 170, 156);
+}
+
 /* The card as you leave: in front of the Hideout coming back for a few seconds. */
 .hud-card {
     position: absolute;

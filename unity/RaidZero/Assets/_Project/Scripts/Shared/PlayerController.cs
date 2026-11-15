@@ -139,6 +139,25 @@ namespace RaidZero.Shared
         private Utils.SyncedRandom _random;
 
 
+        /// <summary>This client's own player, for the HUD; null when there isn't one.</summary>
+        public static PlayerController Local { get; private set; }
+
+        /// <summary>Whether there's a gun in hand.</summary>
+        public bool HasGun => heldWeaponStats != null;
+
+        /// <summary>Rounds loaded in the gun in hand (magazine plus chamber): the count this client predicts.</summary>
+        public int LoadedRounds => ammoCount;
+
+        /// <summary>The fire mode selected on the gun in hand ("Single", "Auto"), or null with no gun.</summary>
+        public string FireModeName
+        {
+            get
+            {
+                int count = heldWeaponStats?.fireModes?.Count ?? 0;
+                return count > 0 ? heldWeaponStats.fireModes[selectedFireMode >= 0 && selectedFireMode < count ? selectedFireMode : 0].ToString() : null;
+            }
+        }
+
         public override void OnStartServer()
         {
             _baseSeed.Value = (uint)Random.Range(int.MinValue, int.MaxValue);
@@ -150,6 +169,7 @@ namespace RaidZero.Shared
             // Every copy of the player needs the same random numbers as the server's, not just the owner's.
             ResetRandom();
             if (!IsOwner) return;
+            Local = this;
             // Enable the PlayerInput component for the local player
             GetComponent<PlayerInput>().enabled = true;
 
@@ -182,6 +202,11 @@ namespace RaidZero.Shared
         public override void OnStopClient()
         {
             base.OnStopClient();
+            if (Local == this)
+            {
+                Local = null;
+            }
+
             if (_listeningToInventory && RaidInventoryClient.Instance != null)
             {
                 RaidInventoryClient.Instance.View.ContainerChanged -= OnContainerChanged;
@@ -452,6 +477,15 @@ namespace RaidZero.Shared
             wasGroundedLastFrame = _characterController.isGrounded;
 
             // Gun Handling
+            // Reloading is instant on the server for now (both guns' reloadTime is 0): it swaps in the fullest
+            // magazine from the rig or backpack, and the reconcile brings the client the new count.
+            // TODO: wait reloadTime first, and predict it on the client.
+            if (data.reloadInput && IsServerStarted && RaidServer.Instance != null && RaidServer.Instance.Reload(Owner, _heldSlot))
+            {
+                RefreshFromServer();
+                if (!state.IsReplayed()) Debug.Log("Reloaded: " + ammoCount + " rounds.");
+            }
+
             int fireModeCount = heldWeaponStats?.fireModes?.Count ?? 0;
             if (data.fireModeInput && fireModeCount > 0)
             {

@@ -167,6 +167,23 @@ namespace RaidZero.Raid
         public string FireRound(string playerId, string weaponSlot, double now) =>
             HoldBack(_service.FireRound(playerId, weaponSlot, out var ammoDefId), now) ? ammoDefId : null;
 
+        /// <summary>
+        /// Reloads the gun in one of the player's slots (RaidInventoryService.Reload). Unlike firing, the views go
+        /// out straight away: it's done once, and the player wants to see their gear change.
+        /// </summary>
+        public HostOutput Reload(string playerId, string weaponSlot, out bool reloaded)
+        {
+            var output = new HostOutput();
+            var result = _service.Reload(playerId, weaponSlot);
+            reloaded = result.Success;
+            if (reloaded)
+            {
+                AddUpdates(output, result);
+            }
+
+            return output;
+        }
+
         // A server decision's views wait for Tick, so firing doesn't resend the gear many times a second.
         private bool HoldBack(RaidInventoryResult result, double now)
         {

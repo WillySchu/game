@@ -248,7 +248,9 @@ The key in `appsettings.Development.json` is for local runs only. Real deploymen
   ever ask for it, and it changes the node in place because it runs on every shot. For guns, `LoadedRounds`
   counts the rounds in the gun in a slot (magazine plus chamber) and `FireRound` fires one: from the magazine
   while it has any, then the chambered round, which counts the same as chambering each round without moving
-  one on every shot.
+  one on every shot. `Reload` swaps the gun's magazine for the fullest one that fits in the rig, then the
+  backpack (not one loaded in something else), and puts the old one where there's room: where the new one
+  came from, then the rig, then the backpack. Unlike firing, its views go out straight away.
 - Every change returns updates: for each player who can see a changed container, its new contents. Send
   whole containers to clients rather than item diffs; they're small, and clients just replace their view.
 
@@ -341,10 +343,11 @@ The key in `appsettings.Development.json` is for local runs only. Real deploymen
   `RaidInventoryClient` is the client's end, with the `View` the inventory screen draws from.
 - Fish-Net's latency simulator (100 ms, 2% loss) is on the NetworkManager's Transport Manager. Its Enabled box
   (ticked in the prefab) decides in the editor; `NetworkConditions` turns it off in builds unless they're started with `--simulate-lag`.
-- Gameplay calls `RaidServer.PlayerDied`, `LoadedRounds`, `FireRound`, `Consume` and `InterruptExtraction` (on
+- Gameplay calls `RaidServer.PlayerDied`, `LoadedRounds`, `FireRound`, `Reload`, `Consume` and `InterruptExtraction` (on
   damage), through `RaidServer.Instance` (on the server only). The player controller counts what's loaded from
   the server's inventory every tick and fires with `FireRound`; clients only predict the count from the
-  reconcile, as their copy of the gear lags up to a second behind shots. Levels place
+  reconcile, as their copy of the gear lags up to a second behind shots. R reloads, instantly on the server
+  for now (the guns' `reloadTime` is 0). Levels place
   `ExtractionZone`s, and crates carry a `LootContainer`; bodies register in `ContainerRegistry` so the server
   can check reach.
 - Items on the ground are `GroundItem`s (on the `DroppedItem` prefab, one per pile, carrying the pile, item and
@@ -358,7 +361,8 @@ The key in `appsettings.Development.json` is for local runs only. Real deploymen
   connection closes a few seconds after they leave, and Fish-Net despawns whatever it owned.
 - `RaidSessionClient` is the client's view of the raid: its phase, the clock, the extraction countdown, and
   a `LeftRaid` event saying how the player left. It's carried by three small broadcasts. `RaidHud` (in
-  `Game.UI`) draws it: the clock, the countdown and a card as you leave, worded by `RaidHudText` in
+  `Game.UI`) draws it: the clock, the countdown, a card as you leave, and the rounds loaded and fire mode of
+  the gun in hand (from `PlayerController.Local`, the count it predicts), worded by `RaidHudText` in
   `Game.Shared`.
 - Inventory messages travel as two Fish-Net broadcasts carrying `RaidProtocol` bytes, so the network layer
   never interprets them.

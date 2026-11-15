@@ -56,6 +56,23 @@ namespace RaidZero.Shared.Raid
             }
         }
 
+        /// <summary>The rounds loaded in the gun in hand, "28"; never below 0.</summary>
+        public static string Rounds(int loaded) => Math.Max(0, loaded).ToString(CultureInfo.InvariantCulture);
+
+        /// <summary>
+        /// A fire mode as the HUD names it, from the weapon stats' FireMode name: "SEMI" for Single, "BURST",
+        /// "AUTO", anything else in capitals, and "" for none.
+        /// </summary>
+        public static string FireMode(string mode)
+        {
+            if (string.IsNullOrEmpty(mode))
+            {
+                return "";
+            }
+
+            return string.Equals(mode, "Single", StringComparison.OrdinalIgnoreCase) ? "SEMI" : mode.ToUpperInvariant();
+        }
+
         private static string PointName(string point) => point.Replace('_', ' ');
     }
 }

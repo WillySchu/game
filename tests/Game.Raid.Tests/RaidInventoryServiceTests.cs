@@ -427,6 +427,114 @@ public class RaidInventoryServiceTests
         Assert.Null(fired);
     }
 
+    // A magazine with this many rounds in it (none for 0), at a spot in a grid or in a gun's slot.
+    private static ItemNode Mag(int rounds, string slot, int? x = null, int? y = null, string defId = "mag") =>
+        rounds > 0 ? Node(defId, slot, x, y, children: [Node("ammo", "rounds", quantity: rounds)]) : Node(defId, slot, x, y);
+
+    // A rifle with a magazine of `loaded` rounds (none for null), and these in the rig and backpack.
+    private ItemNode JoinToReload(string playerId, int? loaded, ItemNode[] rig, ItemNode[]? backpack)
+    {
+        var rifle = Node("rifle", "primary", children: loaded.HasValue ? [Mag(loaded.Value, "magazine")] : []);
+        var gear = new List<ItemNode> { rifle, Node("rig", "rig", children: rig) };
+        if (backpack != null)
+        {
+            gear.Add(Node("backpack", "backpack", children: backpack));
+        }
+
+        var loadout = Node("character", children: gear.ToArray());
+        Assert.True(_raid.AddPlayer(playerId, loadout));
+        return loadout;
+    }
+
+    [Fact]
+    public void Reloading_SwapsInTheFullestMagazine_AndPutsTheOldOneWhereItWas()
+    {
+        var full = Mag(30, "grid", 0, 0);
+        var inRig = Mag(20, "grid", 0, 0);
+        inRig.Rotated = true; // the rig's one pocket is 2x1
+        var sam = JoinToReload("sam", 10, [inRig], [full, Mag(0, "grid", 1, 0)]);
+        var old = sam.Children[0].Children[0];
+        var backpack = sam.Children[2];
+
+        var reload = _raid.Reload("sam", SlotNames.Primary);
+
+        AssertOk(reload);
+        Assert.Equal(sam.Id, Assert.Single(reload.Updates).RootId);
+        Assert.Equal(30, _raid.LoadedRounds("sam", SlotNames.Primary));
+        Assert.Equal(sam.Children[0].Id, ParentId(full.Id));
+        Assert.Equal(backpack.Id, ParentId(old.Id));      // into the backpack, where the full one came from
+        Assert.Equal(10, _raid.Find(old.Id)!.Children.Single().Quantity);
+    }
+
+    [Fact]
+    public void Reloading_PrefersTheRig_AndFindsRoomElsewhereWhenItsFull()
+    {
+        // The rig's one 2x1 pocket holds a magazine lying on its side; the backpack's is just as full.
+        var inRig = Mag(30, "grid", 0, 0);
+        inRig.Rotated = true;
+        var sam = JoinToReload("sam", 3, [inRig], [Mag(30, "grid", 0, 0)]);
+        var old = sam.Children[0].Children[0];
+
+        AssertOk(_raid.Reload("sam", SlotNames.Primary));
+
+        Assert.Equal(sam.Children[0].Id, ParentId(inRig.Id));
+        Assert.Equal(sam.Children[2].Id, ParentId(old.Id)); // the rig had no room while the new one was still in it
+    }
+
+    [Fact]
+    public void Reloading_AnEmptyGun_JustLoadsIt()
+    {
+        var mag = Mag(12, "grid", 0, 0);
+        var sam = JoinToReload("sam", null, [], [mag]);
+
+        AssertOk(_raid.Reload("sam", SlotNames.Primary));
+
+        Assert.Equal(sam.Children[0].Id, ParentId(mag.Id));
+        Assert.Equal(12, _raid.LoadedRounds("sam", SlotNames.Primary));
+    }
+
+    [Fact]
+    public void Reloading_IgnoresMagazinesThatDontFit_OrAreLoadedInSomethingElse_OrArentFuller()
+    {
+        var spare = Node("rifle", "grid", 0, 0, children: [Mag(30, "magazine")]);
+        JoinToReload("sam", 5, [], [spare, Mag(8, "grid", 0, 2, "pistol_mag"), Mag(5, "grid", 1, 2)]);
+
+        AssertRefused(_raid.Reload("sam", SlotNames.Primary), RaidInventoryErrorCodes.NothingToReload);
+        Assert.Equal(5, _raid.LoadedRounds("sam", SlotNames.Primary));
+    }
+
+    [Fact]
+    public void Reloading_IsRefused_WithNoGun_NoRoom_OrOnceOut()
+    {
+        var inRig = Mag(30, "grid", 0, 0);
+        inRig.Rotated = true;
+        var sam = JoinToReload("sam", 10, [inRig], backpack: null);
+        Join("alex");
+        _raid.Kill("alex");
+
+        AssertRefused(_raid.Reload("sam", SlotNames.Primary), InventoryErrorCodes.NoSpace);  // nowhere for the old one
+        Assert.Equal(sam.Children[1].Id, ParentId(inRig.Id));                               // nothing moved
+        AssertRefused(_raid.Reload("sam", SlotNames.Rig), RaidInventoryErrorCodes.NothingToReload);
+        AssertRefused(_raid.Reload("sam", "nonsense"), RaidInventoryErrorCodes.NothingToReload);
+        AssertRefused(_raid.Reload("alex", SlotNames.Primary), RaidInventoryErrorCodes.PlayerNotActive);
+    }
+
+    private string? ParentId(string itemId)
+    {
+        foreach (var root in new[] { _raid.Snapshot(_raid.RootOf(itemId)!) })
+        {
+            foreach (var node in root!.Walk())
+            {
+                if (node.Children.Any(c => c.Id == itemId))
+                {
+                    return node.Id;
+                }
+            }
+        }
+
+        return null;
+    }
+
     // ---- Death and extraction ----
 
     [Fact]

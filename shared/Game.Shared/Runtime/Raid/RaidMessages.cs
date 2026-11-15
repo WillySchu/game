@@ -36,6 +36,9 @@ namespace RaidZero.Shared.Raid
 
         /// <summary>The server tried to fire a gun with nothing loaded, or no gun. Never sent to a client.</summary>
         public const string NoRoundsLoaded = "no_rounds_loaded";
+
+        /// <summary>The server tried to reload a gun that isn't there, or with no fuller magazine to hand. Never sent to a client.</summary>
+        public const string NothingToReload = "nothing_to_reload";
     }
 
     /// <summary>

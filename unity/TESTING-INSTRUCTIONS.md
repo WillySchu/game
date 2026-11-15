@@ -234,7 +234,8 @@ To set it up in a scene:
 
 - Add `RaidHud` (assembly `Game.UI`) to its own GameObject, as with the inventory and Hideout screens. It shows
   the raid clock, the extraction countdown and the card as you leave, from the `RaidSessionClient` on the
-  NetworkManager, which it adds by itself if the scene doesn't have one.
+  NetworkManager, which it adds by itself if the scene doesn't have one, and the gun in hand's rounds and
+  fire mode at the bottom right.
 - `SampleScene` has one `ExtractionZone`, over the extraction pad in the far corner. Elsewhere, add one or more:
   an empty GameObject with the component, sized with the green gizmo so the box covers where players stand.
   Stand in it for 8 seconds to extract.
@@ -263,6 +264,19 @@ right shows the same as text):
 
 In each case, `GET /v1/me/raids/{raid_id}` on the backend (or the admin tool) shows the outcome: extracted,
 or died for missing in action.
+
+Shooting and reloading (best with a separate server rather than as host, where the client's prediction and
+the server's corrections both show; left click fires, B changes fire mode, R reloads):
+
+1. With the rifle in your primary slot, the bottom right shows its rounds (magazine plus chamber) and `SEMI`.
+   Each click takes one; B switches to `AUTO`, and holding fire counts down at the gun's rate. With the
+   simulated lag on, the count doesn't jump back up a moment after firing.
+2. Fire the magazine dry: the count goes red at 0 and stops there. Open the inventory a second later: the
+   magazine in the rifle (double-click it) is empty too.
+3. Put a loaded magazine in your rig or backpack and press R: the count jumps to it, and the old magazine is
+   where the new one was (or elsewhere in the rig or backpack if it's a different size). With no fuller
+   magazine, R does nothing. Reloading an empty gun just loads it.
+4. Take the rifle out of the primary slot: the ammo display goes away, and B and fire do nothing.
 
 ## Deploying from the overlay
 

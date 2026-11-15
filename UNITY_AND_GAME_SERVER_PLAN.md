@@ -220,7 +220,7 @@ Hit markers are server-confirmed in Milestone 1. They arrive one round trip late
 
 ### Ammo and reloads
 
-Ammo is real inventory: the round count lives in the ammo stack inside the magazine item inside the weapon. A reload swaps the weapon's magazine for a loaded one from the rig. That ties gunplay to the economy from day one, and the extraction report already carries the result. `RaidServer.Consume` uses up rounds (or a medkit) from the player's raid inventory on the server; for guns, `RaidServer.LoadedRounds` counts what the gun in a slot has loaded (magazine plus chamber) and `RaidServer.FireRound` fires one (the magazine's, then the chambered one), which the player controller calls on the server each shot.
+Ammo is real inventory: the round count lives in the ammo stack inside the magazine item inside the weapon. A reload swaps the weapon's magazine for a loaded one from the rig. That ties gunplay to the economy from day one, and the extraction report already carries the result. `RaidServer.Consume` uses up rounds (or a medkit) from the player's raid inventory on the server; for guns, `RaidServer.LoadedRounds` counts what the gun in a slot has loaded (magazine plus chamber) and `RaidServer.FireRound` fires one (the magazine's, then the chambered one), which the player controller calls on the server each shot. `RaidServer.Reload` swaps in the fullest magazine from the rig, then the backpack.
 
 ### AI shooting
 
@@ -447,8 +447,8 @@ Two tracks ran in parallel until step 8, when they joined. Each step ends with s
    - Check: the AI done list above.
 6. **Shared inventory model and catalog export (Will). Done.**
    - Check: unit tests cover fit, stacking, nesting and slot rules; the catalog exports from real ScriptableObjects.
-7. **Raid inventory and loot (both). Done,** except reloading from inventory, which comes with weapons
-   (`RaidServer.Consume` is ready for it).
+7. **Raid inventory and loot (both). Done,** reloading included (`RaidServer.Reload`, on R; for now it's
+   instant, without the guns' reload time).
    - Check: loot a crate, equip a magazine, reload from it, and drop items, all at simulated latency.
 8. **Join from the backend (pair). Done.** Fish-Net authenticator, `/join`, spawn from the returned loadout.
    - Check: gear set up in the stash appears on the character in the raid.

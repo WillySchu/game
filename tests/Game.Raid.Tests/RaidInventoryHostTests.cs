@@ -259,6 +259,34 @@ public class RaidInventoryHostTests
     }
 
     [Fact]
+    public void Reloading_SendsTheGearStraightAway()
+    {
+        var (sam, loadout) = Join("sam");
+        var rounds = loadout.Children[0].Children[0].Children[0].Id;
+        for (int shot = 0; shot < 20; shot++)
+        {
+            _host.FireRound("sam", "primary", 1.0);
+        }
+
+        var spare = Node("mag", "grid", 0, 0, children: [Node("ammo", "rounds", quantity: 30)]);
+        var sams = _host.Service.Find(Child(loadout, "backpack"))!;
+        // Put a full magazine in the backpack the way the server would: a request (sam has it in hand).
+        _host.Service.AddContainer(Node("crate", children: [spare]));
+        _host.Service.Open("sam", _host.Service.RootOf(spare.Id)!);
+        Assert.True(_host.Service.Apply("sam", [InventoryOp.Move(spare.Id, InventoryTarget.AnyGridSpot(sams.Id))]).Success);
+
+        var output = _host.Reload("sam", "primary", out var reloaded);
+        Deliver(output);
+
+        Assert.True(reloaded);
+        Assert.NotEmpty(output.Messages);
+        Assert.Equal(spare.Id, sam.Character.Root.Children.Single(c => c.Slot == "primary").Children.Single().Id);
+        Assert.Equal(10, sam.Character.Root.Walk().Single(n => n.Id == rounds).Quantity); // the old one, in the backpack
+        Assert.Empty(_host.Reload("sam", "primary", out reloaded).Messages);                // nothing fuller now
+        Assert.False(reloaded);
+    }
+
+    [Fact]
     public void ARequestAfterShooting_CarriesTheLatestGear_SoNothingWaits()
     {
         var (sam, loadout) = Join("sam");

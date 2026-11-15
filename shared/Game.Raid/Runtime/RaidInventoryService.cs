@@ -437,6 +437,97 @@ namespace RaidZero.Raid
             return result;
         }
 
+        /// <summary>
+        /// Reloads the gun in one of the player's slots: swaps its magazine for the fullest one that fits it in
+        /// their rig, then their backpack (lying in a grid, not loaded in something else); on a tie, the first
+        /// found. The magazine coming out goes where there's room: the container the new one came from, then the
+        /// rig, then the backpack. Refused, changing nothing, with no gun there, no magazine fuller than the one
+        /// in it (<see cref="RaidInventoryErrorCodes.NothingToReload"/>), or no room for the one coming out
+        /// (<see cref="InventoryErrorCodes.NoSpace"/>).
+        /// </summary>
+        public RaidInventoryResult Reload(string playerId, string weaponSlot)
+        {
+            var player = FindActive(playerId);
+            if (player == null || !_tree.TryGet(player.CharacterId, out var character))
+            {
+                return NotActive(playerId);
+            }
+
+            var gun = weaponSlot != null ? character.ChildInSlot(weaponSlot) : null;
+            var spec = gun != null && _catalog.TryGet(gun.DefId, out var gunDef) ? gunDef.Slots?.Find(s => s.Name == SlotNames.Magazine) : null;
+            if (spec == null)
+            {
+                return RaidInventoryResult.Failed(new InventoryError(gun?.Id, RaidInventoryErrorCodes.NothingToReload,
+                    gun == null ? "No gun in '" + weaponSlot + "'." : "That doesn't take a magazine."));
+            }
+
+            var current = gun.ChildInSlot(SlotNames.Magazine);
+            var carriers = new[] { SlotNames.Rig, SlotNames.Backpack }.Select(character.ChildInSlot).Where(c => c != null).ToList();
+            ItemNode best = null;
+            int bestRounds = RoundsIn(current);
+            foreach (var carrier in carriers)
+            {
+                foreach (var candidate in LooseIn(carrier))
+                {
+                    if (Fits(spec, candidate) && RoundsIn(candidate) > bestRounds)
+                    {
+                        best = candidate;
+                        bestRounds = RoundsIn(candidate);
+                    }
+                }
+            }
+
+            if (best == null)
+            {
+                return RaidInventoryResult.Failed(new InventoryError(gun.Id, RaidInventoryErrorCodes.NothingToReload, "No fuller magazine in your rig or backpack."));
+            }
+
+            var into = InventoryTarget.NamedSlot(gun.Id, SlotNames.Magazine);
+            if (current == null)
+            {
+                return Apply(playerId, new[] { InventoryOp.Move(best.Id, into) });
+            }
+
+            foreach (var place in new[] { _tree.ParentOf(best.Id) }.Concat(carriers).Distinct())
+            {
+                var ops = new[] { InventoryOp.Move(current.Id, InventoryTarget.AnyGridSpot(place.Id)), InventoryOp.Move(best.Id, into) };
+                if (_tree.Check(ops).Success)
+                {
+                    return Apply(playerId, ops);
+                }
+            }
+
+            return RaidInventoryResult.Failed(new InventoryError(current.Id, InventoryErrorCodes.NoSpace, "No room for the magazine coming out."));
+        }
+
+        private static int RoundsIn(ItemNode magazine) => magazine?.ChildInSlot(SlotNames.Rounds)?.Quantity ?? 0;
+
+        private bool Fits(SlotSpec spec, ItemNode item) =>
+            spec.Accepts != null && _catalog.TryGet(item.DefId, out var def) && def.Tags != null && def.Tags.Any(spec.Accepts.Contains);
+
+        // Everything lying in a container's grids, and in theirs: not what's loaded in a named slot.
+        private IEnumerable<ItemNode> LooseIn(ItemNode container)
+        {
+            if (!_catalog.TryGet(container.DefId, out var def))
+            {
+                yield break;
+            }
+
+            foreach (var child in container.Children)
+            {
+                if (child.Slot == null || def.FindGrid(child.Slot) == null)
+                {
+                    continue;
+                }
+
+                yield return child;
+                foreach (var inner in LooseIn(child))
+                {
+                    yield return inner;
+                }
+            }
+        }
+
         // The item in one of the player's character slots, live; null if they're not active or it's empty.
         private ItemNode GunOf(string playerId, string weaponSlot)
         {
