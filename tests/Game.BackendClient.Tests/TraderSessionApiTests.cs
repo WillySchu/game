@@ -78,11 +78,9 @@ public class TraderSessionApiTests
     {
         await using var api = await ApiHost.StartAsync();
         using var here = Session(api);
-        using var elsewhere = Session(api);
         await here.DevLoginAsync("Sam");
-        await elsewhere.DevLoginAsync("Sam");
-        var medkit = elsewhere.Profile.Stash.Children.First(c => c.DefId == "medkit_basic");
-        Assert.True((await elsewhere.ApplyAsync(new[] { InventoryOp.Move(medkit.Id, InventoryTarget.Grid(elsewhere.Profile.Stash.Id, 9, 29)) })).Succeeded);
+        var medkit = here.Profile.Stash.Children.First(c => c.DefId == "medkit_basic");
+        await PlayerSessionApiTests.ChangeBehindItsBackAsync(api, here.Profile, InventoryOp.Move(medkit.Id, InventoryTarget.Grid(here.Profile.Stash.Id, 9, 29)));
 
         var bought = await here.BuyAsync("general_store", "medkit_basic");
 

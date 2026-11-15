@@ -43,8 +43,18 @@ namespace RaidZero.BackendApi
             _transport = transport ?? new HttpClientTransport(backendUrl, _options.RequestTimeout);
         }
 
-        /// <summary>The token expired or was rejected. Send the player back to the login screen.</summary>
+        /// <summary>
+        /// The token expired or was rejected, such as because the player logged in somewhere else (a player is
+        /// logged in in one place at a time, the latest). Send them back to the login screen, saying
+        /// <see cref="LoggedOutMessage"/>.
+        /// </summary>
         public event Action LoggedOut;
+
+        /// <summary>Why the session was last logged out unasked, as a sentence for the login screen; null if it hasn't been.</summary>
+        public string LoggedOutMessage { get; private set; }
+
+        /// <summary>The backend's error code for it: signed_in_elsewhere, or unauthorized for an expired or rejected token.</summary>
+        public string LoggedOutReason { get; private set; }
 
         /// <summary>The profile changed: after a login, a refresh, or an edit; null after <see cref="LogOut"/>. Redraw the stash.</summary>
         public event Action<PlayerProfile> ProfileChanged;
@@ -67,6 +77,8 @@ namespace RaidZero.BackendApi
             }
 
             _token = (string)reply.Json["token"];
+            LoggedOutMessage = null;
+            LoggedOutReason = null;
             return await RefreshAsync(cancellationToken);
         }
 
@@ -512,8 +524,12 @@ namespace RaidZero.BackendApi
             if (response.StatusCode == 401 && authenticated)
             {
                 _token = null;
+                LoggedOutReason = (string)json?["error"] ?? "unauthorized";
+                LoggedOutMessage = LoggedOutReason == "signed_in_elsewhere"
+                    ? "You logged in somewhere else. Log in again here to play on this one."
+                    : "Your session expired. Log in again.";
                 LoggedOut?.Invoke();
-                return new Reply(401, json, "logged_out", "Your session expired. Log in again.");
+                return new Reply(401, json, "logged_out", LoggedOutMessage);
             }
 
             return new Reply(response.StatusCode, json, (string)json?["error"] ?? "http_" + response.StatusCode, (string)json?["message"] ?? "");

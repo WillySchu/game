@@ -269,7 +269,12 @@ namespace RaidZero.UI
 
                 if (!result.Succeeded)
                 {
-                    _view.ShowMessage("Couldn't reach the trader: " + InventoryUiErrors.Describe(result.Error));
+                    // Logged out on the way: the Hideout has already said why.
+                    if (result.Error != "logged_out")
+                    {
+                        _view.ShowMessage("Couldn't reach the trader: " + InventoryUiErrors.Describe(result.Error));
+                    }
+
                     return;
                 }
 
@@ -401,7 +406,7 @@ namespace RaidZero.UI
                     _counts.Remove(offer.OfferId);
                     _view.ShowMessage("Bought " + TraderText.Title(_catalog, offer.Item) + (count > 1 ? " ×" + count : "") + " for " + TraderText.Credits(outcome.Credits) + ". It's in your stash.");
                 }
-                else
+                else if (outcome?.Error != "logged_out")
                 {
                     _view.ShowMessage(TraderText.Refusal(outcome));
                 }
@@ -509,7 +514,7 @@ namespace RaidZero.UI
                     _selling.Clear();
                     _view.ShowMessage("Sold " + (ids.Count == 1 ? "it" : ids.Count + " items") + " for " + TraderText.Credits(outcome.Credits) + ".");
                 }
-                else
+                else if (outcome?.Error != "logged_out")
                 {
                     _view.ShowMessage(TraderText.Refusal(outcome));
                 }

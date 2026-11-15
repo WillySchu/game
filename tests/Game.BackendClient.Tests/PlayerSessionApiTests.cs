@@ -56,6 +56,17 @@ public class PlayerSessionApiTests
     private static ItemNode StashItem(PlayerSession session, string defId) =>
         session.Profile!.Stash.Children.First(c => c.DefId == defId);
 
+    /// <summary>
+    /// Changes the player's stash on the backend without their client knowing, as a raid's result would: a
+    /// player is only logged in in one place, so another login can't do it any more.
+    /// </summary>
+    internal static async Task ChangeBehindItsBackAsync(ApiHost api, PlayerProfile profile, params InventoryOp[] ops)
+    {
+        var stash = (RaidZero.Backend.Players.StashInventory)api.Services.GetService(typeof(RaidZero.Backend.Players.StashInventory))!;
+        var applied = await stash.ApplyAsync(profile.PlayerId, profile.Version, ops, CancellationToken.None);
+        Assert.Equal(RaidZero.Backend.Players.StashOpsStatus.Applied, applied.Status);
+    }
+
     [Fact]
     public async Task LoggingIn_LoadsTheStarterKit()
     {
@@ -120,13 +131,11 @@ public class PlayerSessionApiTests
     public async Task AStaleEdit_IsRefreshedAndSentAgain_WhenItStillFits()
     {
         await using var api = await ApiHost.StartAsync();
-        using var desktop = Session(api);
         using var laptop = Session(api);
-        await desktop.DevLoginAsync("Sam");
         await laptop.DevLoginAsync("Sam");
 
-        // The desktop moves the medkit; the laptop, still on the old version, moves the pistol.
-        await desktop.ApplyAsync([InventoryOp.Move(StashItem(desktop, "medkit_basic").Id, InventoryTarget.Grid(desktop.Profile!.Stash.Id, 9, 29))]);
+        // The medkit moves on the backend; the laptop, still on the old version, moves the pistol.
+        await ChangeBehindItsBackAsync(api, laptop.Profile!, InventoryOp.Move(StashItem(laptop, "medkit_basic").Id, InventoryTarget.Grid(laptop.Profile!.Stash.Id, 9, 29)));
         var result = await laptop.ApplyAsync([InventoryOp.Move(StashItem(laptop, "pistol_pm").Id, InventoryTarget.Grid(laptop.Profile!.Stash.Id, 0, 27))]);
 
         Assert.True(result.Succeeded, result.ToString());
@@ -140,13 +149,11 @@ public class PlayerSessionApiTests
     public async Task AStaleEdit_ThatNoLongerFits_IsReported_WithTheStashRefreshed()
     {
         await using var api = await ApiHost.StartAsync();
-        using var desktop = Session(api);
         using var laptop = Session(api);
-        await desktop.DevLoginAsync("Sam");
         await laptop.DevLoginAsync("Sam");
 
-        // Both want the same empty cell for different items; the desktop gets there first.
-        await desktop.ApplyAsync([InventoryOp.Move(StashItem(desktop, "medkit_basic").Id, InventoryTarget.Grid(desktop.Profile!.Stash.Id, 9, 29))]);
+        // Both want the same empty cell for different items; the change on the backend gets there first.
+        await ChangeBehindItsBackAsync(api, laptop.Profile!, InventoryOp.Move(StashItem(laptop, "medkit_basic").Id, InventoryTarget.Grid(laptop.Profile!.Stash.Id, 9, 29)));
         var result = await laptop.ApplyAsync([InventoryOp.Move(StashItem(laptop, "currency_credits").Id, InventoryTarget.Grid(laptop.Profile!.Stash.Id, 9, 29))]);
 
         Assert.Equal("version_conflict", result.Error);

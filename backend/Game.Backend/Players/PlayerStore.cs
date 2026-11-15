@@ -17,8 +17,11 @@ namespace RaidZero.Backend.Players;
 public sealed record Profile(
     string PlayerId, string DisplayName, long ProfileVersion, ItemNode Stash, ItemNode Character, string? ActiveRaidId, string? LastRaidId);
 
-/// <summary>The result of a login: who it was, and whether this call created them.</summary>
-public sealed record LoginResult(string PlayerId, string DisplayName, bool Created);
+/// <summary>
+/// The result of a login: who it was, whether this call created them, and the new session it started (which
+/// replaces any earlier one, signing that out).
+/// </summary>
+public sealed record LoginResult(string PlayerId, string DisplayName, bool Created, string SessionId);
 
 public sealed class PlayerStore
 {
@@ -44,9 +47,11 @@ public sealed class PlayerStore
         {
             var existing = (await c.QueryAsync<string>(
                 "SELECT id FROM players WHERE display_name = @displayName", new { displayName }, transaction: tx)).FirstOrDefault();
+            var sessionId = Uuid7.NewId();
             if (existing is not null)
             {
-                return new LoginResult(existing, displayName, Created: false);
+                await c.ExecuteAsync("UPDATE players SET session_id = @sessionId WHERE id = @existing", new { sessionId, existing }, transaction: tx);
+                return new LoginResult(existing, displayName, Created: false, sessionId);
             }
 
             var playerId = Uuid7.NewId();
@@ -65,10 +70,10 @@ public sealed class PlayerStore
 
             await c.ExecuteAsync(
                 """
-                INSERT INTO players (id, display_name, stash_root_id, character_root_id, profile_version, created_at)
-                VALUES (@playerId, @displayName, @stashId, @characterId, 0, @now)
+                INSERT INTO players (id, display_name, stash_root_id, character_root_id, profile_version, created_at, session_id)
+                VALUES (@playerId, @displayName, @stashId, @characterId, 0, @now, @sessionId)
                 """,
-                new { playerId, displayName, stashId = stash.Id, characterId = character.Id, now },
+                new { playerId, displayName, stashId = stash.Id, characterId = character.Id, now, sessionId },
                 transaction: tx);
 
             var granted = await ItemRows.InsertTreeAsync(c, tx, stash, null, playerId, ItemStates.Stash, "starter", now);
@@ -79,8 +84,16 @@ public sealed class PlayerStore
                 new { playerId, detail = JsonSerializer.Serialize(new { Reason = "starter_kit", Items = granted }, JsonDefaults.Options), now },
                 transaction: tx);
 
-            return new LoginResult(playerId, displayName, Created: true);
+            return new LoginResult(playerId, displayName, Created: true, sessionId);
         }, ct);
+
+    /// <summary>
+    /// The player's current session (their latest login): "" if they haven't logged in since sessions began,
+    /// null if there's no such player.
+    /// </summary>
+    public Task<string?> CurrentSessionAsync(string playerId, CancellationToken ct = default) =>
+        _db.ReadAsync(async c => (await c.QueryAsync<string?>(
+            "SELECT COALESCE(session_id, '') FROM players WHERE id = @playerId", new { playerId })).FirstOrDefault(), ct);
 
     /// <summary>The player's stash and character trees, or null if there is no such player.</summary>
     public Task<Profile?> GetProfileAsync(string playerId, CancellationToken ct = default) =>

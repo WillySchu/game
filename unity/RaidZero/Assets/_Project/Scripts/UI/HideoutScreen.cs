@@ -359,10 +359,13 @@ namespace RaidZero.UI
 
         private void OnProfileChanged(PlayerProfile profile) => _dirty = true;
 
+        // Logged out on the way: OnLoggedOut has already said why, so don't cover it with "you're not logged in".
+        private static bool LoggedOut(string error) => error == "logged_out";
+
         private void OnLoggedOut()
         {
             _dirty = true;
-            _view.ShowMessage("You've been logged out. Log in again.");
+            _view.ShowMessage(_session?.LoggedOutMessage ?? "You've been logged out. Log in again.");
         }
 
         private void Redraw()
@@ -443,8 +446,10 @@ namespace RaidZero.UI
 
             if (!_session.IsLoggedIn)
             {
-                // A name from last time: log straight back in, as dev login is only a name.
-                if (!string.IsNullOrWhiteSpace(_nameField.value) && !_busy)
+                // A name from last time: log straight back in, as dev login is only a name. Not after logging in
+                // somewhere else signed this one out, though: that would sign the other place out in turn, and
+                // the two would take turns. Pressing Log in is the player choosing to play here.
+                if (!string.IsNullOrWhiteSpace(_nameField.value) && !_busy && _session.LoggedOutReason != "signed_in_elsewhere")
                 {
                     LogIn();
                 }
@@ -454,7 +459,7 @@ namespace RaidZero.UI
             }
 
             var refreshed = await _session.RefreshAsync();
-            if (!refreshed.Succeeded)
+            if (!refreshed.Succeeded && !LoggedOut(refreshed.Error))
             {
                 _view.ShowMessage("Couldn't reach your profile: " + InventoryUiErrors.Describe(refreshed.Error));
             }
@@ -494,7 +499,11 @@ namespace RaidZero.UI
                 var deployed = await Hideout.DeployAsync(_networkManager, _mapId);
                 if (!deployed.Succeeded)
                 {
-                    _view.ShowMessage(DeployProblem(deployed));
+                    if (!LoggedOut(deployed.Error))
+                    {
+                        _view.ShowMessage(DeployProblem(deployed));
+                    }
+
                     return;
                 }
 
@@ -590,7 +599,7 @@ namespace RaidZero.UI
                 {
                     ShowResult(result.Value);
                 }
-                else
+                else if (!LoggedOut(result.Error))
                 {
                     _view.ShowMessage("The raid's result hasn't arrived yet: " + InventoryUiErrors.Describe(result.Error) + ". Refresh to check again.");
                 }

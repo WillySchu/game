@@ -150,7 +150,8 @@ CREATE TABLE players (
   stash_root_id     TEXT NOT NULL,             -- item_instances.id
   character_root_id TEXT NOT NULL,             -- item_instances.id
   profile_version   INTEGER NOT NULL DEFAULT 0, -- bumps on every committed change
-  created_at        TIMESTAMP NOT NULL
+  created_at        TIMESTAMP NOT NULL,
+  session_id        TEXT                       -- the current login (UUIDv7); each login replaces it
 );
 
 CREATE TABLE item_instances (
@@ -568,6 +569,13 @@ These are the invariants that keep items from duplicating or vanishing. Each one
 | Client | Player token (dev login now, Steam session ticket later) | Read own profile, edit own stash and character, request tickets |
 | Game server | Server token, one per configured server | Join, heartbeat, outcomes, close for raids assigned to it |
 | Admin tooling | Separate admin token | Grants, item inspection, raid aborts, backups |
+
+A player is logged in in one place at a time, the latest. Each login starts a new session (`players.session_id`)
+and the token carries it, so a token from an earlier login is refused with 401 `signed_in_elsewhere`, and that
+client goes back to the login screen saying so. Being in a raid doesn't change this, and nothing is done to the
+raid: the old client plays on until the new one presses Rejoin, which takes over the connection as after a
+crash. Dev login works the same way, so two editor windows (Multiplayer Play Mode players) need different names.
+Any other 401 says `unauthorized`.
 
 A raid only accepts server calls from the server it was assigned to.
 

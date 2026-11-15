@@ -45,7 +45,7 @@ public static class PlayerEndpoints
         }
 
         var login = await players.LoginOrCreateAsync(body.DisplayName!, ct);
-        var token = tokens.Issue(login.PlayerId);
+        var token = tokens.Issue(login.PlayerId, login.SessionId);
         return Results.Ok(new DevLoginResponse(login.PlayerId, login.DisplayName, login.Created, token.Token, token.ExpiresAt));
     }
 

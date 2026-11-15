@@ -77,7 +77,7 @@ Settings live under `Backend` in `appsettings.json`, with Development overrides 
 | `TradersPath` | `traders.json` | What traders sell and pay. Validated against the catalog at startup |
 | `DevLoginEnabled` | `false` (`true` in Development) | When off, `/v1/auth/dev-login` doesn't exist |
 | `TokenSigningKey` | none (a dev-only key in Development) | Base64, 32+ bytes: `openssl rand -base64 32`. Required |
-| `TokenLifetimeHours` | `72` | Tokens can't be revoked early, short of rotating the key |
+| `TokenLifetimeHours` | `72` | How long a login lasts. Logging in again elsewhere ends it sooner |
 | `AdminToken` | none (a dev-only token in Development) | 32+ chars. Turns on `/admin` and `/v1/admin`; unset means they don't exist |
 | `BackupsToKeep` | `14` | Backups older than the newest N are deleted from `App_Data/backups` |
 | `Servers` | none (`dev-local` in Development) | Game servers: `Id`, `Token` (32+ chars), and the `Host`/`Port` clients connect to |
@@ -178,6 +178,10 @@ The key in `appsettings.Development.json` is for local runs only. Real deploymen
   things also need an `Idempotency-Key`: a retry with the same key replays the stored answer, and reusing a key
   for a different request is a 409. Write reports to a durable outbox and retry them with their original key.
 - Player tokens don't work on `/v1/server`, and server tokens don't work on `/v1/me`.
+- A player is logged in in one place at a time, the latest: each login starts a new session (`players.session_id`,
+  carried in the token), and a token from an earlier one gets 401 `signed_in_elsewhere`. `PlayerSession` takes
+  that as being logged out (`LoggedOutMessage` says why). A raid in progress is left alone until the new
+  client rejoins it. Tokens from before sessions (v1) are refused, so everyone logs in again once.
 - A player's stash is locked (409 `in_raid`) from ticket until their raid resolves.
 - The character container never leaves home; checkout moves only its contents and unhooks the top-level ones,
   so gear lost in a raid can't block re-equipping.

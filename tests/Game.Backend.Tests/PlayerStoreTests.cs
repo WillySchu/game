@@ -79,6 +79,22 @@ public sealed class PlayerStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task EachLogin_StartsANewSession_ReplacingTheLast()
+    {
+        await MigrateAsync();
+
+        var first = await _players.LoginOrCreateAsync("Sam");
+        var second = await _players.LoginOrCreateAsync("Sam");
+        var ann = await _players.LoginOrCreateAsync("Ann");
+
+        Assert.True(Uuid7.IsValid(first.SessionId));
+        Assert.NotEqual(first.SessionId, second.SessionId);
+        Assert.Equal(second.SessionId, await _players.CurrentSessionAsync(first.PlayerId));
+        Assert.Equal(ann.SessionId, await _players.CurrentSessionAsync(ann.PlayerId)); // Ann's login left Sam's alone
+        Assert.Null(await _players.CurrentSessionAsync(Uuid7.NewId()));
+    }
+
+    [Fact]
     public async Task Players_OnlySeeTheirOwnItems()
     {
         await MigrateAsync();

@@ -33,6 +33,9 @@ public sealed class ApiHost : IAsyncDisposable
 
     public HttpClient Client { get; }
 
+    /// <summary>The backend's own services, for changing a player's stash the way something other than their client would (a raid's result, say).</summary>
+    public IServiceProvider Services => _app.Services;
+
     public static async Task<ApiHost> StartAsync(bool devLogin = true, bool admin = true, int backupsToKeep = 14)
     {
         var folder = Path.Combine(Path.GetTempPath(), "raidzero-tests", Guid.NewGuid().ToString("N"));

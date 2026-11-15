@@ -65,12 +65,40 @@ public class ApiTests
     }
 
     [Fact]
+    public async Task LoggingInSomewhereElse_SignsOutTheEarlierLogin()
+    {
+        await using var api = await ApiHost.StartAsync();
+        var (_, first) = await api.LoginAsync("Sam");
+        var (_, ann) = await api.LoginAsync("Ann");
+        var (_, second) = await api.LoginAsync("Sam");
+
+        var old = await api.GetAsync("/v1/me/profile", first);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, old.StatusCode);
+        var body = await old.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("signed_in_elsewhere", body.GetProperty("error").GetString());
+        Assert.Equal(HttpStatusCode.OK, (await api.GetAsync("/v1/me/profile", second)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await api.GetAsync("/v1/me/profile", ann)).StatusCode); // another player's login: unaffected
+    }
+
+    [Fact]
+    public async Task Refusals_SayWhy()
+    {
+        await using var api = await ApiHost.StartAsync();
+
+        var response = await api.GetAsync("/v1/me/profile", "nonsense.token");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal("unauthorized", (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("error").GetString());
+    }
+
+    [Fact]
     public async Task Profile_WithAnExpiredToken_Is401()
     {
         await using var api = await ApiHost.StartAsync();
         var (playerId, _) = await api.LoginAsync();
         var lastWeek = new FixedTime(DateTimeOffset.UtcNow.AddDays(-7));
-        var stale = new PlayerTokens(Convert.FromBase64String(ApiHost.SigningKey), TimeSpan.FromHours(72), lastWeek).Issue(playerId);
+        var stale = new PlayerTokens(Convert.FromBase64String(ApiHost.SigningKey), TimeSpan.FromHours(72), lastWeek).Issue(playerId, Uuid7.NewId());
 
         Assert.Equal(HttpStatusCode.Unauthorized, (await api.GetAsync("/v1/me/profile", stale.Token)).StatusCode);
     }
@@ -79,7 +107,7 @@ public class ApiTests
     public async Task Profile_ForAPlayerThatDoesntExist_Is404()
     {
         await using var api = await ApiHost.StartAsync();
-        var ghost = new PlayerTokens(Convert.FromBase64String(ApiHost.SigningKey), TimeSpan.FromHours(1), TimeProvider.System).Issue(Uuid7.NewId());
+        var ghost = new PlayerTokens(Convert.FromBase64String(ApiHost.SigningKey), TimeSpan.FromHours(1), TimeProvider.System).Issue(Uuid7.NewId(), Uuid7.NewId());
 
         var response = await api.GetAsync("/v1/me/profile", ghost.Token);
 

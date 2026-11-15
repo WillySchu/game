@@ -78,6 +78,29 @@ public sealed class PlayerSessionTests : IDisposable
         Assert.Equal("not_logged_in", edit.Error);
         Assert.False(_session.IsLoggedIn);
         Assert.Equal(1, loggedOut);
+        Assert.Equal("unauthorized", _session.LoggedOutReason);
+        Assert.Contains("expired", _session.LoggedOutMessage);
+    }
+
+    [Fact]
+    public async Task LoggingInSomewhereElse_LogsThisOneOut_SayingWhy()
+    {
+        await _session.DevLoginAsync("Sam");
+        var loggedOut = 0;
+        _session.LoggedOut += () => loggedOut++;
+        _backend.Handler = _ => new BackendResponse(401, """{ "error": "signed_in_elsewhere", "message": "You logged in somewhere else." }""");
+
+        var refresh = await _session.RefreshAsync();
+
+        Assert.Equal("logged_out", refresh.Error);
+        Assert.False(_session.IsLoggedIn);
+        Assert.Equal(1, loggedOut);
+        Assert.Equal("signed_in_elsewhere", _session.LoggedOutReason);
+        Assert.Contains("logged in somewhere else", _session.LoggedOutMessage);
+
+        _backend.Handler = Normal;
+        await _session.DevLoginAsync("Sam");
+        Assert.Null(_session.LoggedOutMessage); // logging in again clears it
     }
 
     [Fact]

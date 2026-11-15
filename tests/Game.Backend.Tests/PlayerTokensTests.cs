@@ -19,7 +19,7 @@ public class PlayerTokensTests
     public void IssuedToken_ValidatesToItsPlayer()
     {
         var player = Uuid7.NewId();
-        var issued = Tokens().Issue(player);
+        var issued = Tokens().Issue(player, Uuid7.NewId());
 
         Assert.True(Tokens().TryValidate(issued.Token, out var validated));
         Assert.Equal(player, validated);
@@ -27,9 +27,29 @@ public class PlayerTokensTests
     }
 
     [Fact]
+    public void IssuedToken_CarriesItsSession()
+    {
+        var player = Uuid7.NewId();
+        var session = Uuid7.NewId();
+
+        Assert.True(Tokens().TryValidate(Tokens().Issue(player, session).Token, out var validated, out var validatedSession));
+        Assert.Equal((player, session), (validated, validatedSession));
+    }
+
+    [Fact]
+    public void TokensFromBeforeSessions_AreRejected()
+    {
+        // A v1 token, signed with the right key: "v1|player|expiry".
+        var payload = Encoding.UTF8.GetBytes("v1|" + Uuid7.NewId() + "|" + _time.Now.AddHours(1).ToUnixTimeSeconds());
+        var v1 = Base64Url.EncodeToString(payload) + "." + Base64Url.EncodeToString(HMACSHA256.HashData(Key, payload));
+
+        Assert.False(Tokens().TryValidate(v1, out _));
+    }
+
+    [Fact]
     public void ExpiredToken_IsRejected()
     {
-        var issued = Tokens().Issue(Uuid7.NewId());
+        var issued = Tokens().Issue(Uuid7.NewId(), Uuid7.NewId());
 
         _time.Now = _time.Now.AddHours(72);
 
@@ -39,7 +59,7 @@ public class PlayerTokensTests
     [Fact]
     public void TokenSignedWithAnotherKey_IsRejected()
     {
-        var issued = Tokens(RandomNumberGenerator.GetBytes(32)).Issue(Uuid7.NewId());
+        var issued = Tokens(RandomNumberGenerator.GetBytes(32)).Issue(Uuid7.NewId(), Uuid7.NewId());
 
         Assert.False(Tokens().TryValidate(issued.Token, out _));
     }
@@ -47,7 +67,7 @@ public class PlayerTokensTests
     [Fact]
     public void TokenWithAnEditedPayload_IsRejected()
     {
-        var issued = Tokens().Issue(Uuid7.NewId());
+        var issued = Tokens().Issue(Uuid7.NewId(), Uuid7.NewId());
         var signature = issued.Token[(issued.Token.IndexOf('.') + 1)..];
         var forged = Base64Url.EncodeToString(Encoding.UTF8.GetBytes($"v1|{Uuid7.NewId()}|9999999999")) + "." + signature;
 
@@ -57,7 +77,7 @@ public class PlayerTokensTests
     [Fact]
     public void TokenWithAnEditedSignature_IsRejected()
     {
-        var token = Tokens().Issue(Uuid7.NewId()).Token;
+        var token = Tokens().Issue(Uuid7.NewId(), Uuid7.NewId()).Token;
         var flipped = token[..^1] + (token[^1] == 'A' ? 'B' : 'A');
 
         Assert.False(Tokens().TryValidate(flipped, out _));

@@ -133,6 +133,13 @@ fills the screen whenever you're not in a raid.
    OK dismisses it for good; a result you never dismissed shows again at the next login.
 5. **Still in a raid:** if you leave a raid by quitting, the player bar says your gear is in a raid and the button
    says Rejoin (it works while that raid runs and this game remembers the ticket).
+6. **One place at a time:** log in as the same name in a second game (another computer, a build, or a
+   Multiplayer Play Mode player). The first one, the next time it talks to the backend (Refresh, a move,
+   Deploy), goes back to the login screen with "You logged in somewhere else", and doesn't log itself back in
+   until you press Log in there. A different name in each window plays two players side by side. Multiplayer
+   Play Mode players share the remembered name, so a second window logs in with the main editor's last name when
+   it starts: log out there and use another name. In a raid, the first one keeps playing until the second
+   presses Rejoin, which takes over (and the first goes to the login screen once it's back in the Hideout).
 
 Scene flow can take over Deploy: anything listening to `HideoutScreen.DeployRequested` gets the map ID and the
 screen doesn't connect by itself. Untick **Show When Not In A Raid** to show and hide it from code instead.
