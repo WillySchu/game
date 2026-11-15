@@ -241,6 +241,25 @@ public class RaidInventoryHostTests
     }
 
     [Fact]
+    public void WearingArmor_HoldsTheViewBackLikeConsuming()
+    {
+        var loadout = Loadout();
+        var vest = Node("vest", "armor");
+        vest.Durability = 1.0;
+        loadout.Children.Add(vest);
+        _clients["sam"] = new RaidInventoryView();
+        Deliver(_host.Join("sam", loadout));
+        var sam = _clients["sam"];
+
+        Assert.True(_host.Wear("sam", vest.Id, 0.25, 1.0));
+        Assert.Empty(_host.Tick(1.5).Messages);
+        Deliver(_host.Tick(2.0));
+
+        Assert.Equal(0.75, sam.Character.Root.Walk().Single(n => n.Id == vest.Id).Durability!.Value, 6);
+        Assert.False(_host.Wear("sam", "no-such-item", 0.1, 3.0));
+    }
+
+    [Fact]
     public void FiringRounds_HoldsTheViewBackLikeConsuming()
     {
         var (sam, loadout) = Join("sam");

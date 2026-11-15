@@ -347,7 +347,7 @@ The key in `appsettings.Development.json` is for local runs only. Real deploymen
   `RaidInventoryClient` is the client's end, with the `View` the inventory screen draws from.
 - Fish-Net's latency simulator (100 ms, 2% loss) is on the NetworkManager's Transport Manager. Its Enabled box
   (ticked in the prefab) decides in the editor; `NetworkConditions` turns it off in builds unless they're started with `--simulate-lag`.
-- Gameplay calls `RaidServer.PlayerDied`, `LoadedRounds`, `FireRound`, `Reload`, `Consume` and `InterruptExtraction` (on
+- Gameplay calls `RaidServer.Hit`, `PlayerDied`, `LoadedRounds`, `FireRound`, `Reload`, `Consume` and `InterruptExtraction` (on
   damage), through `RaidServer.Instance` (on the server only). The player controller counts what's loaded from
   the server's inventory every tick and fires with `FireRound`; clients only predict the count from the
   reconcile, as their copy of the gear lags up to a second behind shots. R reloads, instantly on the server
@@ -360,12 +360,22 @@ The key in `appsettings.Development.json` is for local runs only. Real deploymen
   despawns it when the pile is emptied. A ground item shows the item's world model lying on the side its icon
   shows, or a box the size of its inventory footprint while it has none, and registers itself for reach checks.
 - A player who dies leaves a `Body` (the `Body` prefab) where they fell, holding everything they carried, until
-  the raid ends. "F  Search body" opens it in the inventory screen. Nothing deals damage yet, so the F1 overlay
-  has a Die button, which the server only accepts in the editor and Development builds. A dead player's body must be its own object: their
+  the raid ends. "F  Search body" opens it in the inventory screen. Until there are hitboxes, the F1 overlay
+  has Shot (torso, head) and Die buttons, which the server only accepts in the editor and Development builds. A dead player's body must be its own object: their
   connection closes a few seconds after they leave, and Fish-Net despawns whatever it owned.
-- `RaidSessionClient` is the client's view of the raid: its phase, the clock, the extraction countdown, and
-  a `LeftRaid` event saying how the player left. It's carried by three small broadcasts. `RaidHud` (in
-  `Game.UI`) draws it: the clock, the countdown, a card as you leave, and the rounds loaded and fire mode of
+- **Damage.** `RaidServer.Hit(victim, shooter, ammoDefId, bodyPart)` is the one way to hurt a player; the
+  player controller calls it on the server when a shot's ray hits a hitbox. The rules are plain C# in
+  `Game.Raid` (`DamageRules`, with every number in one place): 100 health; head ×3, torso ×1, limbs ×0.6; body
+  armor (the armor slot) covers the torso, and protects less as it wears. A round whose penetration is at least
+  the armor's protection goes through for 85% of its damage and wears the armor by its damage; otherwise 15%
+  gets through and the armor wears by half. The damage and penetration are the round's `AmmoStats`, the
+  protection and durability the armor's `ArmorStats`. Health is kept per player for the raid (`RaidHealth`),
+  so a rejoin keeps it; a hit resets an extraction countdown, and no health is `PlayerDied`. Armor wear goes in
+  the raid inventory (`Wear`, held back like spent rounds) and home with the extraction report.
+- `RaidSessionClient` is the client's view of the raid: its phase, the clock, the player's health, the
+  extraction countdown, and a `LeftRaid` event saying how the player left. It's carried by small broadcasts;
+  health goes only to the player it's about. `RaidHud` (in
+  `Game.UI`) draws it: the clock, the countdown, a card as you leave, health at the bottom left, and the rounds loaded and fire mode of
   the gun in hand (from `PlayerController.Local`, the count it predicts), worded by `RaidHudText` in
   `Game.Shared`.
 - Inventory messages travel as two Fish-Net broadcasts carrying `RaidProtocol` bytes, so the network layer

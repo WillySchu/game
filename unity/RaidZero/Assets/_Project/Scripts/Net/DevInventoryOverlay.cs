@@ -101,15 +101,26 @@ namespace RaidZero.Net
             }
             else
             {
-                // Until there's damage: the server only takes this in the editor and Development builds.
+                // Until there are hitboxes: the server only takes these in the editor and Development builds.
+                var session = RaidSessionClient.Instance;
+                GUILayout.Label("Health: " + (session != null ? Mathf.CeilToInt(session.Health) + " / " + Mathf.CeilToInt(session.MaxHealth) : "?"));
+                GUILayout.BeginHorizontal();
+                if (GUILayout.Button("Shot: torso"))
+                {
+                    SendToServer(new DevShotBroadcast { Part = BodyPart.Torso });
+                }
+
+                if (GUILayout.Button("Shot: head"))
+                {
+                    SendToServer(new DevShotBroadcast { Part = BodyPart.Head });
+                }
+
                 if (GUILayout.Button("Die (leaves a body with everything you carry)"))
                 {
-                    var networkManager = FindAnyObjectByType<NetworkManager>();
-                    if (networkManager != null)
-                    {
-                        networkManager.ClientManager.Broadcast(new DevDieBroadcast());
-                    }
+                    SendToServer(new DevDieBroadcast());
                 }
+
+                GUILayout.EndHorizontal();
 
                 GUILayout.Label("Your gear");
                 DrawTree(client, character.Root, 0, isMine: true);
@@ -183,6 +194,16 @@ namespace RaidZero.Net
                 {
                     _lastResult = "the server couldn't start: see the console";
                 }
+            }
+        }
+
+        // A dev message to the raid server: a Shot (a 5.45 round where chosen) or Die.
+        private static void SendToServer<T>(T message) where T : struct, FishNet.Broadcast.IBroadcast
+        {
+            var networkManager = FindAnyObjectByType<NetworkManager>();
+            if (networkManager != null)
+            {
+                networkManager.ClientManager.Broadcast(message);
             }
         }
 

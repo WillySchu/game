@@ -389,6 +389,34 @@ namespace RaidZero.Raid
         }
 
         /// <summary>
+        /// Wears down one of the player's items, such as their armor after a hit: <paramref name="amount"/> is a
+        /// share of new durability (0..1). Fails, changing nothing, for anything they aren't carrying or that has
+        /// no durability. Their armor is the item in <see cref="SlotNames.Armor"/>: see <see cref="ArmorOf"/>.
+        /// </summary>
+        public RaidInventoryResult Wear(string playerId, string itemId, double amount)
+        {
+            var player = FindActive(playerId);
+            if (player == null)
+            {
+                return NotActive(playerId);
+            }
+
+            var root = _tree.RootOf(itemId);
+            if (root == null || root.Id != player.CharacterId)
+            {
+                return RaidInventoryResult.Failed(new InventoryError(itemId, InventoryErrorCodes.ItemNotFound, "You aren't carrying '" + itemId + "'."));
+            }
+
+            var applied = _tree.Wear(itemId, amount);
+            return applied.Success
+                ? Finish(applied, new HashSet<string>(StringComparer.Ordinal) { player.CharacterId }, null)
+                : RaidInventoryResult.Failed(applied.Error);
+        }
+
+        /// <summary>The armor the player is wearing (their armor slot's item), live, or null. Read it, don't keep it.</summary>
+        public ItemNode ArmorOf(string playerId) => GunOf(playerId, SlotNames.Armor);
+
+        /// <summary>
         /// How many rounds the gun in one of the player's slots ("primary") can fire before it needs reloading:
         /// the rounds in its magazine plus the chambered one. 0 with no gun there, or nothing loaded.
         /// </summary>
@@ -528,7 +556,8 @@ namespace RaidZero.Raid
             }
         }
 
-        // The item in one of the player's character slots, live; null if they're not active or it's empty.
+        // The item in one of the player's character slots, live; null if they're not active or it's empty. (Named
+        // for guns, its first use; armor goes through it too.)
         private ItemNode GunOf(string playerId, string weaponSlot)
         {
             var player = FindActive(playerId);

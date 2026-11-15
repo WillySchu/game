@@ -157,6 +157,13 @@ namespace RaidZero.Raid
         public bool Consume(string playerId, string itemId, int quantity, double now) =>
             HoldBack(_service.Consume(playerId, itemId, quantity), now);
 
+        /// <summary>
+        /// Wears down one of the player's items (RaidInventoryService.Wear), holding back the view as
+        /// <see cref="Consume"/> does: a burst of hits shouldn't resend the gear on every one.
+        /// </summary>
+        public bool Wear(string playerId, string itemId, double amount, double now) =>
+            HoldBack(_service.Wear(playerId, itemId, amount), now);
+
         /// <summary>How many rounds the gun in one of the player's slots has loaded (RaidInventoryService.LoadedRounds).</summary>
         public int LoadedRounds(string playerId, string weaponSlot) => _service.LoadedRounds(playerId, weaponSlot);
 

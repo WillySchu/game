@@ -59,6 +59,25 @@ namespace RaidZero.Net
     {
     }
 
+    /// <summary>
+    /// Client to server, for testing only: as if shot with a 5.45 there (RaidServer.Hit). The server only listens
+    /// for it in the editor and in Development builds (the F1 overlay's Shot buttons), until there are hitboxes.
+    /// </summary>
+    public struct DevShotBroadcast : IBroadcast
+    {
+        public BodyPart Part;
+    }
+
+    /// <summary>
+    /// Server to client: your health, when you join or rejoin and whenever it changes. Only ever sent to the player
+    /// it's about; nobody else learns anyone's health.
+    /// </summary>
+    public struct HealthBroadcast : IBroadcast
+    {
+        public float Health;
+        public float Max;
+    }
+
     /// <summary>Server to client: your extraction countdown started (or started over), or stopped (Point is null).</summary>
     public struct ExtractionBroadcast : IBroadcast
     {

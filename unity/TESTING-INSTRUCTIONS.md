@@ -285,6 +285,19 @@ the server's corrections both show; left click fires, B changes fire mode, R rel
    magazine, R does nothing. Reloading an empty gun just loads it.
 4. Take the rifle out of the primary slot: the ammo display goes away, and B and fire do nothing.
 
+Damage (until there are hitboxes, the F1 overlay's **Shot: torso** and **Shot: head** hit you with a 5.45 round
+through the same path a real hit takes; health shows at the bottom left and in the overlay):
+
+1. Wearing the starter vest, **Shot: torso** takes 17 (the round goes through the vest), and the bar flashes.
+   Open the inventory a second later: the vest's condition in its tooltip has dropped by a fifth. After five
+   torso shots it's worn out and you're on 15: the sixth takes the full 20 and kills you.
+2. **Shot: head** takes 60 whatever you wear: two kill you. At 25 or less the bar turns red. Dying shows the
+   "Killed" card, leaves a body, and the raid result says your gear stayed in the zone.
+3. Standing in an extraction zone, a shot starts the countdown over.
+4. Take a shot, then quit and rejoin: the health you come back with is what you left with. A new raid starts
+   you at 100.
+5. Extract with a worn vest: in the Hideout, its tooltip shows the wear.
+
 ## Deploying from the overlay
 
 When the client isn't connected, the F1 overlay has a **Deploy** button. It goes the way the Hideout will: a
@@ -378,8 +391,8 @@ What to check, with two players (a host and an MPPM clone):
 
 ## Bodies
 
-Nothing deals damage yet, so open the F1 overlay in a raid and press **Die**. It only works in the editor and
-Development builds.
+Until there are hitboxes, open the F1 overlay in a raid and press **Die**, or **Shot: head** until you die. They
+only work in the editor and Development builds.
 
 1. The player who died sees the "Killed" card and goes back to the Hideout, where the result says their gear
    stayed in the zone.

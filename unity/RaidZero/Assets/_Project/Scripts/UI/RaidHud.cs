@@ -9,7 +9,7 @@ namespace RaidZero.UI
 {
     /// <summary>
     /// What's on screen during a raid: the raid clock at the top, the extraction countdown while you stand in an
-    /// extraction zone, the rounds loaded and fire mode of the gun in hand (bottom right, from the local
+    /// extraction zone, your health (bottom left), the rounds loaded and fire mode of the gun in hand (bottom right, from the local
     /// PlayerController), and a card when you leave (Extracted, Killed, Missing in action, Raid called off) that
     /// stays up for a few seconds over the Hideout coming back. Everything comes from RaidSessionClient; the
     /// wording is in RaidHudText.
@@ -22,6 +22,7 @@ namespace RaidZero.UI
     {
         /// <summary>The last stretch of the clock, in seconds, when it turns to its warning colour.</summary>
         private const float LateSeconds = 60f;
+        private const float HurtFlashSeconds = 0.35f;
 
         [SerializeField]
         [Tooltip("How long the card stays up after you leave a raid, in seconds.")]
@@ -40,6 +41,10 @@ namespace RaidZero.UI
         private VisualElement _prompt;
         private Label _promptKey;
         private Label _promptText;
+        private VisualElement _health;
+        private VisualElement _healthFill;
+        private Label _healthValue;
+        private float _hurtUntil;
         private VisualElement _ammo;
         private Label _ammoRounds;
         private Label _ammoMode;
@@ -105,6 +110,16 @@ namespace RaidZero.UI
             _prompt.Add(_promptText);
             _root.Add(_prompt);
 
+            // Health, bottom left: a bar and the number.
+            _health = new VisualElement { pickingMode = PickingMode.Ignore }.WithClass("hud-health");
+            var healthBar = new VisualElement { pickingMode = PickingMode.Ignore }.WithClass("hud-health__bar");
+            _healthFill = new VisualElement { pickingMode = PickingMode.Ignore }.WithClass("hud-health__fill");
+            healthBar.Add(_healthFill);
+            _healthValue = new Label { pickingMode = PickingMode.Ignore }.WithClass("hud-health__value");
+            _health.Add(healthBar);
+            _health.Add(_healthValue);
+            _root.Add(_health);
+
             // The gun in hand, bottom right: the rounds loaded, as the player controller predicts them, and the
             // fire mode.
             _ammo = new VisualElement { pickingMode = PickingMode.Ignore }.WithClass("hud-ammo");
@@ -124,6 +139,7 @@ namespace RaidZero.UI
             _clock.style.display = DisplayStyle.None;
             _extraction.style.display = DisplayStyle.None;
             _prompt.style.display = DisplayStyle.None;
+            _health.style.display = DisplayStyle.None;
             _ammo.style.display = DisplayStyle.None;
             _card.style.display = DisplayStyle.None;
             document.rootVisualElement.Add(_root);
@@ -147,6 +163,7 @@ namespace RaidZero.UI
             ShowClock(inRaid);
             ShowExtraction(inRaid);
             ShowPrompt(inRaid);
+            ShowHealth(inRaid);
             ShowAmmo(inRaid);
 
             if (_cardUntil > 0 && Time.unscaledTime > _cardUntil)
@@ -190,6 +207,7 @@ namespace RaidZero.UI
 
             _session.LeftRaid += OnLeftRaid;
             _session.ExtractionChanged += OnExtractionChanged;
+            _session.HealthChanged += OnHealthChanged;
         }
 
         private void Unhook()
@@ -198,6 +216,7 @@ namespace RaidZero.UI
             {
                 _session.LeftRaid -= OnLeftRaid;
                 _session.ExtractionChanged -= OnExtractionChanged;
+                _session.HealthChanged -= OnHealthChanged;
                 _session = null;
             }
         }
@@ -214,6 +233,32 @@ namespace RaidZero.UI
             var left = _session.SecondsRemaining;
             _clock.text = RaidHudText.Clock(left);
             _clock.EnableInClassList("hud-clock--late", left <= LateSeconds);
+        }
+
+        // The player's health while they're in the raid, red when low, flashing for a moment when it drops.
+        private void ShowHealth(bool inRaid)
+        {
+            var show = inRaid && _session.Phase != RaidPhase.Closed;
+            _health.style.display = show ? DisplayStyle.Flex : DisplayStyle.None;
+            if (!show)
+            {
+                return;
+            }
+
+            var health = _session.Health;
+            var max = _session.MaxHealth;
+            _healthFill.style.width = Length.Percent(100f * RaidHudText.HealthFill(health, max));
+            _healthValue.text = RaidHudText.Health(health);
+            _health.EnableInClassList("hud-health--low", RaidHudText.IsLowHealth(health, max));
+            _health.EnableInClassList("hud-health--hurt", Time.unscaledTime < _hurtUntil);
+        }
+
+        private void OnHealthChanged(float before, float now)
+        {
+            if (now < before)
+            {
+                _hurtUntil = Time.unscaledTime + HurtFlashSeconds;
+            }
         }
 
         // The local player's gun, while they have one in hand.

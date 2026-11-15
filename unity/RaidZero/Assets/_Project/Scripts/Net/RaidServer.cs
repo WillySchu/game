@@ -9,6 +9,7 @@ using FishNet.Managing;
 using FishNet.Object;
 using FishNet.Transporting;
 using RaidZero.BackendApi;
+using RaidZero.Items;
 using RaidZero.Raid;
 using RaidZero.Shared.Catalog;
 using RaidZero.Shared.Inventory;
@@ -18,6 +19,14 @@ using UnityEngine.SceneManagement;
 
 namespace RaidZero.Net
 {
+    /// <summary>What <see cref="RaidServer.Hit"/> did: nothing (nobody there to hurt), a hit, or a kill.</summary>
+    public enum HitOutcome
+    {
+        None,
+        Hit,
+        Killed,
+    }
+
     /// <summary>
     /// The game server's raid: the connection to the backend, the raid's inventory, and its life from the
     /// first join to the close. Goes on the NetworkManager's GameObject, next to <see cref="RaidAuthenticator"/>,
@@ -28,7 +37,7 @@ namespace RaidZero.Net
     /// still inside is missing in action, the backend gets the close, and a dedicated server exits so its
     /// supervisor can start a fresh one.
     ///
-    /// Gameplay code calls <see cref="PlayerDied"/>, <see cref="LoadedRounds"/>, <see cref="FireRound"/>, <see cref="Reload"/>,
+    /// Gameplay code calls <see cref="Hit"/>, <see cref="PlayerDied"/>, <see cref="LoadedRounds"/>, <see cref="FireRound"/>, <see cref="Reload"/>,
     /// <see cref="Consume"/> and <see cref="InterruptExtraction"/> (through <see cref="Instance"/>);
     /// <see cref="ExtractionZone"/>s in the level handle extraction. Items on the ground are this class's too:
     /// it rolls the level's <see cref="LooseLootSpot"/>s at raid start and spawns a <see cref="GroundItem"/> for
@@ -90,6 +99,7 @@ namespace RaidZero.Net
         private NetworkManager _networkManager;
         private BackendClient _backend;
         private RaidInventoryHost _host;
+        private RaidHealth _health;
         private RaidLifecycle _lifecycle;
         private ExtractionTracker _extraction;
         private Task _closing;
@@ -210,6 +220,7 @@ namespace RaidZero.Net
             }
 
             SendState(connection);
+            SendHealth(connection); // full, or as hurt as they were when they left, on a rejoin
         }
 
         // ---- Called by gameplay ----
@@ -247,6 +258,79 @@ namespace RaidZero.Net
 
             _backend.ReportExtracted(playerId, _host.Extract(playerId), extractPoint);
             Leave(playerId, connection, RaidExit.Extracted);
+        }
+
+        /// <summary>
+        /// A round hit a player: the server's player controller calls this when its shot's ray hits a hitbox.
+        /// The damage comes from the round's AmmoStats (<paramref name="ammoDefId"/> is what FireRound returned),
+        /// scaled by where it landed, with the victim's armor (their armor slot) taking its share where it
+        /// covers, by <see cref="DamageRules"/>. The armor wears, the victim's health drops (and their client is
+        /// told), an extraction countdown starts over, and at no health they die (<see cref="PlayerDied"/>).
+        /// Nothing happens to anyone who isn't in the raid, or when a player hits themselves.
+        /// </summary>
+        /// <param name="shooter">Who fired, or null for nobody in particular (a dev shot, later the world).</param>
+        public HitOutcome Hit(NetworkConnection victim, NetworkConnection shooter, string ammoDefId, BodyPart part)
+        {
+            var playerId = PlayerIdOf(victim);
+            if (!IsInside(playerId) || _health == null || (shooter != null && shooter == victim))
+            {
+                return HitOutcome.None;
+            }
+
+            var ammo = StatsOf<AmmoStats>(ammoDefId);
+            if (ammo == null)
+            {
+                Debug.LogWarning("[raid] A hit with '" + ammoDefId + "', which has no ammo stats, did nothing.");
+                return HitOutcome.None;
+            }
+
+            // The armor where it landed, if it covers there and has its stats filled in.
+            ItemNode armor = null;
+            ArmorStats armorStats = null;
+            ArmorHit? armorHit = null;
+            if (DamageRules.ArmorCovers(part))
+            {
+                armor = Inventory.ArmorOf(playerId);
+                armorStats = StatsOf<ArmorStats>(armor?.DefId);
+                if (armor?.Durability != null && armorStats != null && armorStats.durability > 0)
+                {
+                    armorHit = new ArmorHit(armorStats.protection, (float)armor.Durability.Value * armorStats.durability, armorStats.durability);
+                }
+            }
+
+            var damage = DamageRules.Resolve(ammo.damage, ammo.penetration, part, armorHit);
+            if (damage.ArmorWear > 0 && armorHit != null)
+            {
+                _host.Wear(playerId, armor.Id, damage.ArmorWear / armorStats.durability, Now);
+            }
+
+            var left = _health.Damage(playerId, damage.Health);
+            Debug.Log("[raid] " + (PlayerIdOf(shooter) ?? "something") + " hit " + playerId + " in the " + part.ToString().ToLowerInvariant()
+                + " with " + ammoDefId + ": " + damage.Health.ToString("0.#", CultureInfo.InvariantCulture) + " damage"
+                + (armorHit != null ? (damage.Penetrated ? ", through the armor" : ", stopped by the armor") : "")
+                + ", " + left.ToString("0.#", CultureInfo.InvariantCulture) + " health left.");
+            SendHealth(victim);
+            if (left <= 0f)
+            {
+                PlayerDied(victim);
+                return HitOutcome.Killed;
+            }
+
+            InterruptExtraction(victim);
+            return HitOutcome.Hit;
+        }
+
+        /// <summary>The player's health, or 0 if they aren't in the raid.</summary>
+        public float HealthOf(NetworkConnection connection)
+        {
+            var playerId = PlayerIdOf(connection);
+            return IsInside(playerId) && _health != null ? _health.Of(playerId) : 0f;
+        }
+
+        private static T StatsOf<T>(string defId) where T : class, IItemStats
+        {
+            var asset = defId != null && ItemLibrary.Instance != null ? ItemLibrary.Instance.Find(defId) : null;
+            return asset != null ? asset.Stats as T : null;
         }
 
         /// <summary>The player took damage: if they're extracting, their countdown starts over.</summary>
@@ -497,6 +581,7 @@ namespace RaidZero.Net
                     EmptyGrace = TimeSpan.FromSeconds(_emptyRaidSeconds),
                 });
                 _extraction = new ExtractionTracker();
+                _health = new RaidHealth();
                 _host = new RaidInventoryHost(inventory) { CanReach = CanReach };
                 _host.ProtocolViolation += OnProtocolViolation;
                 foreach (var (pileId, place) in looseLoot)
@@ -508,6 +593,7 @@ namespace RaidZero.Net
                 if (Application.isEditor || Debug.isDebugBuild)
                 {
                     _networkManager.ServerManager.RegisterBroadcast<DevDieBroadcast>(OnDevDie);
+                    _networkManager.ServerManager.RegisterBroadcast<DevShotBroadcast>(OnDevShot);
                 }
 
                 // CI bakes the commit into the server image (RAIDZERO_BUILD); anything else is a local build.
@@ -540,6 +626,7 @@ namespace RaidZero.Net
             {
                 _networkManager.ServerManager.UnregisterBroadcast<InventoryToServerBroadcast>(OnInventoryBroadcast);
                 _networkManager.ServerManager.UnregisterBroadcast<DevDieBroadcast>(OnDevDie);
+                _networkManager.ServerManager.UnregisterBroadcast<DevShotBroadcast>(OnDevShot);
             }
 
             if (_backend != null)
@@ -566,6 +653,7 @@ namespace RaidZero.Net
             _groundItems.Clear(); // the server stopping despawns them
             _lifecycle = null;
             _extraction = null;
+            _health = null;
             _closing = null;
             foreach (var zone in _testZones.Values)
             {
@@ -737,6 +825,18 @@ namespace RaidZero.Net
             });
         }
 
+        // The player's own health, to them only.
+        private void SendHealth(NetworkConnection connection)
+        {
+            var playerId = PlayerIdOf(connection);
+            if (_health == null || playerId == null || connection == null || !connection.IsActive || !connection.IsAuthenticated)
+            {
+                return;
+            }
+
+            _networkManager.ServerManager.Broadcast(connection, new HealthBroadcast { Health = _health.Of(playerId), Max = _health.Max });
+        }
+
         private void SendExtraction(NetworkConnection connection, string point, double secondsLeft)
         {
             if (connection.IsActive)
@@ -762,6 +862,13 @@ namespace RaidZero.Net
             Debug.Log("[raid] " + PlayerIdOf(connection) + " asked to die (dev).");
             PlayerDied(connection);
         }
+
+        /// <summary>What the F1 overlay's Shot buttons hit you with.</summary>
+        public const string DevShotAmmo = "ammo_545_ps";
+
+        // Only registered in the editor and Development builds.
+        private void OnDevShot(NetworkConnection connection, DevShotBroadcast message, Channel channel) =>
+            Hit(connection, null, DevShotAmmo, message.Part);
 
         private void Dispatch(HostOutput output, NetworkConnection sender)
         {

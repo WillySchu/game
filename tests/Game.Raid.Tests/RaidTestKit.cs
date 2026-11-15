@@ -9,7 +9,8 @@ public static class RaidTestKit
 {
     public static readonly ItemCatalog Catalog = new(
     [
-        new() { DefId = "character", Slots = [Slot("primary", "weapon_long"), Slot("rig", "rig"), Slot("backpack", "backpack")] },
+        new() { DefId = "character", Slots = [Slot("primary", "weapon_long"), Slot("armor", "armor"), Slot("rig", "rig"), Slot("backpack", "backpack")] },
+        new() { DefId = "vest", Width = 3, Height = 3, Tags = ["armor"], HasDurability = true },
         new() { DefId = "ground", Grids = [GridSpec.Main(10, 10)] },
         new() { DefId = "crate", Grids = [GridSpec.Main(6, 4)] },
         new() { DefId = "rifle", Width = 4, Height = 2, Tags = ["weapon_long"], Slots = [Slot("magazine", "mag"), new() { Name = "chamber", Accepts = ["ammo"], MaxQuantity = 1 }] },

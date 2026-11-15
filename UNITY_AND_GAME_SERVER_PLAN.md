@@ -12,10 +12,12 @@ Will & John · first written Oct 26, 2026 · last updated Nov 6, 2026
 | Loot tables and crates | Done | Will |
 | Inventory screen (raid), with the Hideout's data source, tooltips and rendered icons | Done | Will |
 | Greybox map, NavMesh | In progress (in `SampleScene` for now) | John |
-| Weapons, hit registration, damage, health and death | Not started | John |
+| Weapons: firing, fire modes, ammo and reloads | Done (reloads are instant for now) | John, Will |
+| Damage, health, armor and death on the server (`RaidServer.Hit`, health on the HUD) | Done | Will |
+| Hit registration: hitboxes, the shot's raycast, recoil, effects | Not started | John |
 | AI | Not started | John |
 | Interaction, items on the ground, loose loot | Done | Will |
-| Bodies in the world | Done (dying itself waits for damage; F1 has a Die button) | Will |
+| Bodies in the world | Done | Will |
 | Hideout screen: login, gear and stash, deploy, raid results | Done | Will |
 | Traders: backend, prices, `PlayerSession` calls and the Hideout's trader screen | Done | Will |
 | Raid HUD: clock, extraction countdown, the card as you leave | Done | Will |
@@ -207,8 +209,8 @@ The shooter sees and hears their shot instantly, but only the server decides whe
 
 1. **Client (predicted):** plays muzzle flash, sound, recoil and decrements the displayed ammo. Sends a fire request with the tick it fired on and the exact aim ray.
 2. **Server validates:** the weapon is equipped, fire rate allows it, the magazine in the server's raid inventory has a round, and the ray starts near the player's server position.
-3. **Server rewinds:** uses Fish-Net's collider rollback to move hitboxes back to the shooter's tick, raycasts, then restores them. Cap rewind at about 200 ms so high-ping players can't shoot into the past indefinitely.
-4. **Server applies:** consumes the round in the raid inventory, applies damage, and tells clients what happened (impact effects for everyone, a hit marker for the shooter).
+3. **Server rewinds:** moves hitboxes back to the shooter's tick, raycasts, then restores them. Cap rewind at about 200 ms so high-ping players can't shoot into the past indefinitely. Fish-Net's collider rollback is a Pro feature (in our free copy its methods do nothing), so this would be our own short history of hitbox positions. The first version skips it: hits are checked against where players are on the server now.
+4. **Server applies:** consumes the round in the raid inventory (`FireRound`), applies damage (`RaidServer.Hit`, by `DamageRules`), and tells clients what happened (impact effects for everyone, a hit marker for the shooter).
 
 Hit markers are server-confirmed in Milestone 1. They arrive one round trip late, which is honest and avoids showing hits that didn't count.
 
@@ -216,7 +218,7 @@ Hit markers are server-confirmed in Milestone 1. They arrive one round trip late
 
 - `WeaponDefinition` (ScriptableObject, linked to its item `defId`): damage, rounds per minute, range falloff, spread, recoil pattern, compatible magazine defs.
 - `Hitbox` components on a character's colliders with a zone (head, torso, limbs) and a damage multiplier.
-- One health pool per character for now. Per-limb health is a later decision.
+- One health pool per character for now (100, `DamageRules.MaxHealth`), with head ×3 and limbs ×0.6. Per-limb health is a later decision. Body armor covers the torso.
 
 ### Ammo and reloads
 

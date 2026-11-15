@@ -7,8 +7,8 @@ using UnityEngine;
 namespace RaidZero.Net
 {
     /// <summary>
-    /// The client's view of the raid itself: its phase, the clock, the player's extraction countdown, and how
-    /// they left. Goes on the NetworkManager's GameObject. The HUD reads it; the end-of-raid screen listens to
+    /// The client's view of the raid itself: its phase, the clock, the player's health and extraction countdown,
+    /// and how they left. Goes on the NetworkManager's GameObject. The HUD reads it; the end-of-raid screen listens to
     /// <see cref="LeftRaid"/>, then sends the player back to the Hideout, which waits for the raid's result.
     /// </summary>
     [RequireComponent(typeof(NetworkManager))]
@@ -53,6 +53,15 @@ namespace RaidZero.Net
         public float ExtractionSecondsLeft =>
             IsExtracting ? Mathf.Max(0, _extractionLeftAtReceipt - (Time.realtimeSinceStartup - _extractionReceivedAt)) : 0;
 
+        /// <summary>The player's health, as the server last said. Full until it says otherwise.</summary>
+        public float Health { get; private set; } = 100f;
+
+        /// <summary>Full health.</summary>
+        public float MaxHealth { get; private set; } = 100f;
+
+        /// <summary>The player's health changed: <c>(before, now)</c>, so the HUD can flash on a drop.</summary>
+        public event Action<float, float> HealthChanged;
+
         /// <summary>How the player left this raid, once they have. Cleared when a new connection starts.</summary>
         public RaidExit? Exit { get; private set; }
 
@@ -72,6 +81,7 @@ namespace RaidZero.Net
             _networkManager.ClientManager.RegisterBroadcast<RaidStateBroadcast>(OnState);
             _networkManager.ClientManager.RegisterBroadcast<LeftRaidBroadcast>(OnLeft);
             _networkManager.ClientManager.RegisterBroadcast<ExtractionBroadcast>(OnExtraction);
+            _networkManager.ClientManager.RegisterBroadcast<HealthBroadcast>(OnHealth);
             _networkManager.ClientManager.OnClientConnectionState += OnClientConnectionState;
         }
 
@@ -82,6 +92,7 @@ namespace RaidZero.Net
                 _networkManager.ClientManager.UnregisterBroadcast<RaidStateBroadcast>(OnState);
                 _networkManager.ClientManager.UnregisterBroadcast<LeftRaidBroadcast>(OnLeft);
                 _networkManager.ClientManager.UnregisterBroadcast<ExtractionBroadcast>(OnExtraction);
+                _networkManager.ClientManager.UnregisterBroadcast<HealthBroadcast>(OnHealth);
                 _networkManager.ClientManager.OnClientConnectionState -= OnClientConnectionState;
             }
 
@@ -112,6 +123,19 @@ namespace RaidZero.Net
 
         private void OnExtraction(ExtractionBroadcast message, Channel channel) => SetExtraction(message.Point, message.SecondsLeft);
 
+        private void OnHealth(HealthBroadcast message, Channel channel) => SetHealth(message.Health, message.Max);
+
+        private void SetHealth(float health, float max)
+        {
+            var before = Health;
+            MaxHealth = max > 0 ? max : MaxHealth;
+            Health = Mathf.Clamp(health, 0f, MaxHealth);
+            if (!Mathf.Approximately(before, Health))
+            {
+                HealthChanged?.Invoke(before, Health);
+            }
+        }
+
         private void SetExtraction(string point, float secondsLeft)
         {
             var changed = point != ExtractionPoint || point != null;
@@ -132,6 +156,7 @@ namespace RaidZero.Net
                 Duration = 0;
                 Exit = null;
                 SetExtraction(null, 0);
+                SetHealth(MaxHealth, MaxHealth); // the server says otherwise on a rejoin
             }
             else if (args.ConnectionState == LocalConnectionState.Stopped)
             {

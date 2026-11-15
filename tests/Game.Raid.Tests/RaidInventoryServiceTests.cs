@@ -535,6 +535,51 @@ public class RaidInventoryServiceTests
         return null;
     }
 
+    // ---- Armor ----
+
+    private ItemNode JoinWearing(string playerId, double durability)
+    {
+        var loadout = Loadout();
+        var vest = Node("vest", "armor");
+        vest.Durability = durability;
+        loadout.Children.Add(vest);
+        Assert.True(_raid.AddPlayer(playerId, loadout));
+        return vest;
+    }
+
+    [Fact]
+    public void WearingArmor_LowersItsDurability_NeverBelowZero()
+    {
+        var vest = JoinWearing("sam", 1.0);
+
+        Assert.Equal(vest.Id, _raid.ArmorOf("sam")!.Id);
+        var hit = _raid.Wear("sam", vest.Id, 0.2);
+
+        AssertOk(hit);
+        Assert.Equal(_raid.CharacterOf("sam"), Assert.Single(hit.Updates).RootId);
+        Assert.Equal(0.8, _raid.Find(vest.Id)!.Durability!.Value, 6);
+        AssertOk(_raid.Wear("sam", vest.Id, 5));
+        Assert.Equal(0.0, _raid.Find(vest.Id)!.Durability!.Value);
+        AssertOk(_raid.Wear("sam", vest.Id, 0.1));                 // worn out already: stays at 0
+        Assert.Equal(0.0, _raid.Find(vest.Id)!.Durability!.Value);
+    }
+
+    [Fact]
+    public void Wearing_WhatHasNoDurability_OrIsntYours_IsRefused()
+    {
+        var vest = JoinWearing("sam", 1.0);
+        JoinWearing("alex", 1.0);
+        var rifle = Child(_raid.Snapshot(_raid.CharacterOf("sam")!)!, "primary");
+
+        AssertRefused(_raid.Wear("sam", rifle, 0.1), InventoryErrorCodes.DurabilityInvalid);
+        AssertRefused(_raid.Wear("alex", vest.Id, 0.1), InventoryErrorCodes.ItemNotFound);
+        AssertRefused(_raid.Wear("sam", vest.Id, -1), InventoryErrorCodes.DurabilityInvalid);
+        AssertRefused(_raid.Wear("sam", vest.Id, double.NaN), InventoryErrorCodes.DurabilityInvalid);
+        Assert.Null(_raid.ArmorOf("nobody"));
+        Join("bea");
+        Assert.Null(_raid.ArmorOf("bea"));
+    }
+
     // ---- Death and extraction ----
 
     [Fact]

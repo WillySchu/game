@@ -56,6 +56,16 @@ namespace RaidZero.Shared.Raid
             }
         }
 
+        /// <summary>Health as the HUD shows it, "73": whole points rounded up, so it reads 0 only when you're dead.</summary>
+        public static string Health(float health) =>
+            ((long)Math.Ceiling(Math.Max(0, health))).ToString(CultureInfo.InvariantCulture);
+
+        /// <summary>How full the health bar is, 0 to 1.</summary>
+        public static float HealthFill(float health, float max) => max <= 0 ? 0f : (float)Math.Min(1, Math.Max(0, health / max));
+
+        /// <summary>Whether health is low enough for the bar to turn red: a quarter or less.</summary>
+        public static bool IsLowHealth(float health, float max) => max > 0 && health <= max * 0.25f;
+
         /// <summary>The rounds loaded in the gun in hand, "28"; never below 0.</summary>
         public static string Rounds(int loaded) => Math.Max(0, loaded).ToString(CultureInfo.InvariantCulture);
 

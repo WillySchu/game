@@ -26,6 +26,20 @@ public class RaidHudTextTests
         Assert.Equal(expected, RaidHudText.ExtractionProgress(left, total), 3);
 
     [Fact]
+    public void Health_RoundsUp_AndTheBarFills()
+    {
+        Assert.Equal("73", RaidHudText.Health(72.2f));
+        Assert.Equal("1", RaidHudText.Health(0.3f));
+        Assert.Equal("0", RaidHudText.Health(0));
+        Assert.Equal("0", RaidHudText.Health(-5));
+        Assert.Equal(0.5f, RaidHudText.HealthFill(50, 100));
+        Assert.Equal(1f, RaidHudText.HealthFill(150, 100));
+        Assert.Equal(0f, RaidHudText.HealthFill(50, 0));
+        Assert.True(RaidHudText.IsLowHealth(25, 100));
+        Assert.False(RaidHudText.IsLowHealth(26, 100));
+    }
+
+    [Fact]
     public void Ammo_ShowsTheRoundsAndFireMode()
     {
         Assert.Equal("28", RaidHudText.Rounds(28));

@@ -179,6 +179,39 @@ namespace RaidZero.Shared.Inventory
             return ApplyResult.Succeeded(new List<CreatedItem>(), changes);
         }
 
+        /// <summary>
+        /// Wears an item down: armor that took a hit. Takes <paramref name="amount"/> (a share of new, 0..1) off
+        /// its durability, never below 0. Like <see cref="Consume"/>, only the game server does this, so it's
+        /// not an op, and it changes the node in place. Fails for items without durability.
+        /// </summary>
+        public ApplyResult Wear(string itemId, double amount)
+        {
+            if (!TryGet(itemId, out var item))
+            {
+                return ApplyResult.Failed(0, new InventoryError(itemId, InventoryErrorCodes.ItemNotFound, "No item '" + itemId + "'."));
+            }
+
+            if (item.Durability == null || !_catalog.TryGet(item.DefId, out var def) || !def.HasDurability)
+            {
+                return ApplyResult.Failed(0, new InventoryError(item.Id, InventoryErrorCodes.DurabilityInvalid, item.DefId + " has no durability to wear."));
+            }
+
+            if (double.IsNaN(amount) || amount < 0)
+            {
+                return ApplyResult.Failed(0, new InventoryError(item.Id, InventoryErrorCodes.DurabilityInvalid, "Can't wear by " + amount + "."));
+            }
+
+            var changes = new ChangeSet();
+            var worn = Math.Max(0, item.Durability.Value - amount);
+            if (worn != item.Durability.Value)
+            {
+                item.Durability = worn;
+                changes.MarkUpdated(item.Id);
+            }
+
+            return ApplyResult.Succeeded(new List<CreatedItem>(), changes);
+        }
+
         public ApplyResult Apply(InventoryOp op)
         {
             return Apply(new[] { op });
