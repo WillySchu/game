@@ -31,7 +31,9 @@ namespace RaidZero.UI
 
     /// <summary>
     /// Builds the inventory screen's panels from the model: the player's gear on the left (slot boxes, then the
-    /// grids of whatever's in them, like the rig and backpack) and everything they have open on the right. All
+    /// grids of whatever's in them, like the rig and backpack) and everything they have open on the right,
+    /// including items opened in their own window (a backpack in a crate, or a gun showing its magazine and
+    /// chamber slots). All
     /// the look is in InventoryScreen.uss; this only builds the elements, sizes the ones that depend on the
     /// item data, and tags them with GridRef, SlotRef and ItemRef so the drag code knows what's under the pointer.
     /// </summary>
@@ -105,14 +107,25 @@ namespace RaidZero.UI
 
             BuildLoadout(_gear, model, character.Root, "Gear", closable: false);
 
-            // Containers opened from inside others (double-click) first: the one you just opened is on top.
+            // Items opened in their own window (double-click) first: the one you just opened is on top. Its named
+            // slots (a gun's magazine and chamber, a magazine's rounds), sized to what goes in them, then its grids
+            // unless they're drawn under the gear already.
             foreach (var openedId in model.OpenedItems)
             {
                 if (model.Tree.TryGet(openedId, out var opened) && model.Catalog.TryGet(opened.DefId, out var openedDef))
                 {
                     var panel = Panel(_loot, NameOf(openedDef), opened.Id, closable: true);
                     panel.AddToClassList("inv-panel--opened");
-                    BuildGrids(panel, model, opened, LootColumnCells);
+                    BuildSlots(panel, model, opened, spec =>
+                    {
+                        var (width, height) = model.SlotSize(spec);
+                        return new Vector2Int(width, height);
+                    });
+
+                    if (!model.GridsShownElsewhere(opened.Id))
+                    {
+                        BuildGrids(panel, model, opened, LootColumnCells);
+                    }
                 }
             }
 
@@ -145,28 +158,7 @@ namespace RaidZero.UI
                 return;
             }
 
-            var slots = new VisualElement().WithClass("inv-slots");
-            panel.Add(slots);
-            foreach (var spec in def.Slots ?? new List<SlotSpec>())
-            {
-                var size = SlotSizes.TryGetValue(spec.Name, out var s) ? s : DefaultSlotSize;
-                var holder = new VisualElement().WithClass("inv-slot-holder");
-                holder.Add(new Label(Title(spec.Name)).WithClass("inv-slot__caption"));
-
-                var box = new VisualElement { userData = new SlotRef { ParentId = root.Id, SlotName = spec.Name } }.WithClass("inv-slot");
-                box.style.width = size.x * Cell;
-                box.style.height = size.y * Cell;
-                _slots[Key(root.Id, spec.Name)] = box;
-                holder.Add(box);
-                slots.Add(holder);
-
-                var occupant = Occupant(root, spec.Name);
-                if (occupant != null)
-                {
-                    // Unturned, filling the box: an item in a slot is never rotated.
-                    box.Add(ItemElement(model, occupant, size.x * Cell, size.y * Cell).WithClass("inv-item--in-slot"));
-                }
-            }
+            BuildSlots(panel, model, root, spec => SlotSizes.TryGetValue(spec.Name, out var size) ? size : DefaultSlotSize);
 
             foreach (var spec in def.Slots ?? new List<SlotSpec>())
             {
@@ -176,6 +168,38 @@ namespace RaidZero.UI
                     var sub = Panel(column, Title(spec.Name) + ": " + NameOf(occupantDef), null, closable: false);
                     sub.AddToClassList("inv-panel--nested");
                     BuildGrids(sub, model, occupant, GearColumnCells);
+                }
+            }
+        }
+
+        // An item's named slots as a row of captioned boxes, each showing what's in it.
+        private void BuildSlots(VisualElement panel, InventoryModel model, ItemNode parent, Func<SlotSpec, Vector2Int> sizeOf)
+        {
+            if (!model.Catalog.TryGet(parent.DefId, out var def) || def.Slots == null || def.Slots.Count == 0)
+            {
+                return;
+            }
+
+            var slots = new VisualElement().WithClass("inv-slots");
+            panel.Add(slots);
+            foreach (var spec in def.Slots)
+            {
+                var size = sizeOf(spec);
+                var holder = new VisualElement().WithClass("inv-slot-holder");
+                holder.Add(new Label(Title(spec.Name)).WithClass("inv-slot__caption"));
+
+                var box = new VisualElement { userData = new SlotRef { ParentId = parent.Id, SlotName = spec.Name } }.WithClass("inv-slot");
+                box.style.width = size.x * Cell;
+                box.style.height = size.y * Cell;
+                _slots[Key(parent.Id, spec.Name)] = box;
+                holder.Add(box);
+                slots.Add(holder);
+
+                var occupant = Occupant(parent, spec.Name);
+                if (occupant != null)
+                {
+                    // Unturned, filling the box: an item in a slot is never rotated.
+                    box.Add(ItemElement(model, occupant, size.x * Cell, size.y * Cell).WithClass("inv-item--in-slot"));
                 }
             }
         }

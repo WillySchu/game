@@ -15,8 +15,8 @@ namespace RaidZero.UI
     ///
     /// Drag items between grids, slots and containers; R turns the item you're dragging; let go over another
     /// item to stack, load or put it inside; let go outside the window to drop it on the ground. Ctrl+click
-    /// (Cmd+click on a Mac) quick-moves an item; Shift+drag splits a stack, asking how many; double-click opens a
-    /// container that's inside another. Resting the pointer on an item shows its tooltip. Crates and items on
+    /// (Cmd+click on a Mac) quick-moves an item; Shift+drag splits a stack, asking how many; double-click opens an
+    /// item in its own window: a container inside another, or a gun or magazine, to get at what's loaded in it. Resting the pointer on an item shows its tooltip. Crates and items on
     /// the ground are opened and taken by looking at them and pressing F (<see cref="WorldInteraction"/>).
     ///
     /// The rules all live in shared code (InventoryModel over the raid's RaidInventorySource), and the window,

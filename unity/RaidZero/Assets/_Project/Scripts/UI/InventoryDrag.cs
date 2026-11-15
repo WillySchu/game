@@ -26,7 +26,8 @@ namespace RaidZero.UI
     /// same rules the server applies, so the ghost and the spot it would land on go green or red as you move.
     /// Letting go sends the plan if it's good. If it isn't, nothing is sent: the item never left, so it simply
     /// stays put, and the reason goes to the status line. Ctrl+click (Cmd+click on a Mac) quick-moves instead,
-    /// and a double-click opens a container that's inside another. Shift-dragging a stack splits it: the drag
+    /// and a double-click opens an item in its own window (a container inside another, a gun, a magazine).
+    /// Shift-dragging a stack splits it: the drag
     /// is checked as if moving half, and letting go somewhere good asks how many (SplitRequested). Elements
     /// marked with a DropZoneRef take the item's ID instead (the whole item, even when splitting).
     /// </summary>
@@ -137,7 +138,7 @@ namespace RaidZero.UI
 
             evt.StopPropagation();
 
-            // The second click of a double-click: open it, if it's a container inside another. The first click
+            // The second click of a double-click: open it in its own window, if it can be. The first click
             // started and ended a drag that went nowhere.
             if (evt.clickCount >= 2)
             {

@@ -216,7 +216,7 @@ namespace RaidZero.UI
                 if (_model != null && _model.OpenedItems.Count > 0)
                 {
                     EscapeKey.Use();
-                    _model.CloseItem(_model.OpenedItems[_model.OpenedItems.Count - 1]);
+                    _model.CloseItem(_model.OpenedItems[0]); // newest first
                 }
                 else if (_trader.IsOpen)
                 {

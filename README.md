@@ -282,11 +282,14 @@ The key in `appsettings.Development.json` is for local runs only. Real deploymen
   slot equips it, the same stackable item merges, an item with a slot that takes it loads it (more rounds than a
   magazine holds splits off what fits), a container puts it inside, and outside the window drops it. Ctrl+click
   (`QuickMove`) equips into an empty slot, then the rig, then the backpack; from the character, into the open
-  container. Shift-drag (`ResolvePart`) does the same with part of a stack: a move becomes a split, a merge or
+  container, except that something loaded in your gear (a magazine in your rifle) unloads into your rig or
+  backpack first. Shift-drag (`ResolvePart`) does the same with part of a stack: a move becomes a split, a merge or
   load moves only that many.
-- `InventoryModel.OpenItem` opens a container that's inside another (a backpack in a crate) as its own panel.
-  Its contents are already in the tree, so it's screen-only state; it closes by itself when the item goes or
-  gets equipped, and Ctrl+click from the character prefers it.
+- `InventoryModel.OpenItem` opens an item as its own panel: a container that's inside another (a backpack in a
+  crate), or anything with named slots (a gun shows its magazine and chamber, a magazine its rounds), which is
+  how you unload one. Its contents are already in the tree, so it's screen-only state; it closes by itself when
+  the item goes (or, for a container, gets equipped), and Ctrl+click from the character prefers it.
+  `SlotSize` sizes an opened item's slot boxes to the largest thing they take.
 - Every plan is checked with `InventoryTree.Check`, a dry run of exactly the rules the server applies, so the
   screen shows green or red while dragging and never sends what it knows will be refused. Refusals carry a
   sentence for the player (`InventoryUiErrors`).

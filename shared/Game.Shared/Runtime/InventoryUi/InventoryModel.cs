@@ -18,6 +18,11 @@ namespace RaidZero.Shared.InventoryUi
         private readonly List<string> _opened = new List<string>();
         private InventoryTree _tree;
 
+        /// <summary>The largest slot box <see cref="SlotSize"/> gives, in cells.</summary>
+        public const int MaxSlotWidth = 5;
+
+        public const int MaxSlotHeight = 3;
+
         public InventoryModel(ItemCatalog catalog, IInventorySource source)
         {
             _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
@@ -48,35 +53,71 @@ namespace RaidZero.Shared.InventoryUi
         public bool IsPending(string itemId) => _source.IsPending(itemId);
 
         /// <summary>
-        /// Containers opened from inside others, newest first: a backpack lying in a crate, a pouch in your
-        /// backpack. Only the screen sees these; their contents are already in the tree. Anything that's gone,
-        /// or is now shown anyway (equipped, say), drops out of the list when the source changes.
+        /// Items opened in their own window, newest first: a backpack lying in a crate, a pouch in your backpack,
+        /// a gun (its magazine and chamber) or a magazine (its rounds). Only the screen sees these; their contents
+        /// are already in the tree. Anything that's gone, or is now shown anyway (a backpack equipped, say), drops
+        /// out of the list when the source changes.
         /// </summary>
         public IReadOnlyList<string> OpenedItems => _opened;
 
         /// <summary>
-        /// Whether the item can be opened as its own panel: it has grids, and isn't already on screen as a root
-        /// or as the gear of a character or body (a rig or backpack in its slot).
+        /// Whether the item can be opened in its own window (double-click). Anything with named slots can: a gun
+        /// shows its magazine and chamber, a magazine its rounds, wherever it is, even in your hands. Something
+        /// with only grids can unless they're on screen already (<see cref="GridsShownElsewhere"/>). The roots
+        /// on screen (your gear, a crate) are windows already.
         /// </summary>
         public bool CanOpen(string itemId)
         {
             var tree = Tree;
-            if (itemId == null || !tree.TryGet(itemId, out var item) || !_catalog.TryGet(item.DefId, out var def) || !def.HasGrids())
+            if (itemId == null || !tree.TryGet(itemId, out var item) || tree.ParentOf(itemId) == null || !_catalog.TryGet(item.DefId, out var def))
             {
                 return false;
             }
 
-            var parent = tree.ParentOf(itemId);
-            if (parent == null)
+            return HasSlots(def) || (def.HasGrids() && !GridsShownElsewhere(itemId));
+        }
+
+        /// <summary>
+        /// Whether the item's grids are already drawn as part of a character or body: a rig or backpack in its
+        /// slot. Its own window then leaves them out, so they're only on screen once.
+        /// </summary>
+        public bool GridsShownElsewhere(string itemId)
+        {
+            var tree = Tree;
+            var parent = itemId != null ? tree.ParentOf(itemId) : null;
+            if (parent == null || !tree.TryGet(itemId, out var item) || !_catalog.TryGet(item.DefId, out var def) || !def.HasGrids())
             {
                 return false;
             }
 
             var root = _source.Roots.FirstOrDefault(r => r.Root.Id == parent.Id);
-            return root == null || (root.Kind != InventoryRootKind.Character && root.Kind != InventoryRootKind.Body);
+            return root != null && (root.Kind == InventoryRootKind.Character || root.Kind == InventoryRootKind.Body);
         }
 
-        /// <summary>Show a container inside another as its own panel (double-click). False if it can't be opened.</summary>
+        /// <summary>
+        /// How big, in cells, to draw an item window's slot box: big enough for the largest thing the slot takes
+        /// (a magazine's 1x2, a round's 1x1), capped so a slot for something huge stays a sensible size. 1x1 if
+        /// nothing in the catalog fits it.
+        /// </summary>
+        public (int Width, int Height) SlotSize(SlotSpec spec)
+        {
+            int width = 1, height = 1;
+            if (spec != null)
+            {
+                foreach (var def in _catalog.All)
+                {
+                    if (InventoryValidator.Accepts(spec, def))
+                    {
+                        width = Math.Max(width, def.Width);
+                        height = Math.Max(height, def.Height);
+                    }
+                }
+            }
+
+            return (Math.Min(width, MaxSlotWidth), Math.Min(height, MaxSlotHeight));
+        }
+
+        /// <summary>Show an item in its own window (double-click). False if it can't be opened.</summary>
         public bool OpenItem(string itemId)
         {
             if (!CanOpen(itemId))
@@ -173,6 +214,8 @@ namespace RaidZero.Shared.InventoryUi
             _opened.RemoveAll(id => !CanOpen(id));
             Changed?.Invoke();
         }
+
+        private static bool HasSlots(ItemDefinition def) => def.Slots != null && def.Slots.Count > 0;
 
         private void OnRefused(string code) => Refused?.Invoke(InventoryUiErrors.Describe(code));
     }

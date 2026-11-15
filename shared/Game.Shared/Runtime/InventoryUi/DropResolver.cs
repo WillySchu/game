@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using RaidZero.Shared.Catalog;
 using RaidZero.Shared.Inventory;
 
@@ -85,7 +86,9 @@ namespace RaidZero.Shared.InventoryUi
         /// <summary>
         /// Ctrl+click: send the item to the most sensible place on the other side. From the character, into the
         /// first open container with room. From anywhere else, onto the character: an empty slot that takes
-        /// it (a rifle into the primary slot), then the rig, then the backpack.
+        /// it (a rifle into the primary slot), then the rig, then the backpack. Something loaded in your own gear
+        /// (a magazine in your rifle, the rounds in a magazine) unloads into your rig or backpack first, and only
+        /// then into an open container.
         /// </summary>
         /// <param name="others">The other containers on screen, in the order to try them (the one opened last first, say).</param>
         public static DropPlan QuickMove(InventoryTree tree, string itemId, string characterId, IReadOnlyList<string> others)
@@ -100,6 +103,11 @@ namespace RaidZero.Shared.InventoryUi
             var candidates = new List<(InventoryTarget To, string Highlight, bool IsSlot)>();
             if (tree.RootOf(itemId) == character)
             {
+                if (IsLoaded(tree, item))
+                {
+                    AddCarried(tree, character, candidates);
+                }
+
                 foreach (var otherId in others ?? new string[0])
                 {
                     if (otherId != characterId && tree.TryGet(otherId, out var other) && HasGrid(tree.Catalog, other))
@@ -121,14 +129,7 @@ namespace RaidZero.Shared.InventoryUi
                     }
                 }
 
-                foreach (var slot in new[] { SlotNames.Rig, SlotNames.Backpack })
-                {
-                    var container = SlotOccupant(character, slot);
-                    if (container != null && HasGrid(tree.Catalog, container))
-                    {
-                        candidates.Add((InventoryTarget.AnyGridSpot(container.Id), container.Id, false));
-                    }
-                }
+                AddCarried(tree, character, candidates);
             }
 
             foreach (var (to, highlight, isSlot) in candidates)
@@ -143,6 +144,28 @@ namespace RaidZero.Shared.InventoryUi
             }
 
             return DropPlan.Refused(DropAction.Move, InventoryUiErrors.NowhereToGo, InventoryUiErrors.Describe(InventoryUiErrors.NowhereToGo));
+        }
+
+        // The character's rig, then backpack, as places to put things.
+        private static void AddCarried(InventoryTree tree, ItemNode character, List<(InventoryTarget To, string Highlight, bool IsSlot)> candidates)
+        {
+            foreach (var slot in new[] { SlotNames.Rig, SlotNames.Backpack })
+            {
+                var container = SlotOccupant(character, slot);
+                if (container != null && HasGrid(tree.Catalog, container))
+                {
+                    candidates.Add((InventoryTarget.AnyGridSpot(container.Id), container.Id, false));
+                }
+            }
+        }
+
+        // In a named slot of something other than a root: a magazine in a gun, rounds in a magazine. Not a gun in
+        // the character's hands, and not anything in a grid.
+        private static bool IsLoaded(InventoryTree tree, ItemNode item)
+        {
+            var parent = tree.ParentOf(item.Id);
+            return parent != null && tree.ParentOf(parent.Id) != null && tree.Catalog.TryGet(parent.DefId, out var parentDef)
+                && SlotsOf(parentDef).Any(s => s.Name == item.Slot);
         }
 
         private static DropPlan OnGridCell(InventoryTree tree, ItemNode item, ItemDefinition def, bool rotated, DropTarget target)

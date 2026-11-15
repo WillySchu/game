@@ -399,7 +399,7 @@ client, the game server and the backend. The client only previews; the server an
   shows green or red and never sends what it knows will be refused. It never applies a change until the server
   confirms it.
 - Controls: Tab opens the screen; drag to move; R rotates while dragging; Shift+drag splits a stack;
-  Ctrl+click (Cmd+click) quick-moves; double-click opens a container inside another; dragging out of the
+  Ctrl+click (Cmd+click) quick-moves; double-click opens a container inside another, or a gun or magazine to show its slots; dragging out of the
   window drops; resting the pointer on an item shows its tooltip. In the world, F opens the crate or takes the
   item you're looking at.
 - At 100 ms latency inventory still feels fine without prediction; revisit only if playtests say otherwise.

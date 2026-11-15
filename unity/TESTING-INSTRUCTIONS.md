@@ -68,7 +68,8 @@ itself with `InventoryScreen.uss` beside it, so there's nothing else to wire up.
 - **Shift+drag** a stack to split it: let go where part of it should go, and it asks how many (Enter splits,
   Escape or clicking outside the box cancels).
 - **Double-click** a container that's inside another (a backpack lying in a crate, a pouch in your backpack) to
-  open it as its own panel on the right.
+  open it as its own panel on the right. Double-click a gun or a magazine, wherever it is (even in your hands),
+  to open a window with its slots: the gun's magazine and chamber, the magazine's rounds.
 
 What to check:
 
@@ -95,12 +96,17 @@ What to check:
 10. Put a backpack in the crate and double-click it: it opens on the right with its own ×, and items can be
     dragged in and out of it. Ctrl+click on your own gear sends it there first. Equipping that backpack, or
     closing the crate, closes its panel; so does closing the screen.
-11. Rest the pointer on an item: after a moment a tooltip shows its name and category, then only the lines
+11. Double-click your rifle: a window opens on the right with Magazine and Chamber boxes, the magazine in its
+    box. Drag the magazine out to a grid (the rifle's badge shows `-`), then drag it back into the box, or onto
+    the rifle. Double-click the magazine: its Rounds box shows the stack; Shift+drag takes some rounds out.
+    Ctrl+click the magazine in the rifle's window: it goes to your rig or backpack, not the crate (likewise the
+    rounds). In the Hideout, Escape closes the newest window first.
+12. Rest the pointer on an item: after a moment a tooltip shows its name and category, then only the lines
     that apply: Condition (the rifle, armor), Stack (`37 / 60`), Magazine and Rounds (a rifle: which magazine,
     and `24 / 30 (5.45x39 PS)`; a magazine: its rounds), Contents (the backpack: `3 items, 7 / 20 cells`), and
     the asset's Description if it has one. It follows the pointer, flips near the screen edges, disappears while
     you drag, and updates if the item changes under it.
-12. Items without an icon have the plain look: their category in small capitals over the name, on their
+13. Items without an icon have the plain look: their category in small capitals over the name, on their
     category's colour. See Icons below for testing the rendered look.
 
 Positions of a container's pockets: each grid on an item asset has **Place On Screen** and **Position** (in

@@ -1,3 +1,4 @@
+using RaidZero.Shared.Catalog;
 using RaidZero.Shared.Inventory;
 using RaidZero.Shared.InventoryUi;
 using static Game.Shared.Tests.TestCatalog;
@@ -514,14 +515,115 @@ public class InventoryUiTests
     }
 
     [Fact]
-    public void OpenItem_RefusesWhatHasNoGrid_OrIsAlreadyOnScreen()
+    public void OpenItem_RefusesWhatHasNoGridOrSlot_OrIsAlreadyOnScreen()
     {
         var (model, _) = Model();
 
-        Assert.False(model.OpenItem(_gpu.Id));           // no grid
+        Assert.False(model.OpenItem(_gpu.Id));           // no grid or slot
+        Assert.False(model.OpenItem(_rounds.Id));        // a stack of rounds holds nothing
         Assert.False(model.OpenItem(_backpack.Id));      // equipped: already shown under the gear
         Assert.False(model.OpenItem(_crate.Id));         // a root: already a panel
+        Assert.False(model.OpenItem(_character.Id));
         Assert.Empty(model.OpenedItems);
+    }
+
+    [Fact]
+    public void OpenItem_OpensGunsAndMagazines_EvenInYourHands()
+    {
+        var (model, _) = Model();
+
+        Assert.True(model.OpenItem(_rifle.Id));          // in the primary slot: shows its magazine slot
+        Assert.True(model.OpenItem(_loadedMag.Id));      // in the rifle: shows its rounds
+        Assert.True(model.OpenItem(_spareRifle.Id));     // lying in a crate
+        Assert.True(model.OpenItem(_emptyMag.Id));
+
+        Assert.Equal([_emptyMag.Id, _spareRifle.Id, _loadedMag.Id, _rifle.Id], model.OpenedItems);
+        Assert.False(model.GridsShownElsewhere(_rifle.Id)); // it has none; only an equipped rig or backpack's are
+        Assert.True(model.GridsShownElsewhere(_backpack.Id));
+        Assert.False(model.GridsShownElsewhere(_spareBackpack.Id));
+    }
+
+    [Fact]
+    public void OpenedGuns_StayOpenWhileTheyMove_AndCloseWhenTheyreGone()
+    {
+        var (model, source) = Model();
+        model.OpenItem(_loadedMag.Id);
+        model.OpenItem(_spareRifle.Id);
+
+        // The magazine came out of the rifle into the backpack: still on screen, so still open.
+        var character = source.RootList[0].Root;
+        var rifle = character.Children.Single(c => c.Id == _rifle.Id);
+        var mag = rifle.Children.Single();
+        rifle.Children.Remove(mag);
+        (mag.Slot, mag.X, mag.Y) = ("grid", 1, 0);
+        character.Children.Single(c => c.Id == _backpack.Id).Children.Add(mag);
+        // The spare rifle was taken out of the crate by someone else.
+        source.RootList[1].Root.Children.RemoveAll(c => c.Id == _spareRifle.Id);
+        source.RaiseChanged();
+
+        Assert.Equal([_loadedMag.Id], model.OpenedItems);
+    }
+
+    [Fact]
+    public void SlotSize_FitsTheLargestThingTheSlotTakes()
+    {
+        var (model, _) = Model();
+        var rifleDef = _catalog.Get("rifle");
+        var magDef = _catalog.Get("mag_30");
+
+        Assert.Equal((1, 2), model.SlotSize(rifleDef.Slots![0]));   // a 1x2 magazine
+        Assert.Equal((1, 1), model.SlotSize(magDef.Slots![0]));     // a round
+        Assert.Equal((4, 2), model.SlotSize(new SlotSpec { Name = "primary", Accepts = ["weapon_long"] }));
+        Assert.Equal((1, 1), model.SlotSize(new SlotSpec { Name = "nothing", Accepts = ["no_such_tag"] }));
+        Assert.Equal((1, 1), model.SlotSize(null!));
+    }
+
+    [Fact]
+    public void Unloading_DragsTheMagazineOut_AndLoadingDragsItIntoTheSlot()
+    {
+        var (model, _) = Model();
+        model.OpenItem(_rifle.Id);
+        model.OpenItem(_spareRifle.Id);
+
+        var unload = model.Plan(_loadedMag.Id, false, DropTarget.GridCell(_crate.Id, "grid", 8, 8));
+        var load = model.Plan(_emptyMag.Id, false, DropTarget.NamedSlot(_spareRifle.Id, "magazine"));
+        var rounds = model.Plan(_rounds.Id, false, DropTarget.GridCell(_crate.Id, "grid", 9, 9), quantity: 5);
+
+        Assert.True(unload.IsValid, unload.ToString());
+        Assert.Equal(DropAction.Move, unload.Action);
+        Assert.True(load.IsValid, load.ToString());
+        Assert.Equal(_spareRifle.Id, Assert.Single(load.Ops).To.ParentId);
+        Assert.True(rounds.IsValid, rounds.ToString()); // five rounds out of the magazine, as a split
+    }
+
+    [Fact]
+    public void QuickMove_UnloadsIntoYourOwnGearFirst()
+    {
+        var (model, _) = Model();
+
+        var mag = model.PlanQuickMove(_loadedMag.Id);       // in your rifle: into your backpack, not the crate
+        var rounds = model.PlanQuickMove(_rounds.Id);       // in that magazine: the same
+        var rifle = model.PlanQuickMove(_rifle.Id);         // in your hands: to the crate, as before
+
+        Assert.True(mag.IsValid, mag.ToString());
+        Assert.Equal(_backpack.Id, Assert.Single(mag.Ops).To.ParentId);
+        Assert.True(rounds.IsValid, rounds.ToString());
+        Assert.Equal(_backpack.Id, Assert.Single(rounds.Ops).To.ParentId);
+        Assert.True(rifle.IsValid, rifle.ToString());
+        Assert.Equal(_crate.Id, Assert.Single(rifle.Ops).To.ParentId);
+    }
+
+    [Fact]
+    public void QuickMove_Unloading_FallsBackToAnOpenContainer()
+    {
+        var (model, source) = Model();
+        source.RootList[0].Root.Children.RemoveAll(c => c.Id == _backpack.Id);
+        source.RaiseChanged();
+
+        var plan = model.PlanQuickMove(_loadedMag.Id);
+
+        Assert.True(plan.IsValid, plan.ToString());
+        Assert.Equal(_crate.Id, Assert.Single(plan.Ops).To.ParentId);
     }
 
     [Fact]
