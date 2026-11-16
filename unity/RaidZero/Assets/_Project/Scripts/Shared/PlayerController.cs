@@ -483,14 +483,14 @@ namespace RaidZero.Shared
             if (data.reloadInput && IsServerStarted && RaidServer.Instance != null && RaidServer.Instance.Reload(Owner, _heldSlot))
             {
                 RefreshFromServer();
-                if (!state.IsReplayed()) Debug.Log("Reloaded: " + ammoCount + " rounds.");
+                if (!state.ContainsReplayed()) Debug.Log("Reloaded: " + ammoCount + " rounds.");
             }
 
             int fireModeCount = heldWeaponStats?.fireModes?.Count ?? 0;
             if (data.fireModeInput && fireModeCount > 0)
             {
                 selectedFireMode = (selectedFireMode + 1) % fireModeCount;
-                if (!state.IsReplayed()) Debug.Log("Switched fire mode to " + heldWeaponStats.fireModes[selectedFireMode]);
+                if (!state.ContainsReplayed()) Debug.Log("Switched fire mode to " + heldWeaponStats.fireModes[selectedFireMode]);
             }
 
             if (data.fireInput)
@@ -523,7 +523,7 @@ namespace RaidZero.Shared
 
             if (timeSinceLastShot < shotInterval)
             {
-                if (!state.IsReplayed()) Debug.Log("Not ready to fire");
+                if (!state.ContainsReplayed()) Debug.Log("Not ready to fire");
                 return;
             }
 
@@ -545,7 +545,7 @@ namespace RaidZero.Shared
             ammoCount--;
             triggerReleasedSinceFire = false;
             // Pew Pew. Only the first time a tick runs: a client replays ticks after each reconcile.
-            if (!state.IsReplayed()) Debug.Log("Pew Pew! " + ammoCount + " left.");
+            if (!state.ContainsReplayed()) Debug.Log("Pew Pew! " + ammoCount + " left.");
         }
 
         public void OnPostTick()
