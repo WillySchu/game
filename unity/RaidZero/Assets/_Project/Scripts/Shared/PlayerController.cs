@@ -587,13 +587,18 @@ namespace RaidZero.Shared
 
             if (ammoCount <= 0) return;
 
-            // Server fires an actual round and stores the shot fired in ammoDefId, client pulls the ammoDefId from the chamber or mag in its held weapon.
-            string ammoDefId = IsServerStarted ? RaidServer.Instance.FireRound(Owner, _heldSlot) : _heldWeaponItem?.ChildInSlot(SlotNames.Chamber)?.DefId ?? _heldWeaponItem?.ChildInSlot(SlotNames.Magazine)?.ChildInSlot(SlotNames.Rounds)?.DefId;
-            // If there's no ammo item, something went wrong. Set ammo to 0 and it'll refresh next frame.
-            if(ammoDefId == null)
+            // Only the server fires a real round, and needs to know which (for its damage). A client just predicts
+            // the count: its copy of the gear lags behind shots, so it doesn't look there.
+            string ammoDefId = null;
+            if (IsServerStarted)
             {
-                ammoCount = 0;
-                return;
+                ammoDefId = RaidServer.Instance.FireRound(Owner, _heldSlot);
+                // Nothing there after all: set ammo to 0 and it'll be counted again next tick.
+                if (ammoDefId == null)
+                {
+                    ammoCount = 0;
+                    return;
+                }
             }
 
             ammoCount--;
@@ -604,21 +609,26 @@ namespace RaidZero.Shared
             Vector2 deviationVectorDegrees = _random.NextInCircle(accDegrees);
             Quaternion deviation = Quaternion.Euler(-deviationVectorDegrees.y, deviationVectorDegrees.x, 0);
             Vector3 shootDirection = _muzzle.transform.rotation * deviation * Vector3.forward;
-            bool hitResult = Physics.Raycast(_muzzle.transform.position, shootDirection, out RaycastHit hit, raycastRange);
-            Vector3 endPoint = hitResult ? hit.point : _muzzle.transform.position + shootDirection * raycastRange;
-            if (hitResult)
+            // Trigger boxes (the ones around loot on the ground and bodies, for picking up and searching) don't stop bullets.
+            Vector3 muzzle = _muzzle.transform.position;
+            bool hitResult = Physics.Raycast(muzzle, shootDirection, out RaycastHit hit, raycastRange, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
+            Vector3 endPoint = hitResult ? hit.point : muzzle + shootDirection * raycastRange;
+            if (hitResult && IsServerStarted)
             {
                 hit.collider.gameObject.TryGetComponent(out IDamageable damageable);
                 damageable?.Hit(Owner, ammoDefId);
             }
-            
-            // Placeholder visuals for shooting
-            if (!state.ContainsReplayed())
+
+            // Placeholder visuals for shooting. The shooter draws their own straight away (once, not on replays);
+            // everyone else sees it when the server says so. A dedicated server draws nothing.
+            if (IsOwner && !state.ContainsReplayed())
             {
-                if(TryGetComponent(out HitscanProjectileRender hr))
-                {
-                    hr.ShowTracer(_muzzle.transform.position, endPoint);
-                }
+                ShowTracer(muzzle, endPoint);
+            }
+
+            if (IsServerStarted)
+            {
+                ShowShotToOthers(muzzle, endPoint);
             }
 
             // Do recoil. Simple kick on camera view and rotation for now.
@@ -631,6 +641,23 @@ namespace RaidZero.Shared
 
             transform.Rotate(Vector3.up, horizontalRecoil);
 
+        }
+
+        // Other players' shots: their clients can't fire them (they don't know the shooter's gun), so the server
+        // tells everyone but the shooter, who drew it already. Cosmetic, so unreliable; on a host, its own client
+        // gets it too.
+        [ObserversRpc(ExcludeOwner = true)]
+        private void ShowShotToOthers(Vector3 start, Vector3 end, Channel channel = Channel.Unreliable)
+        {
+            ShowTracer(start, end);
+        }
+
+        private void ShowTracer(Vector3 start, Vector3 end)
+        {
+            if (TryGetComponent(out HitscanProjectileRender tracer))
+            {
+                tracer.ShowTracer(start, end);
+            }
         }
 
         public void OnPostTick()
