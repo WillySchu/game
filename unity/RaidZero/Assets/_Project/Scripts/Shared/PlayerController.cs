@@ -555,7 +555,6 @@ namespace RaidZero.Shared
                 triggerReleasedSinceFire = true;
             }
         }
-
         private void Fire(ReplicateState state, float deltaTime)
         {
             // No gun in hand, or one whose stats aren't filled in: nothing to fire.
@@ -588,10 +587,12 @@ namespace RaidZero.Shared
 
             if (ammoCount <= 0) return;
 
-            // The server fires the real round, from its own inventory: the magazine's, then the chambered one.
-            if (IsServerStarted && (RaidServer.Instance == null || RaidServer.Instance.FireRound(Owner, _heldSlot) == null))
+            // Server fires an actual round and stores the shot fired in ammoDefId, client pulls the ammoDefId from the chamber or mag in its held weapon.
+            string ammoDefId = IsServerStarted ? RaidServer.Instance.FireRound(Owner, _heldSlot) : _heldWeaponItem?.ChildInSlot(SlotNames.Chamber)?.DefId ?? _heldWeaponItem?.ChildInSlot(SlotNames.Magazine)?.ChildInSlot(SlotNames.Rounds)?.DefId;
+            // If there's no ammo item, something went wrong. Set ammo to 0 and it'll refresh next frame.
+            if(ammoDefId == null)
             {
-                ammoCount = 0; // nothing there after all; it's counted again next tick
+                ammoCount = 0;
                 return;
             }
 
@@ -608,7 +609,6 @@ namespace RaidZero.Shared
             if (hitResult)
             {
                 hit.collider.gameObject.TryGetComponent(out IDamageable damageable);
-                string ammoDefId = _heldWeaponItem?.ChildInSlot(SlotNames.Chamber)?.DefId ?? _heldWeaponItem?.ChildInSlot(SlotNames.Magazine)?.ChildInSlot(SlotNames.Rounds)?.DefId ?? "";
                 damageable?.Hit(Owner, ammoDefId);
             }
             
