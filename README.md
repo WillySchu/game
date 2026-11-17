@@ -391,6 +391,16 @@ The key in `appsettings.Development.json` is for local runs only. Real deploymen
   its place in the scene (`AISpawnRolls`), so a seed replays the same AI with the same gear, and puts each on
   the ground out of every player's sight (`RaidServer.IsHiddenFromPlayers`: from players and their spawn
   points). Raid Zero > AI > Create Example Profiles makes a looter and a contractor profile to start from.
+- **AI perception.** `AIPerception` (plain C#, in `Game.Raid`, tested without Unity) is what an AI knows: a 0
+  to 1 awareness of each target that fills while it's in view (faster close, moving, and in the middle of its
+  view cone) and drains out of sight; past 0.35 it has noticed someone and turns to look, at 1 it's alert. It
+  remembers where it last saw each target, hears shots (`Hearing`: a radius, and a rough position), and AI
+  from one spawn zone share alert sightings (`SquadMemory`). The profile sets view distance, view angle and
+  how fast awareness fills and drains. Light, fog, rain and crouching go through `Visibility`, neutral for now.
+  On the server, `AIPerceiver` on the AI's prefab looks 8 times a second, staggered, casting lines from its
+  eyes to each player's and hostile AI's head and chest; `RaidServer.FireRound` raises the shot's noise
+  (`NoiseMade`). The F1 overlay's **AI debug view** shows each AI's state, awareness and where it's looking,
+  sent by the server (`DevAIDebugBroadcast`) only in the editor and Development builds.
 - `RaidSessionClient` is the client's view of the raid: its phase, the clock, the player's health, the
   extraction countdown, and a `LeftRaid` event saying how the player left. It's carried by small broadcasts;
   health goes only to the player it's about. `RaidHud` (in

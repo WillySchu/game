@@ -329,6 +329,25 @@ AI spawn zones (the AI are still target dummies, so they stand where they spawn)
 5. Start another raid with the same `--loot-seed` (or Loot Seed on the RaidServer): the same number of AI
    spawn in the same places, with the same gear (unless a player could see one of those places).
 
+AI perception (the dummy can't move or shoot yet, but it looks):
+
+1. Once: **Raid Zero > AI > Create Target Dummy Prefab**, and choose **Update**. It adds the dummy's eyes and ears
+   (an AI Perceiver), a NetworkTransform so its turning reaches clients, and a dark visor so you can see which
+   way it faces. The log lists what it added. Commit the prefab and the new `TargetDummyVisor` material.
+2. Join a raid, open F1, tick **AI debug view** and close F1. Each AI gets a label: its state (CALM, HEARD,
+   SQUAD, NOTICED, ALERT), its faction, who it's aware of, and a bar for how aware.
+3. Spawn a target dummy (it faces you): standing still 4 m away, its bar fills in about two seconds (NOTICED
+   past a third, then ALERT); walking about it, in one. A dotted line runs from its label to where it's looking. Walk around it: it turns to keep watching.
+4. Walk out of its sight (behind a wall, or out of its view: it sees 120° wide): the bar drains over about five
+   seconds and it goes back to CALM. Sprinting into view fills it faster than standing still; from 40 m it's
+   slower; at 80 m it doesn't see you at all.
+5. Behind its back (it's CALM, facing away), fire a shot: it turns towards the sound (HEARD) and holds there
+   for ten seconds, its line pointing near, not exactly at, where you fired (and if that turns you into view, it
+   notices you). From further than 150 m, nothing.
+6. With a spawn zone of two or more: once one is ALERT on you, the others turn towards where it saw you (SQUAD),
+   even without seeing you themselves.
+7. In a release build there's no F1 overlay, and the server ignores the debug view's request.
+
 ## Deploying from the overlay
 
 When the client isn't connected, the F1 overlay has a **Deploy** button. It goes the way the Hideout will: a

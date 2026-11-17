@@ -15,8 +15,8 @@ namespace RaidZero.Shared
     /// loot seed and the zone's place in the scene, so the same seed spawns the same AI with the same gear: how
     /// many, and which of the profile's kits each wears, with its extra loot. Each AI goes on the ground at a
     /// random spot in the box that no player can see from where they are or where players spawn, and no nearer
-    /// to one than <see cref="_minPlayerDistance"/>. If there isn't such a spot, it doesn't spawn. More AI
-    /// arriving mid-raid comes later.
+    /// to one than <see cref="_minPlayerDistance"/>. If there isn't such a spot, it doesn't spawn. The AI from one
+    /// zone are a squad: they share what they see (<see cref="Squad"/>). More AI arriving mid-raid comes later.
     /// </summary>
     public sealed class AISpawnZone : MonoBehaviour
     {
@@ -44,6 +44,9 @@ namespace RaidZero.Shared
         private bool _spawned;
 
         public AIProfile Profile => _profile;
+
+        /// <summary>What the AI it spawned this raid have seen between them, on the server.</summary>
+        public SquadMemory Squad { get; private set; } = new SquadMemory();
         public PatrolRoute Route => _route;
 
         // Its seed: the raid's, with its place in the scene, as crates do.
@@ -71,6 +74,7 @@ namespace RaidZero.Shared
 
         private void Spawn(RaidServer raid)
         {
+            Squad = new SquadMemory(); // a new raid, a new squad
             if (_profile == null || _profile.Prefab == null)
             {
                 Debug.LogError("[ai] Spawn zone " + name + " has no profile, or its profile no prefab, so nothing spawns there.", this);
@@ -132,6 +136,12 @@ namespace RaidZero.Shared
                     if (dummy != null)
                     {
                         dummy.Assign(_profile, this);
+                    }
+
+                    var perceiver = spawned.GetComponent<AIPerceiver>();
+                    if (perceiver != null)
+                    {
+                        perceiver.Assign(_profile, this);
                     }
                 });
             }

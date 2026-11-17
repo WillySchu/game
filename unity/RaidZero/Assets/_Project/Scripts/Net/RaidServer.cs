@@ -393,8 +393,18 @@ namespace RaidZero.Net
         /// Fires one round from the gun in a player's or AI's slot: the magazine's, then the chambered one. Returns
         /// the round's DefId, for its damage, or null if there was nothing to fire. A player's view of their gear
         /// follows within a second, as with <see cref="Consume"/>; show the count the player controller predicts.
+        /// The shot is heard (<see cref="NoiseMade"/>) out to Hearing.GunshotRadius.
         /// </summary>
-        public string FireRound(string actorId, string weaponSlot) => IsActive(actorId) ? _host.FireRound(actorId, weaponSlot, Now) : null;
+        public string FireRound(string actorId, string weaponSlot)
+        {
+            var fired = IsActive(actorId) ? _host.FireRound(actorId, weaponSlot, Now) : null;
+            if (fired != null && TryGetBody(actorId, out var body))
+            {
+                MakeNoise(new RaidNoise { Position = body.position, Radius = Hearing.GunshotRadius, SourceId = actorId });
+            }
+
+            return fired;
+        }
 
         /// <summary>See <see cref="FireRound(string, string)"/>, for the player on this connection.</summary>
         public string FireRound(NetworkConnection connection, string weaponSlot) => FireRound(PlayerIdOf(connection), weaponSlot);
@@ -471,6 +481,43 @@ namespace RaidZero.Net
             }
 
             Debug.Log("[raid] " + aiId + " died.");
+        }
+
+        /// <summary>A noise, on the server: a gunshot, so far. AI listen for it to know where to look.</summary>
+        public event Action<RaidNoise> NoiseMade;
+
+        /// <summary>Tells every AI listening about a noise (<see cref="NoiseMade"/>).</summary>
+        public void MakeNoise(RaidNoise noise) => NoiseMade?.Invoke(noise);
+
+        /// <summary>The AI alive in the raid, by ID, on the server.</summary>
+        public IReadOnlyDictionary<string, NetworkObject> AI => _ai;
+
+        /// <summary>Each player in the raid with their character's object in the world, on the server.</summary>
+        public IEnumerable<(string Id, Transform Body)> PlayersInRaid()
+        {
+            foreach (var pair in _connectionOf)
+            {
+                if (IsInside(pair.Key) && pair.Value != null && pair.Value.FirstObject != null)
+                {
+                    yield return (pair.Key, pair.Value.FirstObject.transform);
+                }
+            }
+        }
+
+        /// <summary>Where a player in the raid, or an AI alive in it, is: their object in the world (at their feet).</summary>
+        public bool TryGetBody(string actorId, out Transform body)
+        {
+            body = null;
+            if (actorId != null && _ai.TryGetValue(actorId, out var ai) && ai != null)
+            {
+                body = ai.transform;
+            }
+            else if (IsInside(actorId) && _connectionOf.TryGetValue(actorId, out var connection) && connection != null && connection.FirstObject != null)
+            {
+                body = connection.FirstObject.transform;
+            }
+
+            return body != null;
         }
 
         /// <summary>The seed this raid's loot was rolled from (and its AI): the same seed, the same raid.</summary>
@@ -620,6 +667,7 @@ namespace RaidZero.Net
             }
 
             DisconnectThoseDue(now);
+            SendAIDebug();
             if (_lifecycle.Phase == RaidPhase.Ending && _disconnectAt.Count == 0
                 && (_closing.IsCompleted || now - _closingSince >= _closeTimeoutSeconds))
             {
@@ -650,6 +698,7 @@ namespace RaidZero.Net
             // If the raid ends first, they're missing in action.
             _welcome.Remove(connection);
             _disconnectAt.Remove(connection);
+            _aiWatchers.Remove(connection);
             if (_playerOf.TryGetValue(connection, out var playerId))
             {
                 _playerOf.Remove(connection);
@@ -742,6 +791,7 @@ namespace RaidZero.Net
                     _networkManager.ServerManager.RegisterBroadcast<DevDieBroadcast>(OnDevDie);
                     _networkManager.ServerManager.RegisterBroadcast<DevShotBroadcast>(OnDevShot);
                     _networkManager.ServerManager.RegisterBroadcast<DevSpawnDummyBroadcast>(OnDevSpawnDummy);
+                    _networkManager.ServerManager.RegisterBroadcast<DevWatchAIBroadcast>(OnDevWatchAI);
                 }
 
                 // CI bakes the commit into the server image (RAIDZERO_BUILD); anything else is a local build.
@@ -776,6 +826,7 @@ namespace RaidZero.Net
                 _networkManager.ServerManager.UnregisterBroadcast<DevDieBroadcast>(OnDevDie);
                 _networkManager.ServerManager.UnregisterBroadcast<DevShotBroadcast>(OnDevShot);
                 _networkManager.ServerManager.UnregisterBroadcast<DevSpawnDummyBroadcast>(OnDevSpawnDummy);
+                _networkManager.ServerManager.UnregisterBroadcast<DevWatchAIBroadcast>(OnDevWatchAI);
             }
 
             if (_backend != null)
@@ -804,6 +855,7 @@ namespace RaidZero.Net
             _extraction = null;
             _health = null;
             _ai.Clear(); // the map's unloading takes their objects
+            _aiWatchers.Clear();
             _closing = null;
             foreach (var zone in _testZones.Values)
             {
@@ -1047,6 +1099,53 @@ namespace RaidZero.Net
 
             var place = OnGround(player.position + forward * 4f + Vector3.up);
             SpawnAI(prefab, place, Quaternion.LookRotation(-forward, Vector3.up), AIKits.Build(Inventory.Catalog, AIKits.TargetDummy, null, null, Uuid7.NewId));
+        }
+
+        private const float AIDebugInterval = 0.2f;
+        private readonly HashSet<NetworkConnection> _aiWatchers = new HashSet<NetworkConnection>();
+        private float _nextAIDebugAt;
+
+        // Only registered in the editor and Development builds: the F1 overlay's AI debug view turned on or off.
+        private void OnDevWatchAI(NetworkConnection connection, DevWatchAIBroadcast message, Channel channel)
+        {
+            if (message.Watch)
+            {
+                _aiWatchers.Add(connection);
+            }
+            else
+            {
+                _aiWatchers.Remove(connection);
+            }
+        }
+
+        // What every AI is thinking, five times a second, to the dev clients watching (none in release builds:
+        // nobody can ask).
+        private void SendAIDebug()
+        {
+            if (_aiWatchers.Count == 0 || Time.unscaledTime < _nextAIDebugAt)
+            {
+                return;
+            }
+
+            _nextAIDebugAt = Time.unscaledTime + AIDebugInterval;
+            var entries = new List<AIDebugEntry>();
+            foreach (var ai in _ai.Values)
+            {
+                var source = ai != null ? ai.GetComponent<IAIDebugSource>() : null;
+                if (source != null)
+                {
+                    entries.Add(source.Describe());
+                }
+            }
+
+            var message = new DevAIDebugBroadcast { Entries = entries.ToArray() };
+            foreach (var connection in _aiWatchers)
+            {
+                if (connection != null && connection.IsActive)
+                {
+                    _networkManager.ServerManager.Broadcast(connection, message, true, Channel.Unreliable);
+                }
+            }
         }
 
         // A spawnable prefab with an IRaidAI on it, by name.

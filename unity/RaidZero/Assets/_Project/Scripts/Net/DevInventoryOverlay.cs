@@ -31,10 +31,15 @@ namespace RaidZero.Net
         private string _backendUrlDraft;
         private string _lastResult = "";
         private Vector2 _scroll;
+        private readonly AIDebugView _aiDebug = new AIDebugView();
 
         private void OnEnable() => RaidAuthenticator.JoinAnswered += OnJoinAnswered;
 
-        private void OnDisable() => RaidAuthenticator.JoinAnswered -= OnJoinAnswered;
+        private void OnDisable()
+        {
+            RaidAuthenticator.JoinAnswered -= OnJoinAnswered;
+            _aiDebug.Unregister();
+        }
 
         private void OnJoinAnswered(JoinRaidResultBroadcast answer) =>
             _lastResult = answer.Success ? "joined" : "the server refused: " + answer.Error + ": " + answer.Message;
@@ -52,6 +57,11 @@ namespace RaidZero.Net
         // locks a locked cursor again on every click, so one stray lock makes every click hide it).
         private void LateUpdate()
         {
+            if (_aiDebug.On)
+            {
+                _aiDebug.Tick(ClientNetworkManager());
+            }
+
             if (_visible && (Cursor.lockState != CursorLockMode.None || !Cursor.visible))
             {
                 Cursor.lockState = CursorLockMode.None;
@@ -81,6 +91,7 @@ namespace RaidZero.Net
             }
 
             DrawRaidStatus();
+            _aiDebug.Draw();
 
             var client = RaidInventoryClient.Instance;
             if (!_visible || client == null)
@@ -122,10 +133,14 @@ namespace RaidZero.Net
 
                 GUILayout.EndHorizontal();
 
+                GUILayout.BeginHorizontal();
                 if (GUILayout.Button("Spawn target dummy (in front of you, with a rifle, vest and rig)"))
                 {
                     SendToServer(new DevSpawnDummyBroadcast());
                 }
+
+                _aiDebug.Toggle(ClientNetworkManager(), GUILayout.Toggle(_aiDebug.On, "AI debug view", GUILayout.Width(110)));
+                GUILayout.EndHorizontal();
 
                 GUILayout.Label("Your gear");
                 DrawTree(client, character.Root, 0, isMine: true);

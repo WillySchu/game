@@ -160,7 +160,7 @@ The plan's target stands: 8 to 10 AI on a map without a noticeable cost to the s
 
 Proposed: John builds what touches the player's character and weapons; Will builds what runs only on the server. Neither waits long on the other.
 
-Already done: firing, fire modes, ammo and reloads (John, with the server side by Will), and damage, health, armor and death on the server (Will). Will's steps 1 and 2 are done too: the raid server's calls by ID, AI spawning and death with a target dummy standing in for the AI body, and factions, profiles, kits and spawn zones.
+Already done: firing, fire modes, ammo and reloads (John, with the server side by Will), and damage, health, armor and death on the server (Will). Will's steps 1 to 3 are done too: the raid server's calls by ID, AI spawning and death with a target dummy standing in for the AI body; factions, profiles, kits and spawn zones; and perception (the awareness meter, hearing shots, squad memory, the server's sight checks) with the F1 overlay's AI debug view. The dummy turns to look at what it notices. Light, fog, rain and crouching are wired into sight but neutral until they exist, so the check's "falling in the dark" waits for lighting.
 
 | Part | Who | Needs first |
 | --- | --- | --- |

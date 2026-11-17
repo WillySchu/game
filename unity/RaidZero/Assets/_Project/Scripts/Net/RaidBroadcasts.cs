@@ -1,5 +1,6 @@
 using FishNet.Broadcast;
 using RaidZero.Shared.Raid;
+using UnityEngine;
 
 namespace RaidZero.Net
 {
@@ -74,6 +75,47 @@ namespace RaidZero.Net
     /// </summary>
     public struct DevSpawnDummyBroadcast : IBroadcast
     {
+    }
+
+    /// <summary>
+    /// Client to server, for testing only: send me (or stop sending me) what every AI is thinking, for the F1
+    /// overlay's AI debug view. Like the Shot buttons, the server only listens for it in the editor and Development
+    /// builds, so a release server never tells anyone where its AI are.
+    /// </summary>
+    public struct DevWatchAIBroadcast : IBroadcast
+    {
+        public bool Watch;
+    }
+
+    /// <summary>One AI, as the AI debug view shows it (see <see cref="DevAIDebugBroadcast"/>).</summary>
+    public struct AIDebugEntry
+    {
+        public string Id;
+
+        /// <summary>Above its head, where the label goes.</summary>
+        public Vector3 LabelAt;
+
+        /// <summary>What it's doing: "calm", "heard", "squad", "noticed", "alert" (the brain's states, once it has one).</summary>
+        public string State;
+
+        /// <summary>A line or two of detail: who it's aware of and how much, its faction.</summary>
+        public string Detail;
+
+        /// <summary>Whether it's looking at something: what it's noticed, or a noise, or its squad's sighting.</summary>
+        public bool HasLookPoint;
+        public Vector3 LookPoint;
+
+        /// <summary>How aware it is of whoever it's most aware of, 0 to 1.</summary>
+        public float Awareness;
+    }
+
+    /// <summary>
+    /// Server to client, for testing only: every AI in the raid, a few times a second, to a client that asked
+    /// (<see cref="DevWatchAIBroadcast"/>). Only sent by servers in the editor and Development builds.
+    /// </summary>
+    public struct DevAIDebugBroadcast : IBroadcast
+    {
+        public AIDebugEntry[] Entries;
     }
 
     /// <summary>
