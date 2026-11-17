@@ -429,7 +429,8 @@ namespace RaidZero.Net
         /// through the calls above; at no health it dies, leaving a body with its gear, and is despawned. AI are
         /// the raid server's only: nothing about them goes to the backend.
         /// </summary>
-        public string SpawnAI(NetworkObject prefab, Vector3 position, Quaternion rotation, ItemNode character)
+        /// <param name="configure">Called on the new object before it's networked, to tell it more (its profile, say).</param>
+        public string SpawnAI(NetworkObject prefab, Vector3 position, Quaternion rotation, ItemNode character, Action<NetworkObject> configure = null)
         {
             if (!IsRunning || _lifecycle.Phase != RaidPhase.InProgress || prefab == null || character == null)
             {
@@ -443,6 +444,8 @@ namespace RaidZero.Net
             {
                 ai.SetUp(aiId);
             }
+
+            configure?.Invoke(spawned);
 
             var map = SceneManager.GetSceneByName(MapScene);
             _networkManager.ServerManager.Spawn(spawned, null, map.isLoaded ? map : SceneManager.GetActiveScene());
@@ -468,6 +471,61 @@ namespace RaidZero.Net
             }
 
             Debug.Log("[raid] " + aiId + " died.");
+        }
+
+        /// <summary>The seed this raid's loot was rolled from (and its AI): the same seed, the same raid.</summary>
+        public int LootSeed { get; private set; }
+
+        /// <summary>
+        /// Whether something standing at <paramref name="feet"/> would be out of every player's sight, and at least
+        /// <paramref name="minDistance"/> from them: from where each player in the raid is, and from where players
+        /// spawn (the PlayerSpawner's spawns), at eye height. For placing AI where nobody sees them appear.
+        /// </summary>
+        public bool IsHiddenFromPlayers(Vector3 feet, float minDistance)
+        {
+            var eye = feet + Vector3.up * EyeHeight;
+            foreach (var viewpoint in PlayerViewpoints())
+            {
+                var distance = Vector3.Distance(viewpoint, eye);
+                if (distance < minDistance)
+                {
+                    return false;
+                }
+
+                if (distance <= SpawnSightDistance && !Physics.Linecast(viewpoint, eye, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private const float EyeHeight = 1.6f;
+        private const float SpawnSightDistance = 250f;
+
+        // Players' eyes, and where players spawn.
+        private IEnumerable<Vector3> PlayerViewpoints()
+        {
+            foreach (var connection in _connectionOf.Values)
+            {
+                if (connection != null && connection.FirstObject != null)
+                {
+                    yield return connection.FirstObject.transform.position + Vector3.up * EyeHeight;
+                }
+            }
+
+            var spawner = _networkManager != null ? _networkManager.GetComponent<FishNet.Component.Spawning.PlayerSpawner>() : null;
+            if (spawner != null && spawner.Spawns != null)
+            {
+                foreach (var spawn in spawner.Spawns)
+                {
+                    if (spawn != null)
+                    {
+                        yield return spawn.position + Vector3.up * EyeHeight;
+                    }
+                }
+            }
         }
 
         // Whether a player is in the raid, or an AI is alive in it.
@@ -655,6 +713,7 @@ namespace RaidZero.Net
                 // One seed for the raid's loot, in the log so a raid's crates can be rolled again exactly.
                 var lootSeed = ServerConfig.IntArgument("--loot-seed") ?? (_lootSeed != 0 ? _lootSeed : new System.Random().Next(1, int.MaxValue));
                 Debug.Log("[raid] Loot seed " + lootSeed + " (--loot-seed " + lootSeed + ", or Loot Seed on RaidServer, rolls the same loot again)");
+                LootSeed = lootSeed;
                 var inventory = new RaidInventoryService(catalog);
                 foreach (var container in FindObjectsByType<LootContainer>())
                 {
@@ -987,7 +1046,7 @@ namespace RaidZero.Net
             }
 
             var place = OnGround(player.position + forward * 4f + Vector3.up);
-            SpawnAI(prefab, place, Quaternion.LookRotation(-forward, Vector3.up), AIKits.Build(Inventory.Catalog, AIKits.TargetDummy, Uuid7.NewId));
+            SpawnAI(prefab, place, Quaternion.LookRotation(-forward, Vector3.up), AIKits.Build(Inventory.Catalog, AIKits.TargetDummy, null, null, Uuid7.NewId));
         }
 
         // A spawnable prefab with an IRaidAI on it, by name.

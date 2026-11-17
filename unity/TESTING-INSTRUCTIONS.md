@@ -313,6 +313,22 @@ Target dummies (stand-in AI: they stand still and take hits):
 5. Several dummies at once each keep their own health; quitting the raid with one alive leaves nothing behind
    on the backend.
 
+AI spawn zones (the AI are still target dummies, so they stand where they spawn):
+
+1. Once: **Raid Zero > AI > Create Example Profiles**. It makes `Data/AI/AIProfile_Looters`,
+   `AIProfile_Contractors` and a kit for each. Commit them.
+2. In the map scene, add an empty object with an **AI Spawn Zone**: set its Profile, Min and Max Count, and its
+   Size (the yellow box for looters, blue for contractors, drawn in the Scene view with the profile's name). Put
+   it somewhere away from the player spawns, with ground inside the box. For a patrol, add an object with a
+   **Patrol Route** and children for its points (drawn as a blue line), and set it on the zone.
+3. Start a raid and join: as you arrive, the server's log says `Spawned ai-…` once per AI, and they stand in
+   the zone, facing every which way. None appears where you or a player spawn can see it, nor within 30 m (the
+   zone's Min Player Distance); if a zone has nowhere hidden, the log says so and that AI doesn't spawn.
+4. Kill a looter: its body has a pistol with eight rounds, two spare magazines and a medkit in its rig. A
+   contractor's has a rifle, its vest and two spare rifle magazines.
+5. Start another raid with the same `--loot-seed` (or Loot Seed on the RaidServer): the same number of AI
+   spawn in the same places, with the same gear (unless a player could see one of those places).
+
 ## Deploying from the overlay
 
 When the client isn't connected, the F1 overlay has a **Deploy** button. It goes the way the Hideout will: a

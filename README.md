@@ -382,6 +382,15 @@ The key in `appsettings.Development.json` is for local runs only. Real deploymen
   reports players. For now the only AI is the `TargetDummy` (`Scripts/Shared/AI`), which stands still and takes
   hits; the F1 overlay spawns one in front of you in the editor and Development builds. Its prefab comes from
   Raid Zero > AI > Create Target Dummy Prefab.
+- **AI factions, kits and spawning.** `Faction` (players, looters, contractors) and its hostility table are in
+  the shared package: every player is hostile to everyone, and each AI faction to everyone but itself. An
+  `AIProfile` asset says an AI's faction, its prefab and its kits; an `AIKitAsset` is one way to kit it out (a
+  gun with a loaded magazine, armor, rig, backpack, spare magazines and fixed items), built by
+  `AIKits.Build` with the profile's extra loot table rolled on top. Maps place `AISpawnZone`s (a box, a profile,
+  how many, and an optional `PatrolRoute`). When a raid starts, each zone rolls from the raid's loot seed and
+  its place in the scene (`AISpawnRolls`), so a seed replays the same AI with the same gear, and puts each on
+  the ground out of every player's sight (`RaidServer.IsHiddenFromPlayers`: from players and their spawn
+  points). Raid Zero > AI > Create Example Profiles makes a looter and a contractor profile to start from.
 - `RaidSessionClient` is the client's view of the raid: its phase, the clock, the player's health, the
   extraction countdown, and a `LeftRaid` event saying how the player left. It's carried by small broadcasts;
   health goes only to the player it's about. `RaidHud` (in

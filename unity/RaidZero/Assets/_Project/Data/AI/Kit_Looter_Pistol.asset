@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0ec10de0b30e4d8eb8f540ae9c70136d, type: 3}
+  m_Name: Kit_Looter_Pistol
+  m_EditorClassIdentifier: Game.Shared::RaidZero.Shared.AIKitAsset
+  _weapon: {fileID: 11400000, guid: 3ea6a2a1dae524fd19372a8d164c23c5, type: 2}
+  _magazine: {fileID: 11400000, guid: 51067b117bcd74dcc931af91e6d927dc, type: 2}
+  _ammo: {fileID: 11400000, guid: 0cc37c0a81a5749c9bfeb31c6b89b201, type: 2}
+  _spareMagazines: 2
+  _armor: {fileID: 0}
+  _rig: {fileID: 11400000, guid: b6894dfa86fef41c8b9d3674ab9a67d6, type: 2}
+  _backpack: {fileID: 0}
+  _items:
+  - {fileID: 11400000, guid: 4ffa3a4c70e164d34a9ff0f8f79fee36, type: 2}
+  _weight: 1

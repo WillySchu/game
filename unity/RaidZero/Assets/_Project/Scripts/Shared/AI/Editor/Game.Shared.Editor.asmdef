@@ -4,6 +4,7 @@
     "references": [
         "Game.Shared",
         "Game.Net",
+        "Game.Items",
         "FishNet.Runtime",
         "RaidZero.Shared"
     ],
