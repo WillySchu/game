@@ -122,6 +122,11 @@ namespace RaidZero.Net
 
                 GUILayout.EndHorizontal();
 
+                if (GUILayout.Button("Spawn target dummy (in front of you, with a rifle, vest and rig)"))
+                {
+                    SendToServer(new DevSpawnDummyBroadcast());
+                }
+
                 GUILayout.Label("Your gear");
                 DrawTree(client, character.Root, 0, isMine: true);
             }

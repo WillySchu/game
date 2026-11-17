@@ -69,6 +69,14 @@ namespace RaidZero.Net
     }
 
     /// <summary>
+    /// Client to server, for testing only: spawn a target dummy in front of me (RaidServer.SpawnAI). Like the Shot
+    /// buttons, the server only listens for it in the editor and Development builds.
+    /// </summary>
+    public struct DevSpawnDummyBroadcast : IBroadcast
+    {
+    }
+
+    /// <summary>
     /// Server to client: your health, when you join or rejoin and whenever it changes. Only ever sent to the player
     /// it's about; nobody else learns anyone's health.
     /// </summary>

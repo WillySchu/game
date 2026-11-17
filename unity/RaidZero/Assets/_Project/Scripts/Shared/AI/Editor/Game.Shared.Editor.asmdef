@@ -1,0 +1,21 @@
+{
+    "name": "Game.Shared.Editor",
+    "rootNamespace": "RaidZero.Shared.Editor",
+    "references": [
+        "Game.Shared",
+        "Game.Net",
+        "FishNet.Runtime",
+        "RaidZero.Shared"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

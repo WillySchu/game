@@ -372,6 +372,16 @@ The key in `appsettings.Development.json` is for local runs only. Real deploymen
   protection and durability the armor's `ArmorStats`. Health is kept per player for the raid (`RaidHealth`),
   so a rejoin keeps it; a hit resets an extraction countdown, and no health is `PlayerDied`. Armor wear goes in
   the raid inventory (`Wear`, held back like spent rounds) and home with the extraction report.
+- **AI in the raid server.** The raid server's calls for firing, reloading, using things up and hits
+  (`FireRound`, `Reload`, `LoadedRounds`, `Consume`, `Hit`, `HealthOf`) take an actor's ID: a player's, or an
+  AI's. The versions taking a `NetworkConnection` are the player controller's and look the player up.
+  `RaidServer.SpawnAI(prefab, position, rotation, character)` spawns an AI in the raid: its gear
+  (`AIKits.Build`, item specs as in the starter kit; `ItemSpecs` is shared now) joins the raid inventory like a
+  player's, under an ID of its own ("ai-" and a UUID), which its `IRaidAI` components are given. At no health an
+  AI leaves a body with its gear and is despawned. AI never reach the backend, and the end of a raid only
+  reports players. For now the only AI is the `TargetDummy` (`Scripts/Shared/AI`), which stands still and takes
+  hits; the F1 overlay spawns one in front of you in the editor and Development builds. Its prefab comes from
+  Raid Zero > AI > Create Target Dummy Prefab.
 - `RaidSessionClient` is the client's view of the raid: its phase, the clock, the player's health, the
   extraction countdown, and a `LeftRaid` event saying how the player left. It's carried by small broadcasts;
   health goes only to the player it's about. `RaidHud` (in

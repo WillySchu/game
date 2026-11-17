@@ -12,6 +12,7 @@ using RaidZero.BackendApi;
 using RaidZero.Items;
 using RaidZero.Raid;
 using RaidZero.Shared.Catalog;
+using RaidZero.Shared.Ids;
 using RaidZero.Shared.Inventory;
 using RaidZero.Shared.Raid;
 using UnityEngine;
@@ -37,7 +38,7 @@ namespace RaidZero.Net
     /// still inside is missing in action, the backend gets the close, and a dedicated server exits so its
     /// supervisor can start a fresh one.
     ///
-    /// Gameplay code calls <see cref="Hit"/>, <see cref="PlayerDied"/>, <see cref="LoadedRounds"/>, <see cref="FireRound"/>, <see cref="Reload"/>,
+    /// Gameplay code calls <see cref="SpawnAI"/>, <see cref="Hit(string, string, string, BodyPart)"/>, <see cref="PlayerDied"/>, <see cref="LoadedRounds"/>, <see cref="FireRound"/>, <see cref="Reload"/>,
     /// <see cref="Consume"/> and <see cref="InterruptExtraction"/> (through <see cref="Instance"/>);
     /// <see cref="ExtractionZone"/>s in the level handle extraction. Items on the ground are this class's too:
     /// it rolls the level's <see cref="LooseLootSpot"/>s at raid start and spawns a <see cref="GroundItem"/> for
@@ -100,6 +101,7 @@ namespace RaidZero.Net
         private BackendClient _backend;
         private RaidInventoryHost _host;
         private RaidHealth _health;
+        private readonly Dictionary<string, NetworkObject> _ai = new Dictionary<string, NetworkObject>(StringComparer.Ordinal);
         private RaidLifecycle _lifecycle;
         private ExtractionTracker _extraction;
         private Task _closing;
@@ -238,7 +240,7 @@ namespace RaidZero.Net
                 return;
             }
 
-            SpawnBody(Inventory.CharacterOf(playerId), connection);
+            SpawnBody(Inventory.CharacterOf(playerId), connection.FirstObject != null ? connection.FirstObject.transform : null);
             _host.Kill(playerId);
             _backend.ReportDied(playerId);
             Leave(playerId, connection, RaidExit.Died);
@@ -260,19 +262,31 @@ namespace RaidZero.Net
             Leave(playerId, connection, RaidExit.Extracted);
         }
 
+        // ---- Actors: players and AI, by ID ----
+        //
+        // A player's ID is the one the backend gave them; an AI's is its own ("ai-" and a UUID), from SpawnAI.
+        // The raid inventory and health work the same for both. The calls taking a NetworkConnection are the
+        // player controller's: they look up the player's ID and call these.
+
+        /// <summary>The player's ID for a connection (a player in this raid), or null.</summary>
+        public string ActorIdOf(NetworkConnection connection) => PlayerIdOf(connection);
+
+        /// <summary>Whether this is a live AI in the raid.</summary>
+        public bool IsAI(string actorId) => actorId != null && _ai.ContainsKey(actorId);
+
         /// <summary>
-        /// A round hit a player: the server's player controller calls this when its shot's ray hits a hitbox.
-        /// The damage comes from the round's AmmoStats (<paramref name="ammoDefId"/> is what FireRound returned),
-        /// scaled by where it landed, with the victim's armor (their armor slot) taking its share where it
-        /// covers, by <see cref="DamageRules"/>. The armor wears, the victim's health drops (and their client is
-        /// told), an extraction countdown starts over, and at no health they die (<see cref="PlayerDied"/>).
-        /// Nothing happens to anyone who isn't in the raid, or when a player hits themselves.
+        /// A round hit someone, a player or an AI: the shooter's gun calls this on the server when its shot's ray
+        /// hits a hitbox. The damage comes from the round's AmmoStats (<paramref name="ammoDefId"/> is what
+        /// FireRound returned), scaled by where it landed, with the victim's armor (their armor slot) taking its
+        /// share where it covers, by <see cref="DamageRules"/>. The armor wears and the victim's health drops. A
+        /// player's client is told, an extraction countdown starts over, and at no health they die
+        /// (<see cref="PlayerDied"/>); an AI at no health dies too, leaving its body. Nothing happens to anyone
+        /// who isn't active in the raid, or when someone hits themselves.
         /// </summary>
-        /// <param name="shooter">Who fired, or null for nobody in particular (a dev shot, later the world).</param>
-        public HitOutcome Hit(NetworkConnection victim, NetworkConnection shooter, string ammoDefId, BodyPart part)
+        /// <param name="shooterId">Who fired, or null for nobody in particular (a dev shot, later the world).</param>
+        public HitOutcome Hit(string victimId, string shooterId, string ammoDefId, BodyPart part)
         {
-            var playerId = PlayerIdOf(victim);
-            if (!IsInside(playerId) || _health == null || (shooter != null && shooter == victim))
+            if (!IsActive(victimId) || _health == null || (shooterId != null && shooterId == victimId))
             {
                 return HitOutcome.None;
             }
@@ -290,7 +304,7 @@ namespace RaidZero.Net
             ArmorHit? armorHit = null;
             if (DamageRules.ArmorCovers(part))
             {
-                armor = Inventory.ArmorOf(playerId);
+                armor = Inventory.ArmorOf(victimId);
                 armorStats = StatsOf<ArmorStats>(armor?.DefId);
                 if (armor?.Durability != null && armorStats != null && armorStats.durability > 0)
                 {
@@ -301,14 +315,27 @@ namespace RaidZero.Net
             var damage = DamageRules.Resolve(ammo.damage, ammo.penetration, part, armorHit);
             if (damage.ArmorWear > 0 && armorHit != null)
             {
-                _host.Wear(playerId, armor.Id, damage.ArmorWear / armorStats.durability, Now);
+                _host.Wear(victimId, armor.Id, damage.ArmorWear / armorStats.durability, Now);
             }
 
-            var left = _health.Damage(playerId, damage.Health);
-            Debug.Log("[raid] " + (PlayerIdOf(shooter) ?? "something") + " hit " + playerId + " in the " + part.ToString().ToLowerInvariant()
+            var left = _health.Damage(victimId, damage.Health);
+            Debug.Log("[raid] " + (shooterId ?? "something") + " hit " + victimId + " in the " + part.ToString().ToLowerInvariant()
                 + " with " + ammoDefId + ": " + damage.Health.ToString("0.#", CultureInfo.InvariantCulture) + " damage"
                 + (armorHit != null ? (damage.Penetrated ? ", through the armor" : ", stopped by the armor") : "")
                 + ", " + left.ToString("0.#", CultureInfo.InvariantCulture) + " health left.");
+
+            if (IsAI(victimId))
+            {
+                if (left <= 0f)
+                {
+                    AIDied(victimId);
+                    return HitOutcome.Killed;
+                }
+
+                return HitOutcome.Hit;
+            }
+
+            var victim = ConnectionOfPlayer(victimId);
             SendHealth(victim);
             if (left <= 0f)
             {
@@ -320,12 +347,15 @@ namespace RaidZero.Net
             return HitOutcome.Hit;
         }
 
+        /// <summary>A round from one player hit another. See <see cref="Hit(string, string, string, BodyPart)"/>.</summary>
+        public HitOutcome Hit(NetworkConnection victim, NetworkConnection shooter, string ammoDefId, BodyPart part) =>
+            Hit(PlayerIdOf(victim), PlayerIdOf(shooter), ammoDefId, part);
+
+        /// <summary>A player's or AI's health, or 0 if they aren't active in the raid.</summary>
+        public float HealthOf(string actorId) => IsActive(actorId) && _health != null ? _health.Of(actorId) : 0f;
+
         /// <summary>The player's health, or 0 if they aren't in the raid.</summary>
-        public float HealthOf(NetworkConnection connection)
-        {
-            var playerId = PlayerIdOf(connection);
-            return IsInside(playerId) && _health != null ? _health.Of(playerId) : 0f;
-        }
+        public float HealthOf(NetworkConnection connection) => HealthOf(PlayerIdOf(connection));
 
         private static T StatsOf<T>(string defId) where T : class, IItemStats
         {
@@ -343,51 +373,109 @@ namespace RaidZero.Net
             }
         }
 
+        /// <summary>Uses up rounds or a medkit a player or AI carries. False, changing nothing, if they don't have that many.</summary>
+        public bool Consume(string actorId, string itemId, int quantity) =>
+            IsActive(actorId) && _host.Consume(actorId, itemId, quantity, Now);
+
         /// <summary>Uses up rounds or a medkit the player carries. False, changing nothing, if they don't have that many.</summary>
-        public bool Consume(NetworkConnection connection, string itemId, int quantity)
-        {
-            var playerId = PlayerIdOf(connection);
-            return IsInside(playerId) && _host.Consume(playerId, itemId, quantity, Now);
-        }
+        public bool Consume(NetworkConnection connection, string itemId, int quantity) => Consume(PlayerIdOf(connection), itemId, quantity);
 
         /// <summary>
-        /// How many rounds the player's gun in that slot (SlotNames.Primary) can fire before reloading: its
+        /// How many rounds the gun in a player's or AI's slot (SlotNames.Primary) can fire before reloading: its
         /// magazine's plus the chambered one, from the server's own inventory. 0 with no gun or nothing loaded.
         /// </summary>
-        public int LoadedRounds(NetworkConnection connection, string weaponSlot)
-        {
-            var playerId = PlayerIdOf(connection);
-            return IsInside(playerId) ? _host.LoadedRounds(playerId, weaponSlot) : 0;
-        }
+        public int LoadedRounds(string actorId, string weaponSlot) => IsActive(actorId) ? _host.LoadedRounds(actorId, weaponSlot) : 0;
+
+        /// <summary>See <see cref="LoadedRounds(string, string)"/>, for the player on this connection.</summary>
+        public int LoadedRounds(NetworkConnection connection, string weaponSlot) => LoadedRounds(PlayerIdOf(connection), weaponSlot);
 
         /// <summary>
-        /// Fires one round from the player's gun in that slot: the magazine's, then the chambered one. Returns the
-        /// round's DefId, for its damage, or null if there was nothing to fire. The client's view of their gear
+        /// Fires one round from the gun in a player's or AI's slot: the magazine's, then the chambered one. Returns
+        /// the round's DefId, for its damage, or null if there was nothing to fire. A player's view of their gear
         /// follows within a second, as with <see cref="Consume"/>; show the count the player controller predicts.
         /// </summary>
-        public string FireRound(NetworkConnection connection, string weaponSlot)
-        {
-            var playerId = PlayerIdOf(connection);
-            return IsInside(playerId) ? _host.FireRound(playerId, weaponSlot, Now) : null;
-        }
+        public string FireRound(string actorId, string weaponSlot) => IsActive(actorId) ? _host.FireRound(actorId, weaponSlot, Now) : null;
+
+        /// <summary>See <see cref="FireRound(string, string)"/>, for the player on this connection.</summary>
+        public string FireRound(NetworkConnection connection, string weaponSlot) => FireRound(PlayerIdOf(connection), weaponSlot);
 
         /// <summary>
-        /// Reloads the player's gun in that slot: swaps its magazine for the fullest one that fits in their rig,
-        /// then backpack, putting the old one where there's room. False, changing nothing, if there's no gun, no
-        /// fuller magazine or no room. Their client sees the change straight away.
+        /// Reloads the gun in a player's or AI's slot: swaps its magazine for the fullest one that fits in their
+        /// rig, then backpack, putting the old one where there's room. False, changing nothing, if there's no gun,
+        /// no fuller magazine or no room. A player's client sees the change straight away.
         /// </summary>
-        public bool Reload(NetworkConnection connection, string weaponSlot)
+        public bool Reload(string actorId, string weaponSlot)
         {
-            var playerId = PlayerIdOf(connection);
-            if (!IsInside(playerId))
+            if (!IsActive(actorId))
             {
                 return false;
             }
 
-            var output = _host.Reload(playerId, weaponSlot, out bool reloaded);
-            Dispatch(output, connection);
+            var output = _host.Reload(actorId, weaponSlot, out bool reloaded);
+            Dispatch(output, ConnectionOfPlayer(actorId));
             return reloaded;
         }
+
+        /// <summary>See <see cref="Reload(string, string)"/>, for the player on this connection.</summary>
+        public bool Reload(NetworkConnection connection, string weaponSlot) => Reload(PlayerIdOf(connection), weaponSlot);
+
+        // ---- AI ----
+
+        /// <summary>
+        /// Spawns an AI in the running raid: <paramref name="prefab"/> (a spawnable prefab with an
+        /// <see cref="IRaidAI"/>) where it's told, carrying <paramref name="character"/> (AIKits.Build), which
+        /// joins the raid inventory like a player's gear. Returns the AI's ID, which its IRaidAI components are
+        /// given before it spawns, or null if there's no raid in progress. It fires, reloads and is hit by that ID
+        /// through the calls above; at no health it dies, leaving a body with its gear, and is despawned. AI are
+        /// the raid server's only: nothing about them goes to the backend.
+        /// </summary>
+        public string SpawnAI(NetworkObject prefab, Vector3 position, Quaternion rotation, ItemNode character)
+        {
+            if (!IsRunning || _lifecycle.Phase != RaidPhase.InProgress || prefab == null || character == null)
+            {
+                return null;
+            }
+
+            var aiId = "ai-" + Uuid7.NewId();
+            _host.Service.AddPlayer(aiId, character);
+            var spawned = Instantiate(prefab, position, rotation);
+            foreach (var ai in spawned.GetComponents<IRaidAI>())
+            {
+                ai.SetUp(aiId);
+            }
+
+            var map = SceneManager.GetSceneByName(MapScene);
+            _networkManager.ServerManager.Spawn(spawned, null, map.isLoaded ? map : SceneManager.GetActiveScene());
+            _ai[aiId] = spawned;
+            Debug.Log("[raid] Spawned " + aiId + " (" + prefab.name + ") at " + position + ".");
+            return aiId;
+        }
+
+        // An AI ran out of health: its gear becomes a body where it stood, and it goes.
+        private void AIDied(string aiId)
+        {
+            if (!_ai.TryGetValue(aiId, out var spawned))
+            {
+                return;
+            }
+
+            _ai.Remove(aiId);
+            SpawnBody(Inventory.CharacterOf(aiId), spawned != null ? spawned.transform : null);
+            _host.Kill(aiId);
+            if (spawned != null && spawned.IsSpawned)
+            {
+                _networkManager.ServerManager.Despawn(spawned);
+            }
+
+            Debug.Log("[raid] " + aiId + " died.");
+        }
+
+        // Whether a player is in the raid, or an AI is alive in it.
+        private bool IsActive(string actorId) =>
+            IsInside(actorId) || (IsAI(actorId) && IsRunning && _lifecycle.Phase == RaidPhase.InProgress && _host.Service.IsActive(actorId));
+
+        private NetworkConnection ConnectionOfPlayer(string playerId) =>
+            playerId != null && _connectionOf.TryGetValue(playerId, out var connection) ? connection : null;
 
         /// <summary>Ends the raid now, as if the clock had run out: anyone still inside is missing in action.</summary>
         public void EndRaid()
@@ -594,6 +682,7 @@ namespace RaidZero.Net
                 {
                     _networkManager.ServerManager.RegisterBroadcast<DevDieBroadcast>(OnDevDie);
                     _networkManager.ServerManager.RegisterBroadcast<DevShotBroadcast>(OnDevShot);
+                    _networkManager.ServerManager.RegisterBroadcast<DevSpawnDummyBroadcast>(OnDevSpawnDummy);
                 }
 
                 // CI bakes the commit into the server image (RAIDZERO_BUILD); anything else is a local build.
@@ -627,6 +716,7 @@ namespace RaidZero.Net
                 _networkManager.ServerManager.UnregisterBroadcast<InventoryToServerBroadcast>(OnInventoryBroadcast);
                 _networkManager.ServerManager.UnregisterBroadcast<DevDieBroadcast>(OnDevDie);
                 _networkManager.ServerManager.UnregisterBroadcast<DevShotBroadcast>(OnDevShot);
+                _networkManager.ServerManager.UnregisterBroadcast<DevSpawnDummyBroadcast>(OnDevSpawnDummy);
             }
 
             if (_backend != null)
@@ -654,6 +744,7 @@ namespace RaidZero.Net
             _lifecycle = null;
             _extraction = null;
             _health = null;
+            _ai.Clear(); // the map's unloading takes their objects
             _closing = null;
             foreach (var zone in _testZones.Values)
             {
@@ -870,6 +961,52 @@ namespace RaidZero.Net
         private void OnDevShot(NetworkConnection connection, DevShotBroadcast message, Channel channel) =>
             Hit(connection, null, DevShotAmmo, message.Part);
 
+        /// <summary>The prefab the F1 overlay's Spawn target dummy button spawns, by name.</summary>
+        public const string TargetDummyPrefab = "TargetDummy";
+
+        // Only registered in the editor and Development builds: a target dummy a few metres in front of the
+        // player, facing them, carrying AIKits.TargetDummy.
+        private void OnDevSpawnDummy(NetworkConnection connection, DevSpawnDummyBroadcast message, Channel channel)
+        {
+            var player = connection != null && connection.FirstObject != null ? connection.FirstObject.transform : null;
+            if (player == null || !IsInside(PlayerIdOf(connection)))
+            {
+                return;
+            }
+
+            var prefab = FindAIPrefab(TargetDummyPrefab);
+            if (prefab == null)
+            {
+                return;
+            }
+
+            var forward = Vector3.ProjectOnPlane(player.forward, Vector3.up).normalized;
+            if (forward == Vector3.zero)
+            {
+                forward = Vector3.forward;
+            }
+
+            var place = OnGround(player.position + forward * 4f + Vector3.up);
+            SpawnAI(prefab, place, Quaternion.LookRotation(-forward, Vector3.up), AIKits.Build(Inventory.Catalog, AIKits.TargetDummy, Uuid7.NewId));
+        }
+
+        // A spawnable prefab with an IRaidAI on it, by name.
+        private NetworkObject FindAIPrefab(string prefabName)
+        {
+            var prefabs = _networkManager.SpawnablePrefabs;
+            for (int i = 0; prefabs != null && i < prefabs.GetObjectCount(); i++)
+            {
+                var candidate = prefabs.GetObject(true, i);
+                if (candidate != null && candidate.name == prefabName && candidate.GetComponent<IRaidAI>() != null)
+                {
+                    return candidate;
+                }
+            }
+
+            Debug.LogError("[raid] No spawnable prefab called " + prefabName + " with an IRaidAI on it. Make it with Raid Zero > AI > Create Target Dummy Prefab, and check it's in the NetworkManager's spawnable prefabs.");
+            return null;
+        }
+
         private void Dispatch(HostOutput output, NetworkConnection sender)
         {
             foreach (var message in output.Messages)
@@ -970,11 +1107,10 @@ namespace RaidZero.Net
             return null;
         }
 
-        /// <summary>A body where the player stands, on the ground, facing the way they faced.</summary>
-        private void SpawnBody(string containerId, NetworkConnection connection)
+        /// <summary>A body where the player (or AI) stands, on the ground, facing the way they faced.</summary>
+        private void SpawnBody(string containerId, Transform player)
         {
             var prefab = BodyPrefab();
-            var player = connection != null && connection.FirstObject != null ? connection.FirstObject.transform : null;
             if (prefab == null || containerId == null)
             {
                 return;

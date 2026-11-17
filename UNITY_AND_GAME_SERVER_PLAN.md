@@ -42,7 +42,7 @@ doc; where the two meet (joining a raid, reporting outcomes, item IDs), that doc
 | --- | --- |
 | Player controller and camera, with client-side prediction | John |
 | Weapons, hit registration, damage and death | John |
-| AI enemies | John |
+| AI enemies | John and Will (`AI_ENEMIES_PROPOSAL.md`: Will's server side started) |
 | The greybox map and its extraction points and crates | John |
 | Raid timer, extraction rules, loot tables and rolling | Will (done) |
 | Raid inventory on the server, and the inventory screen on the client | Will (done; the screen was John's, handed over) |

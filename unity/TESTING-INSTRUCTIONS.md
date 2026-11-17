@@ -298,6 +298,21 @@ through the same path a real hit takes; health shows at the bottom left and in t
    you at 100.
 5. Extract with a worn vest: in the Hideout, its tooltip shows the wear.
 
+Target dummies (stand-in AI: they stand still and take hits):
+
+1. Once, in the editor: **Raid Zero > AI > Create Target Dummy Prefab**. It saves `Prefabs/TargetDummy.prefab`
+   (and `Materials/TargetDummy.mat`), and Fish-Net adds it to `DefaultPrefabObjects`; check it's listed there,
+   then commit all three. The game server needs a build with it before the Docker server can spawn one.
+2. In a raid, press F1 and **Spawn target dummy**: an orange capsule appears about 4 m ahead, facing you. The
+   server's log says `Spawned ai-…`.
+3. Shoot its body: each 5.45 hit logs `… hit ai-… in the torso … through the armor`, 17 damage. Its vest is
+   worn out after five, and the sixth kills it. Two shots to its head (the sphere) do it too.
+4. It vanishes and leaves a body where it stood. Search it: a rifle with a full magazine, the light vest (worn,
+   if you shot its body), and a rig with a spare magazine and a medkit. Take something and extract: it comes
+   home.
+5. Several dummies at once each keep their own health; quitting the raid with one alive leaves nothing behind
+   on the backend.
+
 ## Deploying from the overlay
 
 When the client isn't connected, the F1 overlay has a **Deploy** button. It goes the way the Hideout will: a
