@@ -477,20 +477,6 @@ namespace RaidZero.Shared
                 currentVelocity.z = horizontalVelocity.z;
             }
 
-            _characterController.Move(currentVelocity * deltaTime);
-            
-            if(wasGroundedLastFrame && !_characterController.isGrounded)
-            {
-                // Player just left the ground
-                OnLeftGround();
-            }
-            else if(!wasGroundedLastFrame && _characterController.isGrounded)
-            {
-                // Player just landed
-                OnTouchedGround();
-            }
-            wasGroundedLastFrame = _characterController.isGrounded;
-
             // Gun Handling
             // Reloading is instant on the server for now (both guns' reloadTime is 0): it swaps in the fullest
             // magazine from the rig or backpack, and the reconcile brings the client the new count.
@@ -554,6 +540,20 @@ namespace RaidZero.Shared
             {
                 triggerReleasedSinceFire = true;
             }
+
+            _characterController.Move(currentVelocity * deltaTime);
+            
+            if(wasGroundedLastFrame && !_characterController.isGrounded)
+            {
+                // Player just left the ground
+                OnLeftGround();
+            }
+            else if(!wasGroundedLastFrame && _characterController.isGrounded)
+            {
+                // Player just landed
+                OnTouchedGround();
+            }
+            wasGroundedLastFrame = _characterController.isGrounded;
         }
         private void Fire(ReplicateState state, float deltaTime)
         {
@@ -620,6 +620,17 @@ namespace RaidZero.Shared
                     hr.ShowTracer(_muzzle.transform.position, endPoint);
                 }
             }
+
+            // Do recoil. Simple kick on camera view and rotation for now.
+            float verticalRecoil = heldWeaponStats.recoilVertical * 0.2f;
+            xRotation -= verticalRecoil;
+            xRotation = Mathf.Clamp(xRotation, -90f, 90f);
+            _cameraMount.localRotation = Quaternion.Euler(xRotation, 0f, 0f);
+
+            float horizontalRecoil = _random.NextFloatRange(-heldWeaponStats.recoilHorizontal, heldWeaponStats.recoilHorizontal) * 0.2f;
+
+            transform.Rotate(Vector3.up, horizontalRecoil);
+
         }
 
         public void OnPostTick()
