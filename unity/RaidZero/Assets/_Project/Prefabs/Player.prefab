@@ -122,6 +122,37 @@ Transform:
   - {fileID: 1559013197091562724}
   m_Father: {fileID: 7282496796224652584}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &6510956585744096465
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 7111933398255332134}
+  m_Layer: 0
+  m_Name: Muzzle
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &7111933398255332134
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6510956585744096465}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0.030000001, y: 0.14000002, z: 0.86999995}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1559013197091562724}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &7439673100555751352
 GameObject:
   m_ObjectHideFlags: 0
@@ -136,6 +167,7 @@ GameObject:
   - component: {fileID: 6855001625721779920}
   - component: {fileID: -2104167914209987083}
   - component: {fileID: 4164705610209965876}
+  - component: {fileID: 7282313890968823455}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -207,7 +239,6 @@ MonoBehaviour:
   <PredictedOwner>k__BackingField: {fileID: 0}
   NetworkBehaviours:
   - {fileID: -8529257352947904720}
-  - {fileID: 0}
   - {fileID: 4164705610209965876}
   InitializedParentNetworkBehaviour: {fileID: 0}
   InitializedNestedNetworkObjects: []
@@ -219,7 +250,7 @@ MonoBehaviour:
   _initializeOrder: 0
   _preventDespawnOnDisconnect: 0
   _defaultDespawnType: 0
-  _initializedTimestamp: -8584082017585514191
+  _initializedTimestamp: -8584067140673961032
 --- !u!114 &-8529257352947904720
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -302,7 +333,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ceaeef9ee7368e5479c502958396ee05, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerController
-  _componentIndexCache: 2
+  _componentIndexCache: 1
   _addedNetworkObject: {fileID: 1377584125075562030}
   _networkObjectCache: {fileID: 1377584125075562030}
   walkSpeed: 5
@@ -313,8 +344,27 @@ MonoBehaviour:
   gravity: -9.81
   friction: 0.1
   airFriction: 1
+  semiAutoRoundsPerMinute: 480
+  raycastRange: 300
   _cameraMount: {fileID: 6836104931731487076}
   _characterController: {fileID: -2104167914209987083}
+  _muzzle: {fileID: 6510956585744096465}
+--- !u!114 &7282313890968823455
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7439673100555751352}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 62115b2c7e7cd9442b94fae10c4cf240, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Game.Shared::RaidZero.Shared.HitscanProjectileRender
+  tracerMaterial: {fileID: 2100000, guid: 23adb7324bb49ae438ad0e3c5ac4f9dc, type: 2}
+  width: 0.02
+  lifetime: 0.1
+  color: {r: 1, g: 1, b: 1, a: 1}
 --- !u!1001 &175767962660222577
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -373,7 +423,10 @@ PrefabInstance:
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
-    m_AddedGameObjects: []
+    m_AddedGameObjects:
+    - targetCorrespondingSourceObject: {fileID: 1716661155504083605, guid: 6ba8d7f977f4977479f83dde179c2d14, type: 3}
+      insertIndex: 0
+      addedObject: {fileID: 7111933398255332134}
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 6ba8d7f977f4977479f83dde179c2d14, type: 3}
 --- !u!4 &1559013197091562724 stripped

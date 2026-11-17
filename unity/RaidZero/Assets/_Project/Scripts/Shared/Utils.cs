@@ -26,8 +26,17 @@ namespace RaidZero.Shared
 
             // Next float in range [0, 1).
             public float NextFloat() => (Next() >> 8) * (1f / (1 << 24));
+            // Next float in range [min, max)
             public float NextFloatRange(float min, float max) => min + NextFloat() * (max - min);
-            
+            // Next Vector 2 within magnitude [0, maxMagnitude]
+            public Vector2 NextInCircle(float maxMagnitude)
+            {
+                float angle = NextFloat() * 2f * Mathf.PI;
+                // Use Sqrt to not bias shots towards the center.
+                // since this is used to calculate deviations in shots, we might consider removing this to make shots feel more accurate.
+                float magnitude = Mathf.Sqrt(NextFloat()) * maxMagnitude;
+                return new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * magnitude;
+            }
         }
 
         public static uint CombineMix(uint a, uint b)

@@ -14,7 +14,11 @@ using RaidZero.Shared.Raid;
 
 namespace RaidZero.Shared
 {
-    public class PlayerController : NetworkBehaviour
+    public interface IDamageable
+    {
+        void Hit(NetworkConnection source, string ammoDefID);
+    }
+    public class PlayerController : NetworkBehaviour, IDamageable
     {
         // Inputs to send to the server.
         public struct PlayerReplicatedData : IReplicateData
@@ -59,8 +63,10 @@ namespace RaidZero.Shared
             public int selectedFireMode;
             public int loadedRounds;
             public float timeSinceLastShot;
+            public bool reloading;
+            public float reloadTimer;
 
-            public PlayerReconcileData(Vector3 position, Quaternion rotation, Vector3 velocity, float xRotation, bool wasGroundedLastFrame, float horizontalFallVelocity, float currentMoveSpeed, bool triggerReleasedSinceFire, int selectedFireMode, int loadedRounds, float timeSinceLastShot) : this()
+            public PlayerReconcileData(Vector3 position, Quaternion rotation, Vector3 velocity, float xRotation, bool wasGroundedLastFrame, float horizontalFallVelocity, float currentMoveSpeed, bool triggerReleasedSinceFire, int selectedFireMode, int loadedRounds, float timeSinceLastShot, bool reloading, float reloadTimer) : this()
             {
                 this.position = position;
                 this.rotation = rotation;
@@ -73,6 +79,9 @@ namespace RaidZero.Shared
                 this.selectedFireMode = selectedFireMode;
                 this.loadedRounds = loadedRounds;
                 this.timeSinceLastShot = timeSinceLastShot;
+                this.reloading = reloading;
+                this.reloadTimer = reloadTimer;
+
             }
             
             private uint _tick;
@@ -93,13 +102,15 @@ namespace RaidZero.Shared
         public float friction = 0.1f; // Friction factor to slow down the player when no input is given. (0= full stop, 1= no friction)
         public float airFriction = 1f; // Friction factor to slow down the player when in the air and no input is given. (0= full stop, 1= no friction)
         public float semiAutoRoundsPerMinute = 480f; // Maximum rounds per minute for semi-auto fire mode. Used in single shot fire mode if this is lower than the weapon's rounds per minute stat. Default value 480 is approximately the world record for semiauto shooting, so probably okay if players aren't allowed to exceed it.
-
+        public float raycastRange = 300f;
         // Mouse sensitivity and invert look are the player's settings (GameSettings), applied on the client
         // before the look input is sent, so the server turns the player just as far.
 
         [SerializeField] private Transform _cameraMount;
         private Camera _heldCamera;
         [SerializeField] private CharacterController _characterController;
+
+        [SerializeField] private GameObject _muzzle;
 
         private Vector2 currentMoveInput;
         private Vector2 currentLookInput;
@@ -125,6 +136,9 @@ namespace RaidZero.Shared
         private int ammoCount;
         private int selectedFireMode = 0;
         private float timeSinceLastShot = Mathf.Infinity;
+        // Currently reloads instantaneous so this timer not used yet.
+        private float reloadTimer = 0f;
+        private bool reloading = false;
 
         private WeaponStats heldWeaponStats;
         private AmmoStats chamberedAmmoStats; // the round the next shot fires: the magazine's, then the chamber's
@@ -350,6 +364,7 @@ namespace RaidZero.Shared
             float deltaTime = (float)base.TimeManager.TickDelta;
             _random.Sync(data.GetTick());
             timeSinceLastShot += deltaTime;
+
             if (IsServerStarted)
             {
                 RefreshFromServer();
@@ -480,10 +495,48 @@ namespace RaidZero.Shared
             // Reloading is instant on the server for now (both guns' reloadTime is 0): it swaps in the fullest
             // magazine from the rig or backpack, and the reconcile brings the client the new count.
             // TODO: wait reloadTime first, and predict it on the client.
-            if (data.reloadInput && IsServerStarted && RaidServer.Instance != null && RaidServer.Instance.Reload(Owner, _heldSlot))
+            // Moved actual reload to top
+            // if (data.reloadInput && IsServerStarted && RaidServer.Instance != null && RaidServer.Instance.Reload(Owner, _heldSlot))
+            // {
+            //     RefreshFromServer();
+            //     if (!state.ContainsReplayed()) Debug.Log("Reloaded: " + ammoCount + " rounds.");
+            // }
+            if (data.reloadInput)
             {
-                RefreshFromServer();
-                if (!state.ContainsReplayed()) Debug.Log("Reloaded: " + ammoCount + " rounds.");
+                if(!reloading && reloadTimer <= 0f)
+                {
+                    reloading = true;
+                    // Once reloading takes time, set this to the reload time derived from magazine stats
+                    reloadTimer = 0f;
+                }
+            }
+
+            if (reloading)
+            {
+                // Reloads are instantaneous so currently timer will always be 0.
+                if(reloadTimer > 0)
+                {
+                    reloadTimer -= deltaTime;
+                }
+                else
+                {
+                    // if timer is <= 0 the reload is complete, attempt the reload and set to false.
+                    bool reloadResult = false;
+                    if(IsServerStarted)
+                    {
+                        
+                        reloadResult = RaidServer.Instance.Reload(Owner, _heldSlot);
+                        RefreshFromServer();
+                        if (reloadResult && !state.ContainsReplayed()) Debug.Log("Reloaded: " + ammoCount + " rounds.");
+                    }
+                    else
+                    {
+                        // Eventually predict reload success or failure on client.
+                        reloadResult = true;
+                    }
+
+                    reloading = false;
+                }
             }
 
             int fireModeCount = heldWeaponStats?.fireModes?.Count ?? 0;
@@ -495,7 +548,7 @@ namespace RaidZero.Shared
 
             if (data.fireInput)
             {
-                Fire(state, deltaTime);
+                if(!reloading) Fire(state, deltaTime);
             }
             else
             {
@@ -544,8 +597,29 @@ namespace RaidZero.Shared
 
             ammoCount--;
             triggerReleasedSinceFire = false;
-            // Pew Pew. Only the first time a tick runs: a client replays ticks after each reconcile.
-            if (!state.ContainsReplayed()) Debug.Log("Pew Pew! " + ammoCount + " left.");
+
+            // Deviation from weapon accuracy. Accuracy stat is in MOA (1/60 of a degree).
+            float accDegrees = heldWeaponStats.accuracy / 60f;
+            Vector2 deviationVectorDegrees = _random.NextInCircle(accDegrees);
+            Quaternion deviation = Quaternion.Euler(-deviationVectorDegrees.y, deviationVectorDegrees.x, 0);
+            Vector3 shootDirection = _muzzle.transform.rotation * deviation * Vector3.forward;
+            bool hitResult = Physics.Raycast(_muzzle.transform.position, shootDirection, out RaycastHit hit, raycastRange);
+            Vector3 endPoint = hitResult ? hit.point : _muzzle.transform.position + shootDirection * raycastRange;
+            if (hitResult)
+            {
+                hit.collider.gameObject.TryGetComponent(out IDamageable damageable);
+                string ammoDefId = _heldWeaponItem?.ChildInSlot(SlotNames.Chamber)?.DefId ?? _heldWeaponItem?.ChildInSlot(SlotNames.Magazine)?.ChildInSlot(SlotNames.Rounds)?.DefId ?? "";
+                damageable?.Hit(Owner, ammoDefId);
+            }
+            
+            // Placeholder visuals for shooting
+            if (!state.ContainsReplayed())
+            {
+                if(TryGetComponent(out HitscanProjectileRender hr))
+                {
+                    hr.ShowTracer(_muzzle.transform.position, endPoint);
+                }
+            }
         }
 
         public void OnPostTick()
@@ -556,7 +630,7 @@ namespace RaidZero.Shared
 
         public override void CreateReconcile()
         {
-            PlayerReconcileData data = new PlayerReconcileData(transform.position, transform.rotation, currentVelocity, xRotation, wasGroundedLastFrame, horizontalFallVelocity, currentMoveSpeed, triggerReleasedSinceFire, selectedFireMode, ammoCount, timeSinceLastShot);
+            PlayerReconcileData data = new PlayerReconcileData(transform.position, transform.rotation, currentVelocity, xRotation, wasGroundedLastFrame, horizontalFallVelocity, currentMoveSpeed, triggerReleasedSinceFire, selectedFireMode, ammoCount, timeSinceLastShot, reloading, reloadTimer);
             DoReconcile(data);
         }
 
@@ -575,6 +649,8 @@ namespace RaidZero.Shared
             selectedFireMode = data.selectedFireMode;
             ammoCount = data.loadedRounds;
             timeSinceLastShot = data.timeSinceLastShot;
+            reloading = data.reloading;
+            reloadTimer = data.reloadTimer;
             _cameraMount.localRotation = Quaternion.Euler(xRotation, 0f, 0f);
             _characterController.enabled = true;
         }
@@ -599,7 +675,14 @@ namespace RaidZero.Shared
         {
             // Handle logic for when the player touches the ground. Nothing for now.
         }
-        
-        
+
+        public void Hit(NetworkConnection source, string ammoDefID)
+        {
+            if(IsServerStarted)
+            {
+                // TODO: Create separate hitboxes and check here.
+                RaidServer.Instance?.Hit(Owner, source, ammoDefID, BodyPart.Torso);
+            }
+        }
     }
 }

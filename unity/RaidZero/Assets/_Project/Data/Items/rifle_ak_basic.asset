@@ -52,5 +52,5 @@ MonoBehaviour:
         roundsPerMinute: 650
         recoilVertical: 10
         recoilHorizontal: 2
-        accuracy: 1
+        accuracy: 10
         reloadTime: 0
