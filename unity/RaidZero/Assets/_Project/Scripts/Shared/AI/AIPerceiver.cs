@@ -13,8 +13,9 @@ namespace RaidZero.Shared
     /// An AI's eyes and ears, on the server: a few times a second (<see cref="_checksPerSecond"/>, staggered so
     /// AI don't all look on the same frame) it casts lines from its eyes to the head and chest of every player and
     /// hostile AI in range, and feeds what it saw to its <see cref="AIPerception"/>; it hears every shot within
-    /// earshot (RaidServer.NoiseMade). Until the brain exists it does the one thing perception alone can: it turns
-    /// to look at whoever it's noticed, or towards a shot it heard, or where its squad saw someone.
+    /// earshot (RaidServer.NoiseMade). Without a brain thinking (a target dummy from the F1 overlay) it does the
+    /// one thing perception alone can: it turns to look at whoever it's noticed, or towards a shot it heard, or
+    /// where its squad saw someone. With one (<see cref="AIBrainRunner"/>), the brain does the looking.
     ///
     /// Its sight comes from its profile (<see cref="AIProfile.Sight"/>); AI from the same spawn zone share a
     /// squad memory. Light, fog, rain and crouching are wired in but neutral (<see cref="Visibility"/>) until
@@ -53,6 +54,9 @@ namespace RaidZero.Shared
         public AIPerception Perception => _perception;
 
         public Faction Faction => _faction;
+
+        /// <summary>Whether it turns the AI to look at what it notices: until a brain (AIBrainRunner) takes over looking.</summary>
+        public bool TurnsToLook { get; set; } = true;
 
         public void SetUp(string aiId) => _aiId = aiId;
 
@@ -102,7 +106,7 @@ namespace RaidZero.Shared
                 Look(raid);
             }
 
-            if (_perception.TryGetLookPoint(Time.time, out var point, out _))
+            if (TurnsToLook && _perception.TryGetLookPoint(Time.time, out var point, out _))
             {
                 TurnTowards(new Vector3(point.X, point.Y, point.Z));
             }
@@ -250,19 +254,15 @@ namespace RaidZero.Shared
             transform.rotation = Quaternion.RotateTowards(transform.rotation, Quaternion.LookRotation(flat, Vector3.up), _turnSpeed * Time.deltaTime);
         }
 
-        public AIDebugEntry Describe()
+        public void Describe(ref AIDebugEntry entry)
         {
-            var entry = new AIDebugEntry
-            {
-                Id = _aiId,
-                LabelAt = transform.position + Vector3.up * 2.1f,
-                State = "calm",
-            };
-
+            entry.Id = _aiId;
+            entry.LabelAt = transform.position + Vector3.up * 2.1f;
+            entry.State = "calm";
             if (_perception == null)
             {
                 entry.Detail = _faction.ToString();
-                return entry;
+                return;
             }
 
             var now = Time.time;
@@ -287,7 +287,6 @@ namespace RaidZero.Shared
             }
 
             entry.Detail = detail.ToString();
-            return entry;
         }
 
         private static string Short(string id) => id.Length > 11 ? id.Substring(0, 11) : id;

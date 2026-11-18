@@ -15,6 +15,8 @@ GameObject:
   - component: {fileID: -4333779688546281517}
   - component: {fileID: 2511307551221163221}
   - component: {fileID: 1472005159129308538}
+  - component: {fileID: 4014525696715288640}
+  - component: {fileID: 8673880552500726719}
   m_Layer: 0
   m_Name: TargetDummy
   m_TagString: Untagged
@@ -210,6 +212,33 @@ MonoBehaviour:
     X: 0
     Y: 0
     Z: 0
+--- !u!114 &4014525696715288640
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1352870682070982522}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 08872564063e44659ffc405264ab8e93, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Game.Shared::RaidZero.Shared.TargetDummyBody
+  _turnSpeed: 240
+  _muzzleHeight: 1.45
+--- !u!114 &8673880552500726719
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1352870682070982522}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8202ab7434d14ca785174864ad48b4f4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Game.Shared::RaidZero.Shared.AIBrainRunner
+  _ticksPerSecond: 5
 --- !u!1 &3277884305040687777
 GameObject:
   m_ObjectHideFlags: 0

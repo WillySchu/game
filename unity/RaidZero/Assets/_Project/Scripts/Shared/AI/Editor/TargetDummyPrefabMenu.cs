@@ -12,7 +12,8 @@ namespace RaidZero.Shared.Editor
     /// dummy button uses. Run it once and commit the prefab (Fish-Net adds it to the spawnable prefabs, the
     /// DefaultPrefabObjects asset, by itself; commit that change too). An orange capsule, 1.8 m tall: the
     /// capsule's collider is the torso, and a sphere on top, with its own collider, is the head; a dark visor
-    /// shows which way it faces. It sees and hears (<see cref="AIPerceiver"/>) and turns to look, which reaches
+    /// shows which way it faces. It sees and hears (<see cref="AIPerceiver"/>), and, spawned by a zone or as a
+    /// thinking dummy, thinks (<see cref="AIBrainRunner"/>) and moves (<see cref="TargetDummyBody"/>), which reaches
     /// clients through its NetworkTransform. Run on a prefab from before any of that, Update adds what's missing
     /// and keeps the prefab (and its place in DefaultPrefabObjects) as it is.
     /// </summary>
@@ -29,7 +30,7 @@ namespace RaidZero.Shared.Editor
             {
                 // 0 Update, 1 Cancel, 2 Replace.
                 var choice = EditorUtility.DisplayDialogComplex("Target dummy",
-                    PrefabPath + " already exists. Update adds anything it's missing (its eyes and ears, a NetworkTransform, a visor) and keeps the rest.",
+                    PrefabPath + " already exists. Update adds anything it's missing (its eyes and ears, its brain and stand-in body, a NetworkTransform, a visor) and keeps the rest.",
                     "Update", "Cancel", "Replace");
                 if (choice == 0)
                 {
@@ -98,7 +99,8 @@ namespace RaidZero.Shared.Editor
             }
         }
 
-        // Its eyes and ears, a NetworkTransform so its turning reaches clients, and a visor to see it turn.
+        // Its eyes and ears, its brain and stand-in body, a NetworkTransform so its moving and turning reach
+        // clients, and a visor to see it turn.
         private static string AddWhatsMissing(GameObject root)
         {
             var added = new System.Collections.Generic.List<string>();
@@ -106,6 +108,18 @@ namespace RaidZero.Shared.Editor
             {
                 root.AddComponent<AIPerceiver>();
                 added.Add("an AIPerceiver");
+            }
+
+            if (root.GetComponent<TargetDummyBody>() == null)
+            {
+                root.AddComponent<TargetDummyBody>();
+                added.Add("a TargetDummyBody");
+            }
+
+            if (root.GetComponent<AIBrainRunner>() == null)
+            {
+                root.AddComponent<AIBrainRunner>();
+                added.Add("an AIBrainRunner");
             }
 
             if (root.GetComponent<NetworkTransform>() == null)

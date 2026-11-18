@@ -5,11 +5,12 @@ using UnityEngine;
 namespace RaidZero.Net
 {
     /// <summary>
-    /// The F1 overlay's AI debug view: with it on, a label over every AI says what it's doing (calm, heard,
-    /// squad, noticed, alert) and who it's aware of, with a bar for how aware, and a dotted line to where it's
-    /// looking. It comes from the server (DevAIDebugBroadcast) five times a second, and only from servers in the
-    /// editor and Development builds; a release server ignores the request, so nobody can see its AI this way.
-    /// The brain's state, its path and its cover join the label in step 4.
+    /// The F1 overlay's AI debug view: with it on, a label over every AI says what its brain is doing (or, with
+    /// no brain, what it's noticed: calm, heard, squad, noticed, alert) and who it's aware of, with a bar for how
+    /// aware; a coloured dotted line runs to where it's looking (its target's last known position, in a fight), a
+    /// white one to where it's going, and a green square marks its cover. It comes from the server
+    /// (DevAIDebugBroadcast) five times a second, and only from servers in the editor and Development builds; a
+    /// release server ignores the request, so nobody can see its AI this way.
     /// </summary>
     public sealed class AIDebugView
     {
@@ -102,19 +103,28 @@ namespace RaidZero.Net
                 }
 
                 var colour = ColourOf(entry.State);
+                if (entry.HasMoveTarget && ToScreen(camera, entry.MoveTarget, out var going) && ToScreen(camera, entry.LabelAt + Vector3.down * 2.1f, out var feet))
+                {
+                    GUI.color = Color.white;
+                    Dots(feet, going, 2f);
+                    GUI.Label(new Rect(going.x - 6f, going.y - 9f, 160f, 20f), "> going", _style);
+                }
+
+                if (entry.HasCover && ToScreen(camera, entry.Cover, out var cover))
+                {
+                    GUI.color = new Color(0.3f, 0.9f, 0.4f);
+                    GUI.DrawTexture(new Rect(cover.x - 5f, cover.y - 5f, 10f, 10f), Texture2D.whiteTexture);
+                    GUI.Label(new Rect(cover.x + 8f, cover.y - 9f, 160f, 20f), "cover", _style);
+                }
+
                 if (entry.HasLookPoint && ToScreen(camera, entry.LookPoint, out var look))
                 {
                     GUI.color = colour;
-                    for (int i = 1; i < 12; i++)
-                    {
-                        var dot = Vector2.Lerp(at, look, i / 12f);
-                        GUI.DrawTexture(new Rect(dot.x - 1.5f, dot.y - 1.5f, 3f, 3f), Texture2D.whiteTexture);
-                    }
-
+                    Dots(at, look, 3f);
                     GUI.Label(new Rect(look.x - 6f, look.y - 9f, 160f, 20f), "x " + entry.State, _style);
                 }
 
-                var text = entry.State.ToUpperInvariant() + "  " + entry.Detail;
+                var text = (string.IsNullOrEmpty(entry.Brain) ? entry.State.ToUpperInvariant() : entry.Brain) + "  " + entry.Detail;
                 var size = _style.CalcSize(new GUIContent(text));
                 var box = new Rect(at.x - size.x * 0.5f, at.y - size.y - 8f, size.x, size.y);
 
@@ -126,6 +136,15 @@ namespace RaidZero.Net
             }
 
             GUI.color = previous;
+        }
+
+        private static void Dots(Vector2 from, Vector2 to, float size)
+        {
+            for (int i = 1; i < 12; i++)
+            {
+                var dot = Vector2.Lerp(from, to, i / 12f);
+                GUI.DrawTexture(new Rect(dot.x - size * 0.5f, dot.y - size * 0.5f, size, size), Texture2D.whiteTexture);
+            }
         }
 
         private static bool ToScreen(Camera camera, Vector3 world, out Vector2 screen)

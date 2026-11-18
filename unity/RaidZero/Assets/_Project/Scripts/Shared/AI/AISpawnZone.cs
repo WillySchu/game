@@ -143,6 +143,12 @@ namespace RaidZero.Shared
                     {
                         perceiver.Assign(_profile, this);
                     }
+
+                    var brain = spawned.GetComponent<AIBrainRunner>();
+                    if (brain != null)
+                    {
+                        brain.Assign(_profile, this);
+                    }
                 });
             }
         }

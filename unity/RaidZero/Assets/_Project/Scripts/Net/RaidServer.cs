@@ -1076,7 +1076,7 @@ namespace RaidZero.Net
         public const string TargetDummyPrefab = "TargetDummy";
 
         // Only registered in the editor and Development builds: a target dummy a few metres in front of the
-        // player, facing them, carrying AIKits.TargetDummy.
+        // player, facing them, carrying AIKits.TargetDummy; with Thinks, a brain too, guarding where it stands.
         private void OnDevSpawnDummy(NetworkConnection connection, DevSpawnDummyBroadcast message, Channel channel)
         {
             var player = connection != null && connection.FirstObject != null ? connection.FirstObject.transform : null;
@@ -1098,7 +1098,17 @@ namespace RaidZero.Net
             }
 
             var place = OnGround(player.position + forward * 4f + Vector3.up);
-            SpawnAI(prefab, place, Quaternion.LookRotation(-forward, Vector3.up), AIKits.Build(Inventory.Catalog, AIKits.TargetDummy, null, null, Uuid7.NewId));
+            SpawnAI(prefab, place, Quaternion.LookRotation(-forward, Vector3.up), AIKits.Build(Inventory.Catalog, AIKits.TargetDummy, null, null, Uuid7.NewId),
+                spawned =>
+                {
+                    if (message.Thinks)
+                    {
+                        foreach (var brain in spawned.GetComponents<IAIDevThinking>())
+                        {
+                            brain.ThinkForDev();
+                        }
+                    }
+                });
         }
 
         private const float AIDebugInterval = 0.2f;
@@ -1129,12 +1139,23 @@ namespace RaidZero.Net
 
             _nextAIDebugAt = Time.unscaledTime + AIDebugInterval;
             var entries = new List<AIDebugEntry>();
-            foreach (var ai in _ai.Values)
+            foreach (var pair in _ai)
             {
-                var source = ai != null ? ai.GetComponent<IAIDebugSource>() : null;
-                if (source != null)
+                if (pair.Value == null)
                 {
-                    entries.Add(source.Describe());
+                    continue;
+                }
+
+                var entry = new AIDebugEntry { Id = pair.Key, LabelAt = pair.Value.transform.position + Vector3.up * 2.1f, State = "calm" };
+                var sources = pair.Value.GetComponents<IAIDebugSource>();
+                foreach (var source in sources)
+                {
+                    source.Describe(ref entry);
+                }
+
+                if (sources.Length > 0)
+                {
+                    entries.Add(entry);
                 }
             }
 

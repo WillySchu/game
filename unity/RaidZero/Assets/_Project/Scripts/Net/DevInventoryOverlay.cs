@@ -134,9 +134,14 @@ namespace RaidZero.Net
                 GUILayout.EndHorizontal();
 
                 GUILayout.BeginHorizontal();
-                if (GUILayout.Button("Spawn target dummy (in front of you, with a rifle, vest and rig)"))
+                if (GUILayout.Button("Spawn target dummy"))
                 {
                     SendToServer(new DevSpawnDummyBroadcast());
+                }
+
+                if (GUILayout.Button("Spawn thinking dummy"))
+                {
+                    SendToServer(new DevSpawnDummyBroadcast { Thinks = true });
                 }
 
                 _aiDebug.Toggle(ClientNetworkManager(), GUILayout.Toggle(_aiDebug.On, "AI debug view", GUILayout.Width(110)));

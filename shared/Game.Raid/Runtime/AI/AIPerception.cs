@@ -107,6 +107,14 @@ namespace RaidZero.Raid
             return false;
         }
 
+        /// <summary>Whether it saw the target in the last <paramref name="withinSeconds"/>: still in view, as far as it knows.</summary>
+        public bool InView(string targetId, double now, double withinSeconds = 0.5) =>
+            TryGetLastSeen(targetId, out _, out var time) && now - time <= withinSeconds;
+
+        /// <summary>How fast the target was moving when it last saw it, in metres per second.</summary>
+        public float SpeedOf(string targetId) =>
+            targetId != null && _known.TryGetValue(targetId, out var known) ? known.Speed : 0f;
+
         /// <summary>
         /// One tick of sight: each sample fills or drains its target's awareness, and every target it knows that
         /// isn't in <paramref name="samples"/> drains. An alert sighting goes to the squad.
@@ -134,6 +142,7 @@ namespace RaidZero.Raid
                     known.Awareness = Math.Min(1f, known.Awareness + rate * deltaSeconds);
                     known.LastSeen = sample.Position;
                     known.SeenAt = now;
+                    known.Speed = sample.Speed;
                     if (known.Awareness >= AlertAt)
                     {
                         _squad?.Report(sample.TargetId, sample.Position, now);
@@ -263,13 +272,110 @@ namespace RaidZero.Raid
             public float Awareness;
             public Vector3 LastSeen;
             public double? SeenAt;
+            public float Speed;
         }
     }
 
-    /// <summary>What AI spawned together know between them: the latest sighting of each target, and when.</summary>
+    /// <summary>
+    /// What AI spawned together know between them: the latest sighting of each target, and when; who's in the
+    /// squad and what each is doing (so looters know when they have the numbers, and a contractor knows when a
+    /// squadmate is already holding and it can flank); and which cover each has taken, so two don't pick the same.
+    /// </summary>
     public sealed class SquadMemory
     {
         private readonly Dictionary<string, (Vector3 Position, double Time)> _sightings = new Dictionary<string, (Vector3, double)>(StringComparer.Ordinal);
+        private readonly Dictionary<string, (AIState State, string Target)> _members = new Dictionary<string, (AIState, string)>(StringComparer.Ordinal);
+        private readonly Dictionary<string, Vector3> _cover = new Dictionary<string, Vector3>(StringComparer.Ordinal);
+
+        /// <summary>How many are alive in it.</summary>
+        public int Count => _members.Count;
+
+        public void Join(string memberId)
+        {
+            if (memberId != null && !_members.ContainsKey(memberId))
+            {
+                _members[memberId] = (AIState.Patrol, null);
+            }
+        }
+
+        /// <summary>A member died (or went): it's out of the count, and its cover is free.</summary>
+        public void Leave(string memberId)
+        {
+            if (memberId != null)
+            {
+                _members.Remove(memberId);
+                _cover.Remove(memberId);
+            }
+        }
+
+        /// <summary>What a member is doing, and to whom: its brain says each tick.</summary>
+        public void SetActivity(string memberId, AIState state, string targetId)
+        {
+            if (memberId != null && _members.ContainsKey(memberId))
+            {
+                _members[memberId] = (state, targetId);
+            }
+        }
+
+        /// <summary>How many members other than <paramref name="except"/> are in that state (against that target, if one's given).</summary>
+        public int CountIn(AIState state, string targetId = null, string except = null)
+        {
+            int count = 0;
+            foreach (var pair in _members)
+            {
+                if (pair.Key != except && pair.Value.State == state && (targetId == null || pair.Value.Target == targetId))
+                {
+                    count++;
+                }
+            }
+
+            return count;
+        }
+
+        /// <summary>How many different targets the squad has seen in the last <paramref name="maxAgeSeconds"/>.</summary>
+        public int KnownHostiles(double now, double maxAgeSeconds)
+        {
+            int count = 0;
+            foreach (var pair in _sightings)
+            {
+                if (now - pair.Value.Time <= maxAgeSeconds)
+                {
+                    count++;
+                }
+            }
+
+            return count;
+        }
+
+        public void ClaimCover(string memberId, Vector3 spot)
+        {
+            if (memberId != null)
+            {
+                _cover[memberId] = spot;
+            }
+        }
+
+        public void ReleaseCover(string memberId)
+        {
+            if (memberId != null)
+            {
+                _cover.Remove(memberId);
+            }
+        }
+
+        /// <summary>Whether a squadmate other than <paramref name="memberId"/> has taken the cover at (or within a metre of) that spot.</summary>
+        public bool IsCoverTaken(Vector3 spot, string memberId)
+        {
+            foreach (var pair in _cover)
+            {
+                if (pair.Key != memberId && Vector3.Distance(pair.Value, spot) < 1f)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
 
         public void Report(string targetId, Vector3 position, double time)
         {

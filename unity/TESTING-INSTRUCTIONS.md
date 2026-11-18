@@ -348,6 +348,32 @@ AI perception (the dummy can't move or shoot yet, but it looks):
    even without seeing you themselves.
 7. In a release build there's no F1 overlay, and the server ignores the debug view's request.
 
+AI brain (the dummy's stand-in body slides straight to where it's going, through nothing solid, and can't shoot):
+
+1. Once: **Raid Zero > AI > Create Target Dummy Prefab**, **Update** again. It adds a TargetDummyBody and an
+   AIBrainRunner. Commit the prefab.
+2. Join a raid with the AI debug view on, and press F1's **Spawn thinking dummy**. Its label reads
+   `Patrol: guarding`. Step out of its sight: it stays where it is, glancing about. (**Spawn target dummy** is
+   the old one: it only turns to look.)
+3. Show yourself at 20 m or so: once it notices you, `Investigate`, and it walks towards where it saw you (a
+   white dotted line to where it's going). Fully aware, `Attack: …`. About a second later (its reaction time)
+   it pulls the trigger: the label says `firing (a dummy can't shoot)`.
+4. Get out of its sight. Four seconds later it's `Search: 1 of …`: it walks to where it last saw you, looks
+   around, checks the cover nearby, and after 25 seconds at most gives up and walks back to where it spawned.
+5. Behind its back, fire a shot: it turns and walks over to look (`Investigate`), looks around, and goes back.
+6. Shoot it from behind, while it's calm: it comes running towards you (`Investigate`) and, seeing you, attacks.
+   Keep shooting: below half its health (looters' courage) it's `Retreat`, running away from you, to cover if
+   there is some; it waits, and, still hurt, goes back to its post. Walk right up to it while it's retreating:
+   cornered, within 8 m, it attacks.
+7. Cover: add an empty object with a **Cover Point** behind a wall or crate, its blue arrow pointing over the
+   top towards where you'll stand (tick Low for waist-high cover). Fight a thinking dummy within 25 m of it,
+   with the cover nearer the dummy than you: it moves
+   there (`Attack: reposition`, a green square on the cover), then holds (`Attack: hold (in cover)`). A cover
+   point facing the wrong way, or one you can see into from where you stand, is never used.
+8. With a spawn zone (looters wander between its route's points, stopping a while at each; contractors walk it
+   in order): spawn two or more, get one into a fight, and the others come running (`Investigate`, then
+   `Attack`). Contractors with a squadmate already fighting you push round to your side.
+
 ## Deploying from the overlay
 
 When the client isn't connected, the F1 overlay has a **Deploy** button. It goes the way the Hideout will: a

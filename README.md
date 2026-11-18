@@ -401,6 +401,18 @@ The key in `appsettings.Development.json` is for local runs only. Real deploymen
   eyes to each player's and hostile AI's head and chest; `RaidServer.FireRound` raises the shot's noise
   (`NoiseMade`). The F1 overlay's **AI debug view** shows each AI's state, awareness and where it's looking,
   sent by the server (`DevAIDebugBroadcast`) only in the editor and Development builds.
+- **AI brain.** `AIBrain` (plain C#, in `Game.Raid`, tested with a fake body) is a state machine: Patrol (its
+  zone's route, in order or wandering; with none, guard where it spawned), Investigate (a glimpse, a shot,
+  being hit, a squadmate's sighting), Attack, Search (the last known position, then the cover nearby) and
+  Retreat (hurt below its courage, or out of ammo). In Attack it scores push, hold, reposition and reload
+  about once a second (`AttackScoring`), fires only after its reaction time and with a line of fire from its
+  muzzle, and aims with an error that grows with distance and target speed and tightens as it tracks
+  (`AIAim`). Squads count who's fighting (looters push when they have the numbers), share cover so two don't
+  take the same, and contractors flank when a squadmate is already on the target. Cover is hand-placed
+  `CoverPoint` markers, used only against a threat they really hide from (`CoverPicker`). `AIBrainSettings`
+  has each faction's defaults; a profile can override them. The brain drives an `IAIBody`: John's `AIBody` on
+  the motor and gun, eventually, and until then `TargetDummyBody`, a stand-in that slides straight to where
+  it's sent, turns, reloads for real and can't shoot. `AIBrainRunner` runs it on the server 5 times a second.
 - `RaidSessionClient` is the client's view of the raid: its phase, the clock, the player's health, the
   extraction countdown, and a `LeftRaid` event saying how the player left. It's carried by small broadcasts;
   health goes only to the player it's about. `RaidHud` (in

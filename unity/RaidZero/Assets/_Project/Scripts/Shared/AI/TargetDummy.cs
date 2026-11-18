@@ -49,7 +49,11 @@ namespace RaidZero.Shared
             var raid = RaidServer.Instance;
             if (_aiId != null && raid != null)
             {
-                raid.Hit(_aiId, raid.ActorIdOf(source), ammoDefId, part);
+                var shooterId = raid.ActorIdOf(source);
+                if (raid.Hit(_aiId, shooterId, ammoDefId, part) == HitOutcome.Hit)
+                {
+                    GetComponent<AIBrainRunner>()?.WasHit(shooterId);
+                }
             }
         }
     }

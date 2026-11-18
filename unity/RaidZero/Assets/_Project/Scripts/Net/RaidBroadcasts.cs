@@ -75,6 +75,8 @@ namespace RaidZero.Net
     /// </summary>
     public struct DevSpawnDummyBroadcast : IBroadcast
     {
+        /// <summary>With a brain: it guards where it stands, investigates, attacks (without shooting), searches and retreats. Without, it only turns to look.</summary>
+        public bool Thinks;
     }
 
     /// <summary>
@@ -107,6 +109,17 @@ namespace RaidZero.Net
 
         /// <summary>How aware it is of whoever it's most aware of, 0 to 1.</summary>
         public float Awareness;
+
+        /// <summary>What its brain is doing ("Attack: hold (in cover), firing"); null without a brain.</summary>
+        public string Brain;
+
+        /// <summary>Where it's going (straight there, for the stand-in body; its path's next corner, with a real one).</summary>
+        public bool HasMoveTarget;
+        public Vector3 MoveTarget;
+
+        /// <summary>The cover it's taken or heading for.</summary>
+        public bool HasCover;
+        public Vector3 Cover;
     }
 
     /// <summary>
