@@ -27,9 +27,9 @@ namespace RaidZero.Shared
           [SerializeField] private float _airControl = 0.05f;
           [Tooltip("The gravity this character experiences in m/s^2.")]
           [SerializeField] private float _gravity = -9.81f;
-          [Tooltip("Friction applied to the character on the ground when no input is given. Multiplier applied per second. 0 = full stop, 1 = no friction.")]
+          [Tooltip("Friction applied to the character on the ground when no input is given. Multiplier applied per tick. 0 = full stop, 1 = no friction.")]
           [SerializeField] private float _friction = 0.1f;
-          [Tooltip("Friction applied to the character in the air when no input is given. Multiplier applied per second. 0 = full stop, 1 = no friction.")]
+          [Tooltip("Friction applied to the character in the air when no input is given. Multiplier applied per tick. 0 = full stop, 1 = no friction.")]
           [SerializeField] private float _airFriction = 1f;
 
           // Values that need reconciliation for client-side prediction.
@@ -147,7 +147,6 @@ namespace RaidZero.Shared
                {
                     // Apply friction when input is below threshold.
                     float friction = _state.Grounded ? _friction : _airFriction;
-                    friction *= _currentDeltaTime;
                     _state.Velocity.x *= friction;
                     _state.Velocity.z *= friction;
                }
@@ -177,6 +176,8 @@ namespace RaidZero.Shared
                     move.Normalize();
                }
 
+               if (!_state.Grounded) move *= _airControl;
+
                _state.CurrentMoveSpeed = _currentActions.Run ? _runSpeed : _walkSpeed;
                _state.Velocity += _state.CurrentMoveSpeed * move;
                Vector3 horizontalVelocity = new Vector3(_state.Velocity.x, 0f, _state.Velocity.z);
@@ -200,7 +201,6 @@ namespace RaidZero.Shared
 
                // Store the grounded state after the move to use next tick.
                _state.Grounded = _controller.isGrounded;
-
 
           }
 
