@@ -14,12 +14,10 @@ using RaidZero.Shared.Raid;
 
 namespace RaidZero.Shared
 {
-    public interface IDamageable
+
+    public class PlayerController : LivingEntity, IDamageable
     {
-        void Hit(NetworkConnection source, string ammoDefID);
-    }
-    public class PlayerController : NetworkBehaviour, IDamageable
-    {
+
         // Inputs to send to the server.
         public struct PlayerReplicatedData : IReplicateData
         {
@@ -41,7 +39,7 @@ namespace RaidZero.Shared
                 this.fireInput = fireInput;
                 this.fireModeInput = fireModeInput;
                 this.reloadInput = reloadInput;
-                
+
             }
 
             public void Dispose() { }
@@ -52,13 +50,7 @@ namespace RaidZero.Shared
         // Values to reconcile from the server.
         public struct PlayerReconcileData : IReconcileData
         {
-            public Vector3 position;
-            public Quaternion rotation;
-            public Vector3 velocity;
-            public float xRotation;
-            public bool wasGroundedLastFrame;
-            public float horizontalFallVelocity;
-            public float currentMoveSpeed;
+            public MoveController.MoveState moveState;
             public bool triggerReleasedSinceFire;
             public int selectedFireMode;
             public int loadedRounds;
@@ -66,15 +58,9 @@ namespace RaidZero.Shared
             public bool reloading;
             public float reloadTimer;
 
-            public PlayerReconcileData(Vector3 position, Quaternion rotation, Vector3 velocity, float xRotation, bool wasGroundedLastFrame, float horizontalFallVelocity, float currentMoveSpeed, bool triggerReleasedSinceFire, int selectedFireMode, int loadedRounds, float timeSinceLastShot, bool reloading, float reloadTimer) : this()
+            public PlayerReconcileData(MoveController.MoveState moveState, bool triggerReleasedSinceFire, int selectedFireMode, int loadedRounds, float timeSinceLastShot, bool reloading, float reloadTimer) : this()
             {
-                this.position = position;
-                this.rotation = rotation;
-                this.velocity = velocity;
-                this.xRotation = xRotation;
-                this.wasGroundedLastFrame = wasGroundedLastFrame;
-                this.horizontalFallVelocity = horizontalFallVelocity;
-                this.currentMoveSpeed = currentMoveSpeed;
+                this.moveState = moveState;
                 this.triggerReleasedSinceFire = triggerReleasedSinceFire;
                 this.selectedFireMode = selectedFireMode;
                 this.loadedRounds = loadedRounds;
@@ -83,24 +69,13 @@ namespace RaidZero.Shared
                 this.reloadTimer = reloadTimer;
 
             }
-            
+
             private uint _tick;
             public void Dispose() { }
             public uint GetTick() => _tick;
             public void SetTick(uint value) => _tick = value;
-        } 
+        }
 
-
-        public float walkSpeed = 5f;
-        public float runSpeed = 10f;
-
-        public float airSpeedMinLimit = 2.5f; // Player will always be allowed to accelerate to at least this speed in the air, even if they left the ground at a lower speed.
-        public float jumpHeight = 1.5f;
-        public float airControl = 0.05f; // Control factor when in the air (0 = no control, 1 = full control)
-        public float gravity = -9.81f;
-
-        public float friction = 0.1f; // Friction factor to slow down the player when no input is given. (0= full stop, 1= no friction)
-        public float airFriction = 1f; // Friction factor to slow down the player when in the air and no input is given. (0= full stop, 1= no friction)
         public float semiAutoRoundsPerMinute = 480f; // Maximum rounds per minute for semi-auto fire mode. Used in single shot fire mode if this is lower than the weapon's rounds per minute stat. Default value 480 is approximately the world record for semiauto shooting, so probably okay if players aren't allowed to exceed it.
         public float raycastRange = 300f;
         // Mouse sensitivity and invert look are the player's settings (GameSettings), applied on the client
@@ -114,17 +89,13 @@ namespace RaidZero.Shared
 
         private Vector2 currentMoveInput;
         private Vector2 currentLookInput;
-        private float xRotation = 0f;
         private Vector3 currentVelocity = Vector3.zero;
         private bool isJumping = false;
         private bool isRunning = false;
         private bool isFiring = false;
-        
+
         private bool isFireMode = false;
         private bool isReloading = false;
-    
-        private float currentMoveSpeed = 0f;
-        private bool wasGroundedLastFrame = true;
         private bool triggerReleasedSinceFire = true;
         private float horizontalFallVelocity = 0f;
 
@@ -146,12 +117,6 @@ namespace RaidZero.Shared
         private bool _listeningToInventory;
         private PlayerReplicatedData lastReplicatedData = default;
         private uint predictionLimit = 3;
-        
-
-        // Used in replicates to produce the same random values on clients and server. Base seed set on construction, and state is updated during each replicate.
-        private readonly SyncVar<uint> _baseSeed = new();
-        private Utils.SyncedRandom _random;
-
 
         /// <summary>This client's own player, for the HUD; null when there isn't one.</summary>
         public static PlayerController Local { get; private set; }
@@ -172,29 +137,21 @@ namespace RaidZero.Shared
             }
         }
 
-        public override void OnStartServer()
-        {
-            _baseSeed.Value = (uint)Random.Range(int.MinValue, int.MaxValue);
-            ResetRandom();
-        }
-
         public override void OnStartClient()
         {
-            // Every copy of the player needs the same random numbers as the server's, not just the owner's.
-            ResetRandom();
+            base.OnStartClient();
             if (!IsOwner) return;
             Local = this;
             // Enable the PlayerInput component for the local player
             GetComponent<PlayerInput>().enabled = true;
 
-            if(Camera.main != null)
+            if (Camera.main != null)
             {
                 _heldCamera = Camera.main;
                 Camera.main.transform.SetParent(_cameraMount);
                 Camera.main.transform.SetPositionAndRotation(_cameraMount.position, _cameraMount.rotation);
             }
             Cursor.lockState = CursorLockMode.Locked;
-            currentMoveSpeed = walkSpeed;
 
             // The gun in hand, for its stats; the server reads its own inventory instead (RefreshFromServer).
             var inventory = RaidInventoryClient.Instance;
@@ -208,8 +165,6 @@ namespace RaidZero.Shared
                 }
             }
         }
-
-        private void ResetRandom() => _random = new Utils.SyncedRandom(_baseSeed.Value);
 
         // The camera is the scene's, borrowed while this player is ours. Give it back before the player is
         // destroyed (extracting, dying, disconnecting) so the client still has a camera even if their player has died.
@@ -293,7 +248,7 @@ namespace RaidZero.Shared
 
         public void OnTick()
         {
-            DoReplicate( IsOwner ? GetReplicatedData() : default);
+            DoReplicate(IsOwner ? GetReplicatedData() : default);
         }
 
         private void OnContainerChanged(ContainerView changed)
@@ -347,7 +302,7 @@ namespace RaidZero.Shared
         private PlayerReplicatedData GetReplicatedData()
         {
             PlayerReplicatedData data = new PlayerReplicatedData(currentMoveInput, GameSettings.LookDegrees(currentLookInput), isJumping, isRunning, isFiring, isFireMode, isReloading);
-            
+
             // Any accumulated inputs should be reset after sending to the server to avoid sending the same input multiple times.
             isJumping = false;
             isFireMode = false;
@@ -373,7 +328,7 @@ namespace RaidZero.Shared
             bool skipUpdate = false;
 
             // Collect data and run predictions if you are a client but not the owner.
-            if(!IsServerStarted && !IsOwner)
+            if (!IsServerStarted && !IsOwner)
             {
                 // If this is a regular tick, save the replicated data for future predictions.
                 if (state.ContainsTicked())
@@ -412,70 +367,7 @@ namespace RaidZero.Shared
                 data.fireModeInput = false;
             }
 
-            transform.Rotate(Vector3.up, data.lookInput.x);
-            xRotation -= data.lookInput.y;
-            xRotation = Mathf.Clamp(xRotation, -90f, 90f);
-
-            _cameraMount.localRotation = Quaternion.Euler(xRotation, 0f, 0f);
-
-            // Whether the last Move ended on the ground, from our own state rather than the CharacterController.
-            // Its isGrounded is only as fresh as its last Move: after a reconcile puts the player back where the
-            // server had them, it still describes wherever the client had got to (mid-jump, say), so the first
-            // tick replayed after it would refuse a jump the server accepted. wasGroundedLastFrame is the same
-            // fact, but it's part of the reconcile state, so it's right after a reset too.
-            bool grounded = wasGroundedLastFrame;
-
-            if (grounded)
-            {
-                currentVelocity.y = -2f; // Small negative value to keep the player grounded
-            }
-
-            if(data.moveInput.magnitude < 0.1f)
-            {
-                // Apply ground or air friction when no input is given
-                currentVelocity.x *= grounded ? friction : airFriction;
-                currentVelocity.z *= grounded ? friction : airFriction;
-            }
-            else
-            {
-                if(grounded)
-                {
-                    // Reset velocity when there is input on the ground.
-                    currentVelocity.x = 0f;
-                    currentVelocity.z = 0f;
-                }
-            }
-
-            if(data.jumpInput && grounded)
-            {
-                currentVelocity.y = Mathf.Sqrt(2f * jumpHeight * Mathf.Abs(gravity));
-            }
-            else
-            {
-                currentVelocity.y += gravity * deltaTime;
-            }
-
-            Vector3 moveDirection = transform.right * data.moveInput.x + transform.forward * data.moveInput.y;
-            if(moveDirection.magnitude > 1f)
-            {
-                moveDirection.Normalize();
-            }
-            if(!grounded)
-            {
-                moveDirection *= airControl; // Reduce control in the air
-            }
-            currentMoveSpeed = data.sprintInput ? runSpeed : walkSpeed;
-            currentVelocity += currentMoveSpeed * moveDirection;
-
-            // Check horizontal velocity and limit air speed to the character's horizontal velocity when they left the ground.
-            Vector3 horizontalVelocity = new Vector3(currentVelocity.x, 0f, currentVelocity.z);
-            if(!grounded && horizontalVelocity.magnitude > horizontalFallVelocity)
-            {
-                // Limit horizontal velocity in the air to the maximum speed when leaving the ground.
-                horizontalVelocity = horizontalVelocity.normalized * horizontalFallVelocity;
-                currentVelocity.x = horizontalVelocity.x;
-                currentVelocity.z = horizontalVelocity.z;
-            }
+            _moveController.Replicate(new MoveController.MoveActions(data.moveInput, data.lookInput, data.jumpInput, data.sprintInput));
 
             // Gun Handling
             // Reloading is instant on the server for now (both guns' reloadTime is 0): it swaps in the fullest
@@ -489,7 +381,7 @@ namespace RaidZero.Shared
             // }
             if (data.reloadInput)
             {
-                if(!reloading && reloadTimer <= 0f)
+                if (!reloading && reloadTimer <= 0f)
                 {
                     reloading = true;
                     // Once reloading takes time, set this to the reload time derived from magazine stats
@@ -500,7 +392,7 @@ namespace RaidZero.Shared
             if (reloading)
             {
                 // Reloads are instantaneous so currently timer will always be 0.
-                if(reloadTimer > 0)
+                if (reloadTimer > 0)
                 {
                     reloadTimer -= deltaTime;
                 }
@@ -508,9 +400,9 @@ namespace RaidZero.Shared
                 {
                     // if timer is <= 0 the reload is complete, attempt the reload and set to false.
                     bool reloadResult = false;
-                    if(IsServerStarted)
+                    if (IsServerStarted)
                     {
-                        
+
                         reloadResult = RaidServer.Instance.Reload(Owner, _heldSlot);
                         RefreshFromServer();
                         if (reloadResult && !state.ContainsReplayed()) Debug.Log("Reloaded: " + ammoCount + " rounds.");
@@ -534,26 +426,13 @@ namespace RaidZero.Shared
 
             if (data.fireInput)
             {
-                if(!reloading) Fire(state, deltaTime);
+                if (!reloading) Fire(state, deltaTime);
             }
             else
             {
                 triggerReleasedSinceFire = true;
             }
 
-            _characterController.Move(currentVelocity * deltaTime);
-            
-            if(wasGroundedLastFrame && !_characterController.isGrounded)
-            {
-                // Player just left the ground
-                OnLeftGround();
-            }
-            else if(!wasGroundedLastFrame && _characterController.isGrounded)
-            {
-                // Player just landed
-                OnTouchedGround();
-            }
-            wasGroundedLastFrame = _characterController.isGrounded;
         }
         private void Fire(ReplicateState state, float deltaTime)
         {
@@ -633,13 +512,9 @@ namespace RaidZero.Shared
 
             // Do recoil. Simple kick on camera view and rotation for now.
             float verticalRecoil = heldWeaponStats.recoilVertical * 0.2f;
-            xRotation -= verticalRecoil;
-            xRotation = Mathf.Clamp(xRotation, -90f, 90f);
-            _cameraMount.localRotation = Quaternion.Euler(xRotation, 0f, 0f);
-
             float horizontalRecoil = _random.NextFloatRange(-heldWeaponStats.recoilHorizontal, heldWeaponStats.recoilHorizontal) * 0.2f;
 
-            transform.Rotate(Vector3.up, horizontalRecoil);
+            _moveController.Recoil(new Vector2(horizontalRecoil, verticalRecoil));
 
         }
 
@@ -662,35 +537,26 @@ namespace RaidZero.Shared
 
         public void OnPostTick()
         {
-            
+
             CreateReconcile();
         }
 
         public override void CreateReconcile()
         {
-            PlayerReconcileData data = new PlayerReconcileData(transform.position, transform.rotation, currentVelocity, xRotation, wasGroundedLastFrame, horizontalFallVelocity, currentMoveSpeed, triggerReleasedSinceFire, selectedFireMode, ammoCount, timeSinceLastShot, reloading, reloadTimer);
+            PlayerReconcileData data = new(_moveController.GetMoveState(), triggerReleasedSinceFire, selectedFireMode, ammoCount, timeSinceLastShot, reloading, reloadTimer);
             DoReconcile(data);
         }
 
         [Reconcile]
         private void DoReconcile(PlayerReconcileData data, Channel channel = Channel.Unreliable)
         {
-            _characterController.enabled = false; // Disable the CharacterController to avoid collision issues when setting position and rotation
-            transform.position = data.position;
-            transform.rotation = data.rotation;
-            currentVelocity = data.velocity;
-            xRotation = data.xRotation;
-            wasGroundedLastFrame = data.wasGroundedLastFrame;
-            horizontalFallVelocity = data.horizontalFallVelocity;
-            currentMoveSpeed = data.currentMoveSpeed;
+            _moveController.Reconcile(data.moveState);
             triggerReleasedSinceFire = data.triggerReleasedSinceFire;
             selectedFireMode = data.selectedFireMode;
             ammoCount = data.loadedRounds;
             timeSinceLastShot = data.timeSinceLastShot;
             reloading = data.reloading;
             reloadTimer = data.reloadTimer;
-            _cameraMount.localRotation = Quaternion.Euler(xRotation, 0f, 0f);
-            _characterController.enabled = true;
         }
         public void Update()
         {
@@ -698,25 +564,9 @@ namespace RaidZero.Shared
 
         }
 
-        private void OnLeftGround()
-        {
-            // Store the horizontal velocity so we know the max speed the player should be allowed to reach while in the air.
-            horizontalFallVelocity = new Vector3(currentVelocity.x, 0f, currentVelocity.z).magnitude;
-            if (horizontalFallVelocity < airSpeedMinLimit)
-            {
-                horizontalFallVelocity = airSpeedMinLimit;
-            }
-
-        }
-        
-        private void OnTouchedGround()
-        {
-            // Handle logic for when the player touches the ground. Nothing for now.
-        }
-
         public void Hit(NetworkConnection source, string ammoDefID)
         {
-            if(IsServerStarted)
+            if (IsServerStarted)
             {
                 // TODO: Create separate hitboxes and check here.
                 RaidServer.Instance?.Hit(Owner, source, ammoDefID, BodyPart.Torso);

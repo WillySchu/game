@@ -167,6 +167,7 @@ GameObject:
   - component: {fileID: 6855001625721779920}
   - component: {fileID: -2104167914209987083}
   - component: {fileID: 4164705610209965876}
+  - component: {fileID: 2324880408845027990}
   - component: {fileID: 7282313890968823455}
   m_Layer: 0
   m_Name: Player
@@ -336,19 +337,35 @@ MonoBehaviour:
   _componentIndexCache: 1
   _addedNetworkObject: {fileID: 1377584125075562030}
   _networkObjectCache: {fileID: 1377584125075562030}
-  walkSpeed: 5
-  runSpeed: 10
-  airSpeedMinLimit: 2.5
-  jumpHeight: 1.5
-  airControl: 0.05
-  gravity: -9.81
-  friction: 0.1
-  airFriction: 1
   semiAutoRoundsPerMinute: 480
   raycastRange: 300
   _cameraMount: {fileID: 6836104931731487076}
   _characterController: {fileID: -2104167914209987083}
   _muzzle: {fileID: 6510956585744096465}
+--- !u!114 &2324880408845027990
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7439673100555751352}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 48bac418bce6d9c469d96c3b2a37af77, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Game.Shared::RaidZero.Shared.MoveController
+  _componentIndexCache: 255
+  _addedNetworkObject: {fileID: 1377584125075562030}
+  _networkObjectCache: {fileID: 0}
+  _cameraMount: {fileID: 1634109874572957951}
+  _walkSpeed: 5
+  _runSpeed: 10
+  _airSpeedMinLimit: 2.5
+  _jumpHeight: 1
+  _airControl: 0.05
+  _gravity: -9.81
+  _friction: 0.1
+  _airFriction: 1
 --- !u!114 &7282313890968823455
 MonoBehaviour:
   m_ObjectHideFlags: 0
